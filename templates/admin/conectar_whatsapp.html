@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conectar WhatsApp</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.svg') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
+    <style>
+        body {
+            background: linear-gradient(120deg, #f7f9fb 60%, #e3f6fc 100%);
+            min-height: 100vh;
+        }
+        .navbar {
+            background: #fff !important;
+            border-bottom: 1px solid #e5e7eb;
+            min-height: 70px;
+            box-shadow: 0 2px 8px 0 rgba(31,38,135,0.04);
+        }
+        .navbar-brand img {
+            height: 48px !important;
+            width: auto;
+            cursor: pointer;
+        }
+        .navbar .btn {
+            border-radius: 2rem !important;
+        }
+        .container-main {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding-top: 90px;
+            padding-bottom: 24px;
+        }
+        .main-flex {
+            width: 100%;
+            max-width: 1000px;
+            min-height: 60vh;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            gap: 32px;
+        }
+        .pasos-card, .qr-card {
+            background: #fff;
+            border-radius: 1.2rem;
+            box-shadow: 0 4px 16px 0 rgba(31,38,135,0.10);
+            padding: 1.5rem 1.2rem 1.2rem 1.2rem;
+            margin: 0 auto;
+            width: 100%;
+            max-width: 340px;
+            min-width: 0;
+        }
+        .pasos-card {
+            position: relative;
+            overflow: visible;
+            border-radius: 1.5rem;
+            box-shadow: 0 8px 32px 0 rgba(31,38,135,0.10);
+            background: #fff;
+        }
+        .wizard-timeline {
+            position: relative;
+            margin-left: 32px;
+            display: flex;
+            flex-direction: column;
+            gap: 2.1rem;
+        }
+        .wizard-timeline::before {
+            content: '';
+            position: absolute;
+            left: -16px;
+            top: 0;
+            width: 4px;
+            height: 100%;
+            background: #e0e7ef;
+            border-radius: 2px;
+            z-index: 0;
+        }
+        .wizard-step {
+            position: relative;
+            display: flex;
+            align-items: flex-start;
+            gap: 1.1rem;
+        }
+        .wizard-circle {
+            z-index: 2;
+            width: 36px;
+            height: 36px;
+            min-width: 36px;
+            min-height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+            font-weight: 700;
+            background: #f1f1f1;
+            color: #b0b0b0;
+            border: 2.5px solid #e0e7ef;
+            box-shadow: 0 1px 4px 0 rgba(31,38,135,0.07);
+            transition: box-shadow 0.3s, transform 0.3s, background 0.3s, color 0.3s, border 0.3s;
+        }
+        .wizard-step.done .wizard-circle {
+            background: #28a745;
+            color: #fff;
+            border: 2.5px solid #28a745;
+        }
+        .wizard-step.active .wizard-circle {
+            background: #2563eb;
+            color: #fff;
+            border: 2.5px solid #2563eb;
+            box-shadow: 0 4px 16px 0 #2563eb33;
+            transform: scale(1.12);
+        }
+        .wizard-step.pending .wizard-circle {
+            background: #f1f1f1;
+            color: #b0b0b0;
+            border: 2.5px solid #e0e7ef;
+        }
+        .wizard-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        .wizard-label {
+            font-size: 1.08rem;
+            font-weight: 900;
+            color: #222;
+            margin-bottom: 0.1rem;
+        }
+        .wizard-desc {
+            font-size: 0.97rem;
+            color: #6c757d;
+        }
+        .qr-card {
+            text-align: center;
+            align-items: center;
+        }
+        .qr-title {
+            font-size: 1.08rem;
+            font-weight: 800;
+            color: #2563eb;
+            margin-bottom: 0.4rem;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+        .qr-title i {
+            font-size: 1.2rem;
+            color: #2563eb;
+        }
+        .qr-img {
+            margin: 0.7rem 0 0.7rem 0;
+            border-radius: 0.7rem;
+            box-shadow: 0 1px 6px 0 rgba(31,38,135,0.10);
+            background: #f8f9fa;
+            padding: 0.5rem;
+        }
+        .btn-back {
+            margin-top: 1.1rem;
+        }
+        .btn-reload {
+            margin-top: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+        .alert {
+            min-height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.98rem;
+        }
+        @media (max-width: 991px) {
+            .container-main {
+                padding-top: 60px;
+            }
+            .main-flex {
+                min-height: unset;
+                flex-direction: column !important;
+                align-items: stretch !important;
+                gap: 16px;
+            }
+            .pasos-card, .qr-card {
+                margin-bottom: 1.2rem;
+                max-width: 100% !important;
+            }
+        }
+        @media (max-width: 600px) {
+            .container-main {
+                padding-top: 48px;
+            }
+            .qr-card, .pasos-card {
+                padding: 0.7rem 0.2rem 0.7rem 0.2rem;
+            }
+            .qr-title {
+                font-size: 0.98rem;
+            }
+            .wizard-label {
+                font-size: 0.91rem;
+            }
+            .wizard-circle {
+                width: 24px;
+                height: 24px;
+                font-size: 0.9rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm fixed-top">
+        <div class="container-fluid d-flex justify-content-between align-items-center px-3">
+            <a class="navbar-brand" href="{{ url_for('admin.dashboard') }}">
+                <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo">
+            </a>
+            <form method="POST" action="{{ url_for('admin.logout') }}" class="mb-0">
+                <button type="submit" class="btn btn-outline-danger rounded-pill px-4">Cerrar Sesión</button>
+            </form>
+        </div>
+    </nav>
+    <div class="container-main">
+        <div class="main-flex">
+            <!-- Columna de pasos -->
+            <div class="pasos-card mb-4 mb-lg-0" style="min-width:320px;max-width:400px;">
+                <h5 class="fw-bold mb-4" style="color:#222; font-size:1.25rem;">Vinculación de WhatsApp</h5>
+                <div class="instrucciones-vinculacion p-3 animate__animated animate__fadeIn" style="background:#f4f8fd;border-radius:1rem;box-shadow:0 2px 8px 0 rgba(31,38,135,0.06);">
+                    <div class="mb-2" style="font-weight:700;font-size:1.08rem;color:#2563eb;display:flex;align-items:center;gap:0.5rem;">
+                        <i class="bi bi-info-circle-fill"></i> Guía para vincular tu WhatsApp
+                    </div>
+                    <ol class="ps-3 mb-0" style="font-size:1.04rem;">
+                        <li class="mb-2 d-flex align-items-start gap-2">
+                            <span style="color:#2563eb;font-size:1.3rem;"><i class="bi bi-phone"></i></span>
+                            <span><span style="font-weight:500;">Abre WhatsApp en tu móvil:</span> Ve a <span style="font-weight:700;color:#222;">Ajustes &gt; Dispositivos vinculados &gt; Vincular un dispositivo</span>.</span>
+                        </li>
+                        <li class="mb-2 d-flex align-items-start gap-2">
+                            <span style="color:#2563eb;font-size:1.3rem;"><i class="bi bi-qr-code-scan"></i></span>
+                            <span><span style="font-weight:500;">Escanea el QR:</span> Usa tu móvil para escanear el <span style="color:#2563eb;font-weight:600;">Código QR</span> que ves en pantalla.</span>
+                        </li>
+                        <li class="d-flex align-items-start gap-2">
+                            <span style="color:#28a745;font-size:1.3rem;"><i class="bi bi-check-circle-fill"></i></span>
+                            <span><span style="font-weight:500;">¡Listo!</span> Tu WhatsApp está conectado.</span>
+                        </li>
+                    </ol>
+                </div>
+            </div>
+            <!-- Columna QR -->
+            <div class="qr-card d-flex flex-column align-items-center" style="min-width:320px;max-width:400px;">
+                <div class="qr-title mb-1"><i class="bi bi-whatsapp"></i> Escanea el QR de WhatsApp</div>
+                {% if estado in ['esperando_qr', 'desconectado'] %}
+                    <img src="{{ qr_url }}" alt="QR de WhatsApp" style="width:220px;height:220px;" class="qr-img" onerror="this.style.display='none'">
+                    <div class="text-muted mt-2">El QR se actualiza cada minuto</div>
+                    <button class="btn btn-outline-success btn-reload mt-2" onclick="window.location.reload()">
+                        <i class="bi bi-arrow-clockwise"></i> Recargar QR
+                    </button>
+                {% elif estado == 'conectado' %}
+                    <div class="alert alert-success text-center">
+                        ✅ Bot de WhatsApp conectado correctamente.
+                    </div>
+                {% elif estado == 'error' %}
+                    <div class="alert alert-danger text-center">
+                        ⚠️ Error en el bot de WhatsApp. Intenta reiniciar el microservicio.
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        <div class="d-flex justify-content-center mt-4 mb-2">
+            <a href="{{ url_for('admin.dashboard') }}" class="btn btn-outline-primary rounded-pill btn-back px-4" style="font-size:1.15rem;">
+                <i class="bi bi-arrow-left"></i> Volver al Dashboard
+            </a>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    let ultimoEstado = '';
+    async function actualizarEstadoBot() {
+        let estadoDiv = document.getElementById('estado-bot-ajax');
+        if (estadoDiv) estadoDiv.style.display = 'none'; // Oculta el div de estado AJAX
+        // El renderizado ahora depende solo del backend y Jinja2
+    }
+    setInterval(actualizarEstadoBot, 2000);
+    window.onload = actualizarEstadoBot;
+    </script>
+</body>
+</html> 

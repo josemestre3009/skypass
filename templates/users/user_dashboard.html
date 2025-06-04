@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta charset="UTF-8">
+    <title>Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.svg') }}">
+    <style>
+        body {
+            background: #f7f9fb;
+        }
+        .navbar {
+            background: #fff !important;
+            border-bottom: 1px solid #e5e7eb;
+            min-height: 70px;
+            box-shadow: 0 2px 8px 0 rgba(31,38,135,0.04);
+        }
+        .navbar-brand img {
+            height: 48px !important;
+            width: auto;
+            cursor: pointer;
+        }
+        .navbar .btn {
+            border-radius: 2rem !important;
+        }
+        .dashboard-bg {
+            min-height: 100vh;
+            padding-top: 90px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding-left: 10px;
+            padding-right: 10px;
+        }
+        .dashboard-container {
+            width: 100%;
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+        .dashboard-title-no-box {
+            font-size: 2.2rem;
+            font-weight: 700;
+            color: #2563eb;
+            display: flex;
+            align-items: center;
+            gap: 0.7rem;
+            margin-bottom: 2.2rem;
+            justify-content: center;
+        }
+        .option-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 1.1rem;
+            margin-bottom: 1.1rem;
+        }
+        .option-card {
+            background: #fff;
+            border-radius: 1rem;
+            box-shadow: 0 2px 12px 0 rgba(31,38,135,0.07);
+            padding: 1rem 0.5rem 1rem 0.5rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            transition: box-shadow 0.2s, color 0.2s;
+            text-decoration: none;
+        }
+        .option-card:hover {
+            color: #2563eb;
+            box-shadow: 0 8px 32px 0 rgba(31,38,135,0.13);
+        }
+        .option-icon {
+            font-size: 1.7rem;
+            margin-bottom: 0.4rem;
+        }
+        .option-icon.text-blue { color: #2563eb; }
+        .option-icon.text-cyan { color: #00bcd4; }
+        .option-label {
+            font-size: 1.18rem;
+            font-weight: 500;
+        }
+        .card-cliente {
+            border-radius: 1.2rem;
+            box-shadow: 0 4px 24px 0 rgba(31,38,135,0.07);
+            border: none;
+            margin-bottom: 2.2rem;
+            padding: 1.2rem 2.2rem 1.2rem 2.2rem;
+            background: #fff;
+            min-width: 320px;
+            max-width: 500px;
+        }
+        @media (max-width: 900px) {
+            .option-cards { grid-template-columns: 1fr; }
+            .dashboard-bg { padding-left: 4vw; padding-right: 4vw; }
+            .card-cliente { min-width: 0; width: 100%; }
+        }
+        .info-cliente-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem 2.5rem;
+            justify-content: center;
+        }
+        .info-cliente-item {
+            flex: 1 1 220px;
+            min-width: 180px;
+            text-align: center;
+        }
+        .btn-outline-primary, .btn-secondary, .btn-success {
+            border-radius: 2rem !important;
+        }
+    </style>
+</head>
+
+
+<body>
+    <!-- NAVBAR -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm fixed-top">
+        <div class="container-fluid d-flex justify-content-between align-items-center px-3">
+            <a class="navbar-brand" href="{{ url_for('dashboard') }}">
+                <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo">
+            </a>
+            <form method="POST" action="{{ url_for('cerrar_sesion') }}" class="mb-0">
+                <button class="btn btn-outline-danger rounded-pill px-4" type="submit">Cerrar Sesión</button>
+            </form>
+        </div>
+    </nav>
+    <div class="dashboard-bg">
+        <div class="dashboard-container">
+            <div class="dashboard-title-no-box">
+                <i class="bi bi-clipboard-check text-warning"></i>
+                <span>Panel de Cliente</span>
+            </div>
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            {% for category, message in messages %}
+            <div class="alert alert-{{ category }} alert-dismissible fade show mt-3" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+            {% endfor %}
+            {% endif %}
+            {% endwith %}
+            <div class="option-cards mb-4">
+                <a href="{{ url_for('cambiar_nombre_red') }}" class="option-card">
+                    <span class="option-icon text-blue"><i class="bi bi-globe2"></i></span>
+                    <span class="option-label">Cambiar Nombre de la Red</span>
+                </a>
+                <a href="{{ url_for('cambiar_clave') }}" class="option-card">
+                    <span class="option-icon text-cyan"><i class="bi bi-lock-fill"></i></span>
+                    <span class="option-label">Cambiar Contraseña</span>
+                </a>
+            </div>
+            <div class="d-flex justify-content-center mt-4">
+                <div class="card card-cliente">
+                    <div class="dashboard-title-no-box" style="font-size:1.1rem; margin-bottom:0.5rem;">
+                        <i class="bi bi-person-circle me-2"></i>Información del Cliente
+                    </div>
+                    <div class="info-cliente-row">
+                        <div class="info-cliente-item"><strong>Nombre:</strong> {{ cliente.nombre }}</div>
+                        <div class="info-cliente-item text-secondary" style="font-size:0.98rem;">
+                            <i class="bi bi-arrow-repeat"></i> Cambios realizados este mes: <strong>{{ cambios_realizados }}</strong>
+                        </div>
+                        <div class="info-cliente-item"><strong>Cédula:</strong> {{ cliente.cedula }}</div>
+                        <div class="info-cliente-item"><strong>Celular:</strong> {{ cliente.celular }}</div>
+                        <div class="info-cliente-item"><strong>Población:</strong> {{ cliente.poblacion }}</div>
+                        <div class="info-cliente-item"><strong>Plan:</strong> {{ cliente.plan_megas }} Mbps</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+
+
+</html>
