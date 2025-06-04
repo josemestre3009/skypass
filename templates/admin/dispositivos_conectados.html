@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dispositivos Conectados - WISP</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.svg') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <style>
+        body { background: #f7f9fb; }
+        .dashboard-title-no-box {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #2563eb;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 2rem;
+            justify-content: center;
+        }
+        .card {
+            border-radius: 1.2rem;
+            box-shadow: 0 4px 24px 0 rgba(31, 38, 135, 0.07);
+            border: none;
+        }
+        .btn-outline-primary, .btn-primary {
+            border-radius: 2rem;
+        }
+        .navbar {
+            background: #fff !important;
+            border-bottom: 1px solid #e5e7eb;
+            min-height: 70px;
+            box-shadow: 0 2px 8px 0 rgba(31,38,135,0.04);
+        }
+        .navbar-brand img {
+            height: 48px !important;
+            width: auto;
+            cursor: pointer;
+        }
+        .navbar .btn {
+            border-radius: 2rem !important;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm fixed-top">
+        <div class="container-fluid d-flex justify-content-between align-items-center px-3">
+            <a class="navbar-brand" href="{{ url_for('admin.dashboard') }}">
+                <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo">
+            </a>
+            <form method="POST" action="{{ url_for('admin.logout') }}" class="mb-0">
+                <button type="submit" class="btn btn-outline-danger rounded-pill px-4">Cerrar Sesión</button>
+            </form>
+        </div>
+    </nav>
+    <div class="dashboard-bg">
+        <div class="dashboard-title-no-box">
+            <i class="bi bi-hdd-network text-success"></i>
+            <span>Dispositivos Conectados (GenieACS)</span>
+        </div>
+        <div class="container-fluid maxw-1100">
+            <div class="card shadow p-4">
+                <div class="d-flex justify-content-between mb-3 flex-column flex-md-row gap-2">
+                    <div class="col-12 col-md-6">
+                        <input type="text" class="form-control" id="filtro-busqueda" placeholder="Buscar por IP o ID...">
+                    </div>
+                    <button class="btn btn-primary" id="btn-refrescar"><i class="bi bi-arrow-clockwise"></i> Refrescar</button>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-striped align-middle mb-0" id="tabla-dispositivos">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>IP</th>
+                                <th>Último Informe</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody-dispositivos">
+                            <tr><td colspan="3" class="text-secondary text-center">Cargando información...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="d-flex justify-content-center mt-3 mb-4">
+            <a href="{{ url_for('admin.dashboard') }}" class="btn btn-outline-primary btn-lg rounded-pill px-4 shadow-sm">
+                <i class="bi bi-house-door"></i> Volver al Dashboard
+            </a>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    let dispositivosData = [];
+    function renderTabla(filtro = '') {
+        const tbody = document.getElementById('tbody-dispositivos');
+        let datos = dispositivosData;
+        if (filtro) {
+            const f = filtro.toLowerCase();
+            datos = datos.filter(d =>
+                (d.device_id && d.device_id.toLowerCase().includes(f)) ||
+                (d.ip && d.ip.toLowerCase().includes(f))
+            );
+        }
+        if (datos.length > 0) {
+            tbody.innerHTML = '';
+            datos.forEach(d => {
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${d.device_id || ''}</td>
+                        <td>${d.ip || ''}</td>
+                        <td>${d.ultimo_informe ? new Date(d.ultimo_informe).toLocaleString() : ''}</td>
+                    </tr>
+                `;
+            });
+        } else {
+            tbody.innerHTML = '<tr><td colspan="3" class="text-warning text-center">No hay datos para mostrar.</td></tr>';
+        }
+    }
+    function cargarDispositivos() {
+        const tbody = document.getElementById('tbody-dispositivos');
+        tbody.innerHTML = '<tr><td colspan="3" class="text-secondary text-center">Cargando información...</td></tr>';
+        fetch('/admin/api/dispositivos_conectados')
+            .then(res => res.json())
+            .then(data => {
+                if (data.success && data.dispositivos.length > 0) {
+                    dispositivosData = data.dispositivos;
+                    renderTabla(document.getElementById('filtro-busqueda').value);
+                } else if (data.success && data.dispositivos.length === 0) {
+                    dispositivosData = [];
+                    renderTabla();
+                } else {
+                    tbody.innerHTML = `<tr><td colspan='3' class='text-danger text-center'>${data.error || 'No se pudieron obtener los datos de GenieACS.'}</td></tr>`;
+                }
+            })
+            .catch(err => {
+                tbody.innerHTML = '<tr><td colspan="3" class="text-danger text-center">Error al consultar el servidor.</td></tr>';
+            });
+    }
+    document.getElementById('btn-refrescar').addEventListener('click', cargarDispositivos);
+    document.getElementById('filtro-busqueda').addEventListener('input', function() {
+        renderTabla(this.value);
+    });
+    window.onload = cargarDispositivos;
+    </script>
+</body>
+</html> 

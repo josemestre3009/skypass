@@ -50,7 +50,7 @@
             border-radius: 1.2rem;
             box-shadow: 0 4px 24px 0 rgba(31,38,135,0.07);
             padding: 2rem 2rem 2rem 2rem;
-            max-width: 500px;
+            max-width: 700px;
             width: 100%;
             border: none;
         }
@@ -81,18 +81,24 @@
             <span>Buscar Cliente</span>
         </div>
         <div class="card card-busqueda">
-            <form id="form-busqueda-cliente" class="row g-2 mb-3">
-                <div class="col-md-4">
-                    <select id="tipo-busqueda" class="form-select">
-                        <option value="cedula">Por Cédula</option>
-                        <option value="nombre">Por Nombre</option>
-                    </select>
-                </div>
-                <div class="col-md-8">
-                    <input type="text" id="input-busqueda" class="form-control" placeholder="Escribe para buscar...">
-                </div>
-            </form>
-            <div id="resultados-busqueda" class="list-group mb-3" style="max-height: 250px; overflow-y: auto;"></div>
+            <div class="mb-3">
+                <input type="text" id="input-busqueda" class="form-control" placeholder="Buscar por nombre o cédula...">
+            </div>
+            <div class="table-responsive mb-3">
+                <table class="table table-striped align-middle mb-0" id="tabla-clientes">
+                    <thead>
+                        <tr>
+                            <th>Nombre</th>
+                            <th>Cédula</th>
+                            <th>Teléfono</th>
+                            <th>IP</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbody-clientes">
+                        <tr><td colspan="4" class="text-secondary text-center">Escribe para buscar...</td></tr>
+                    </tbody>
+                </table>
+            </div>
             <div id="resumen-cliente" class="card d-none p-3"></div>
         </div>
         <div class="d-flex justify-content-center mt-4">
@@ -103,49 +109,87 @@
     </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-    let timeoutBusqueda = null;
-    function renderResumenCliente(cliente) {
-        const resumen = `
-            <h6>Resumen del Cliente</h6>
-            <div><strong>Nombre:</strong> ${cliente.nombre || ''}</div>
-            <div><strong>Cédula:</strong> ${cliente.cedula || ''}</div>
-            <div><strong>Celular:</strong> ${cliente.telefono || ''}</div>
-            <div><strong>IP:</strong> ${cliente.ip || ''}</div>
-            <div><strong>Nombre del WiFi:</strong> ${cliente.ssid_router_wifi || ''}</div>
-            <div><strong>Contraseña del WiFi:</strong> ${cliente.password_ssid_router_wifi || ''}</div>
-        `;
-        document.getElementById('resumen-cliente').innerHTML = resumen;
-        document.getElementById('resumen-cliente').classList.remove('d-none');
+    let clientesData = [];
+    let debounceTimeout = null;
+    let lastQuery = '';
+    function renderTablaClientes(filtro = '') {
+        const tbody = document.getElementById('tbody-clientes');
+        let datos = clientesData;
+        if (filtro) {
+            const f = filtro.toLowerCase();
+            datos = datos.filter(c =>
+                (c.nombre && c.nombre.toLowerCase().includes(f)) ||
+                (c.cedula && c.cedula.toLowerCase().includes(f)) ||
+                (c.ip && c.ip.toLowerCase().includes(f))
+            );
+        }
+        if (datos.length > 0) {
+            tbody.innerHTML = '';
+            datos.slice(0, 10).forEach(c => {
+                tbody.innerHTML += `
+                    <tr style="cursor:pointer" onclick='mostrarResumenCliente(${JSON.stringify(c)})'>
+                        <td>${c.nombre || ''}</td>
+                        <td>${c.cedula || ''}</td>
+                        <td>${c.telefono || ''}</td>
+                        <td>${c.ip || ''}</td>
+                    </tr>
+                `;
+            });
+        } else {
+            tbody.innerHTML = '<tr><td colspan="4" class="text-warning text-center">No hay resultados.</td></tr>';
+        }
     }
-    document.getElementById('input-busqueda').addEventListener('input', function() {
-        const texto = this.value.trim();
-        const tipo = document.getElementById('tipo-busqueda').value;
-        document.getElementById('resumen-cliente').classList.add('d-none');
-        if (timeoutBusqueda) clearTimeout(timeoutBusqueda);
-        if (texto.length < 1) {
-            document.getElementById('resultados-busqueda').innerHTML = '';
+    function cargarClientes(q = '') {
+        const tbody = document.getElementById('tbody-clientes');
+        lastQuery = q;
+        if (!q) {
+            clientesData = [];
+            tbody.innerHTML = '<tr><td colspan="4" class="text-secondary text-center">Escribe para buscar...</td></tr>';
+            document.getElementById('resumen-cliente').classList.add('d-none');
             return;
         }
-        timeoutBusqueda = setTimeout(() => {
-            fetch(`/admin/api/buscar_clientes?tipo=${tipo}&q=${encodeURIComponent(texto)}`)
-                .then(r => r.json())
-                .then(data => {
-                    let html = '';
-                    if (data.success && data.clientes.length > 0) {
-                        html = data.clientes.map(c => `
-                            <button type="button" class="list-group-item list-group-item-action" onclick='mostrarResumenCliente(${JSON.stringify(c)})'>
-                                <strong>${c.nombre}</strong> - ${c.cedula} <span class="text-muted">${c.telefono || ''}</span>
-                            </button>
-                        `).join('');
-                    } else {
-                        html = '<div class="list-group-item">No se encontraron resultados</div>';
-                    }
-                    document.getElementById('resultados-busqueda').innerHTML = html;
-                });
-        }, 350);
+        tbody.innerHTML = '<tr><td colspan="4" class="text-secondary text-center">Buscando...</td></tr>';
+        fetch(`/admin/api/buscar_clientes?q=${encodeURIComponent(q)}`)
+            .then(r => r.json())
+            .then(data => {
+                if (q !== lastQuery) return;
+                if (data.success && data.clientes.length > 0) {
+                    clientesData = data.clientes;
+                    renderTablaClientes(q);
+                } else {
+                    clientesData = [];
+                    renderTablaClientes(q);
+                }
+            });
+    }
+    document.getElementById('input-busqueda').addEventListener('input', function() {
+        const valor = this.value.trim();
+        if (debounceTimeout) clearTimeout(debounceTimeout);
+        debounceTimeout = setTimeout(() => {
+            cargarClientes(valor);
+        }, 300);
     });
     function mostrarResumenCliente(cliente) {
-        renderResumenCliente(cliente);
+        let modal = document.getElementById('modal-resumen-cliente');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'modal-resumen-cliente';
+            modal.innerHTML = `
+                <div id="modal-bg" style="position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.25);z-index:2000;display:flex;align-items:center;justify-content:center;">
+                    <div style="background:#fff;padding:2rem 2.5rem;border-radius:1.2rem;box-shadow:0 8px 32px 0 rgba(31,38,135,0.18);max-width:400px;width:100%;position:relative;">
+                        <button onclick="document.getElementById('modal-resumen-cliente').remove()" style="position:absolute;top:10px;right:10px;border:none;background:transparent;font-size:1.5rem;color:#888;cursor:pointer;">&times;</button>
+                        <h5 class="mb-3" style="color:#2563eb;"><i class="bi bi-person-circle me-2"></i>Resumen del Cliente</h5>
+                        <div><strong>Nombre:</strong> ${cliente.nombre || ''}</div>
+                        <div><strong>Cédula:</strong> ${cliente.cedula || ''}</div>
+                        <div><strong>Celular:</strong> ${cliente.telefono || ''}</div>
+                        <div><strong>IP:</strong> ${cliente.ip || ''}</div>
+                        <div><strong>Nombre del WiFi:</strong> ${cliente.ssid_router_wifi || ''}</div>
+                        <div><strong>Contraseña del WiFi:</strong> ${cliente.password_ssid_router_wifi || ''}</div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
     }
     </script>
 </body>

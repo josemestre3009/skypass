@@ -7,6 +7,7 @@ from supabase import create_client
 from admin import admin_bp
 from datetime import datetime
 import random
+import sqlite3
 
 # Cargar variables desde .env
 load_dotenv()
@@ -288,13 +289,11 @@ def cambiar_parametro_genieacs(device_id, parametro, valor):
 
 def registrar_cambio_usuario(cedula, tipo_cambio, valor_nuevo):
     try:
-        supabase.table("change_history").insert({
-            "admin_id": None,
-            "cedula": cedula,
-            "tipo_cambio": tipo_cambio,
-            "valor_nuevo": valor_nuevo,
-            "fecha": datetime.now().isoformat()
-        }).execute()
+        conn = get_db_connection()
+        conn.execute("INSERT INTO change_history (admin_id, cedula, tipo_cambio, valor_nuevo, fecha) VALUES (?, ?, ?, ?, ?)",
+                     (None, cedula, tipo_cambio, valor_nuevo, datetime.now().isoformat()))
+        conn.commit()
+        conn.close()
         return True
     except Exception as e:
         print(f"Error al registrar cambio (usuario): {e}")
@@ -303,49 +302,53 @@ def registrar_cambio_usuario(cedula, tipo_cambio, valor_nuevo):
 # --- FUNCIONES AUXILIARES PARA VALIDAR CAMBIOS POR MES ---
 def obtener_cambios_por_mes_global():
     try:
-        data = supabase.table("admin_settings").select("valor").eq("clave", "max_cambios_mes").limit(1).execute()
-        if data.data and data.data[0].get("valor"):
-            return int(data.data[0]["valor"])
+        conn = get_db_connection()
+        cur = conn.execute("SELECT valor FROM admin_settings WHERE clave = 'max_cambios_mes'")
+        data = cur.fetchone()
+        conn.close()
+        if data and data['valor']:
+            return int(data['valor'])
     except Exception as e:
         print(f"Error obteniendo max_cambios_mes: {e}")
     return 3  # Valor por defecto si no hay config
 
 def contar_cambios_usuario_mes(cedula):
-    from datetime import datetime
     ahora = datetime.now()
     inicio_mes = ahora.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     try:
-        data = supabase.table("change_history") \
-            .select("fecha") \
-            .eq("cedula", cedula) \
-            .gte("fecha", inicio_mes.isoformat()) \
-            .execute()
-        return len(data.data)
+        conn = get_db_connection()
+        cur = conn.execute("SELECT COUNT(*) as total FROM change_history WHERE cedula = ? AND fecha >= ?", (cedula, inicio_mes.isoformat()))
+        data = cur.fetchone()
+        conn.close()
+        return data['total'] if data else 0
     except Exception as e:
         print(f"Error contando cambios del usuario: {e}")
         return 0
 
 def obtener_limite_cliente(cedula):
     try:
-        data = supabase.table("user_limits").select("limite_personalizado").eq("cedula", cedula).limit(1).execute()
-        if data.data and data.data[0].get("limite_personalizado"):
-            return int(data.data[0]["limite_personalizado"])
+        conn = get_db_connection()
+        cur = conn.execute("SELECT limite_personalizado FROM user_limits WHERE cedula = ?", (cedula,))
+        data = cur.fetchone()
+        conn.close()
+        if data and data['limite_personalizado']:
+            return int(data['limite_personalizado'])
     except Exception as e:
         print(f"Error obteniendo límite personalizado: {e}")
     return obtener_cambios_por_mes_global()
 
 def limpiar_historial_antiguo():
-    from datetime import datetime, timedelta
     ahora = datetime.now()
-    # Primer día del mes actual
     primer_dia_mes_actual = ahora.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    # Primer día del mes anterior
     if primer_dia_mes_actual.month == 1:
         primer_dia_mes_anterior = primer_dia_mes_actual.replace(year=primer_dia_mes_actual.year-1, month=12)
     else:
         primer_dia_mes_anterior = primer_dia_mes_actual.replace(month=primer_dia_mes_actual.month-1)
     try:
-        supabase.table("change_history").delete().lt("fecha", primer_dia_mes_anterior.isoformat()).execute()
+        conn = get_db_connection()
+        conn.execute("DELETE FROM change_history WHERE fecha < ?", (primer_dia_mes_anterior.isoformat(),))
+        conn.commit()
+        conn.close()
     except Exception as e:
         print(f"Error limpiando historial antiguo: {e}")
 
@@ -432,6 +435,11 @@ def actualizar_parametros_wisphub(cedula, nueva_clave=None, nuevo_ssid=None):
     except Exception as e:
         print('[Wisphub] Error actualizando parámetros:', e)
         return False
+
+def get_db_connection():
+    conn = sqlite3.connect('skypass.db')
+    conn.row_factory = sqlite3.Row
+    return conn
 
 if __name__ == "__main__":
     app.run(debug=True)
