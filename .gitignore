@@ -13,3 +13,6 @@ node_modules/
 # Ignorar archivos de IDE o editores de texto (si es necesario)
 .vscode/
 .idea/
+
+
+skypass.db

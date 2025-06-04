@@ -1,4 +1,4 @@
--- Esquema para SQLite equivalente a Supabase
+-- Esquema para SQLite
 
 CREATE TABLE admin_users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

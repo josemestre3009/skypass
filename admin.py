@@ -31,7 +31,7 @@ def admin_requerido(f):
 
 # Funciones de autenticación
 def verificar_admin(username, password):
-    """Verifica las credenciales del administrador en Supabase"""
+    """Verifica las credenciales del administrador en la base de datos local"""
     try:
         conn = get_db_connection()
         cur = conn.execute("SELECT * FROM admin_users WHERE username = ? OR email = ?", (username, username))
@@ -116,7 +116,7 @@ def actualizar_limite_cliente(cedula, nuevo_limite):
 
 # Funciones de utilidad
 def obtener_configuracion_global():
-    """Obtiene la configuración global desde Supabase"""
+    """Obtiene la configuración global desde la base de datos local"""
     try:
         conn = get_db_connection()
         cur = conn.execute("SELECT * FROM admin_settings")
@@ -128,7 +128,7 @@ def obtener_configuracion_global():
         return []
 
 def actualizar_configuracion_global(clave, valor):
-    """Actualiza una configuración global en Supabase"""
+    """Actualiza una configuración global en la base de datos local"""
     try:
         conn = get_db_connection()
         cur = conn.execute("UPDATE admin_settings SET valor = ? WHERE clave = ?", (valor, clave))
@@ -334,18 +334,22 @@ def limites():
         cedula = request.form.get('cedula')
         nuevo_limite = int(request.form.get('nuevo_limite'))
         print('[LOG] POST /limites - cedula:', cedula, 'nuevo_limite:', nuevo_limite)
-        # Verificar existencia del cliente en Wisphub
         cliente = buscar_cliente_por_cedula(cedula)
         print('[LOG] Resultado buscar_cliente_por_cedula:', cliente)
         if not cliente:
             flash('La cédula ingresada no corresponde a ningún cliente en Wisphub.', 'error')
             return redirect(url_for('admin.limites'))
+        conn = get_db_connection()
+        cur = conn.execute("SELECT * FROM user_limits WHERE cedula = ?", (cedula,))
+        existe = cur.fetchone()
+        conn.close()
         if actualizar_limite_cliente(cedula, nuevo_limite):
-            print('[LOG] Límite actualizado exitosamente')
-            flash('Límite actualizado exitosamente', 'success')
+            if existe:
+                flash('Límite personalizado actualizado correctamente.', 'personalizado')
+            else:
+                flash('Límite personalizado creado correctamente.', 'personalizado')
         else:
-            print('[LOG] Error al actualizar el límite')
-            flash('Error al actualizar el límite', 'error')
+            flash('Error al actualizar el límite personalizado.', 'error')
         return redirect(url_for('admin.limites'))
     # Obtener todos los límites personalizados y el límite global
     try:
@@ -404,9 +408,9 @@ def cambiar_config():
         """, (str(cambios_por_mes),))
         conn.commit()
         conn.close()
-        flash('Configuración actualizada exitosamente', 'success')
+        flash('Límite global actualizado correctamente.', 'global')
     except Exception as e:
-        flash(f'Error al actualizar la configuración: {str(e)}', 'error')
+        flash(f'Error al actualizar la configuración global: {str(e)}', 'error')
     return redirect(url_for('admin.limites'))
 
 @admin_bp.route('/cambiar_password', methods=['POST'])
@@ -494,7 +498,7 @@ def eliminar_limite():
         cur = conn.execute("DELETE FROM user_limits WHERE cedula = ?", (cedula,))
         conn.commit()
         conn.close()
-        flash('Límite personalizado eliminado. El cliente ahora usará el límite global.', 'success')
+        flash('Límite personalizado eliminado.', 'personalizado')
     except Exception as e:
         flash(f'Error al eliminar el límite personalizado: {str(e)}', 'error')
     return redirect(url_for('admin.limites'))
@@ -516,7 +520,7 @@ def editar_limite():
         """, (cedula, int(nuevo_limite)))
         conn.commit()
         conn.close()
-        flash('Límite personalizado actualizado correctamente.', 'success')
+        flash('Límite personalizado actualizado correctamente.', 'personalizado')
     except Exception as e:
         flash(f'Error al actualizar el límite personalizado: {str(e)}', 'error')
     return redirect(url_for('admin.limites'))

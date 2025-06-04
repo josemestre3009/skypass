@@ -73,14 +73,24 @@
             <!-- Límite Global -->
             <div class="card shadow p-4 mb-4">
                 <h5 class="fw-bold mb-3" style="color:#2563eb;"><i class="bi bi-globe2"></i> Límite Global de Cambios Permitidos por Mes</h5>
-                {% if get_flashed_messages(category_filter=['global']) %}
-                {% for message in get_flashed_messages(category_filter=['global']) %}
+                {% with global_msgs = get_flashed_messages(category_filter=['global']), error_msgs = get_flashed_messages(category_filter=['error']) %}
+                {% if global_msgs %}
+                {% for message in global_msgs %}
                 <div class="alert alert-success alert-dismissible fade show mb-3" role="alert">
                     {{ message }}
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
                 </div>
                 {% endfor %}
                 {% endif %}
+                {% if error_msgs %}
+                {% for message in error_msgs %}
+                <div class="alert alert-danger alert-dismissible fade show mb-3" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+                </div>
+                {% endfor %}
+                {% endif %}
+                {% endwith %}
                 <form method="POST" action="{{ url_for('admin.cambiar_config') }}">
                     <div class="mb-3">
                         <label for="cambios_por_mes" class="form-label">Límite Global de Cambios Permitidos por Mes</label>
@@ -95,14 +105,24 @@
             <!-- Límites Personalizados -->
             <div class="card shadow p-4">
                 <h5 class="fw-bold mb-3" style="color:#2563eb;"><i class="bi bi-person-badge"></i> Límites Personalizados de Clientes</h5>
-                {% if get_flashed_messages(category_filter=['personalizado','error']) %}
-                {% for message in get_flashed_messages(category_filter=['personalizado','error']) %}
-                <div class="alert alert-{{ 'danger' if 'error' in message else 'success' }} alert-dismissible fade show mb-3" role="alert">
+                {% with personalizado_msgs = get_flashed_messages(category_filter=['personalizado']), error_msgs = get_flashed_messages(category_filter=['error']) %}
+                {% if personalizado_msgs %}
+                {% for message in personalizado_msgs %}
+                <div class="alert alert-info alert-dismissible fade show mb-3" role="alert">
                     {{ message }}
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
                 </div>
                 {% endfor %}
                 {% endif %}
+                {% if error_msgs %}
+                {% for message in error_msgs %}
+                <div class="alert alert-danger alert-dismissible fade show mb-3" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+                </div>
+                {% endfor %}
+                {% endif %}
+                {% endwith %}
                 <form method="POST" class="mb-4" action="{{ url_for('admin.limites') }}">
                     <div class="row g-2 align-items-end flex-column flex-md-row">
                         <div class="col-12 col-md-5">

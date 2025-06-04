@@ -3,7 +3,6 @@ import requests
 import os
 from dotenv import load_dotenv
 import functools
-from supabase import create_client
 from admin import admin_bp
 from datetime import datetime
 import random
@@ -21,9 +20,6 @@ app.register_blueprint(admin_bp)
 # Configuración desde .env
 API_KEY = os.getenv('API_KEY_WISPHUB')
 BASE_URL = 'https://api.wisphub.net/api/clientes'
-url = os.getenv("SUPABASE_URL")
-key = os.getenv("SUPABASE_KEY")
-supabase = create_client(url, key)
 GENIEACS_API = os.getenv("GENIEACS_API_URL")
 
 # Funciones de utilidad para clientes
