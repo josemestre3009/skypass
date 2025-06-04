@@ -1,0 +1,15 @@
+# Ignorar archivos de configuración local
+.env
+CREDENCIALES BASE DE DATOS SUPABASE.txt
+
+# Ignorar directorios de Python y entorno virtual
+__pycache__/
+venv/
+
+# Ignorar dependencias y archivos generados
+node_modules/
+*.log
+
+# Ignorar archivos de IDE o editores de texto (si es necesario)
+.vscode/
+.idea/
