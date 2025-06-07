@@ -274,15 +274,5 @@
         </div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-    let ultimoEstado = '';
-    async function actualizarEstadoBot() {
-        let estadoDiv = document.getElementById('estado-bot-ajax');
-        if (estadoDiv) estadoDiv.style.display = 'none'; // Oculta el div de estado AJAX
-        // El renderizado ahora depende solo del backend y Jinja2
-    }
-    setInterval(actualizarEstadoBot, 2000);
-    window.onload = actualizarEstadoBot;
-    </script>
 </body>
 </html> 

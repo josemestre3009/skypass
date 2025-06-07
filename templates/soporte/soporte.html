@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Soporte - Comparación de IPs</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.svg') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <style>
+        .dashboard-bg {
+            min-height: 100vh;
+            padding-top: 90px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding-left: 10px;
+            padding-right: 10px;
+        }
+        .dashboard-title-no-box {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #2563eb;
+            display: flex;
+            align-items: center;
+            gap: 0.7rem;
+            justify-content: center;
+        }
+        .table-responsive { width: 100%; }
+        .filtro-zona { max-width: 300px; margin-bottom: 1.5rem; }
+        .estado-ambos { background: #e6ffe6; }
+        .estado-wisphub { background: #fffbe6; }
+        .estado-genieacs { background: #ffe6e6; }
+        .navbar-brand img {
+            height: 38px !important;
+            max-width: 180px;
+        }
+        @media (max-width: 900px) {
+            .dashboard-title-no-box { font-size: 1.3rem; }
+        }
+        .row.g-3.align-items-end.justify-content-center.mb-3 {
+            margin-bottom: 1.2rem !important;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm fixed-top">
+        <div class="container-fluid d-flex justify-content-between align-items-center px-3">
+            <a class="navbar-brand" href="{{ url_for('admin.dashboard') }}">
+                <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo" style="height:38px;width:auto;max-width:180px;">
+            </a>
+            <form method="POST" action="{{ url_for('admin.logout') }}" class="mb-0">
+                <button type="submit" class="btn btn-outline-danger rounded-pill px-4">Cerrar Sesión</button>
+            </form>
+        </div>
+    </nav>
+    <div class="dashboard-bg">
+        <div class="dashboard-title-no-box" style="margin-bottom: 1.2rem;">
+            <i class="bi bi-hdd-network text-info"></i>
+            <span>Soporte: Comparación de IPs Wisphub vs GenieACS</span>
+        </div>
+        <div class="row g-3 align-items-end justify-content-center mb-3">
+            <div class="col-auto">
+                <label for="segmentoSelect" class="form-label">Filtrar por segmento:</label>
+                <select id="segmentoSelect" class="form-select">
+                    <option value="">Todos</option>
+                </select>
+            </div>
+            <div class="col-auto">
+                <label for="estadoSelect" class="form-label">Filtrar por estado:</label>
+                <select id="estadoSelect" class="form-select">
+                    <option value="">Todos</option>
+                </select>
+            </div>
+            <div class="col-auto">
+                <label for="pageSizeSelect" class="form-label">Clientes por página:</label>
+                <select id="pageSizeSelect" class="form-select">
+                    <option value="10">10</option>
+                    <option value="20" selected>20</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                    <option value="200">200</option>
+                </select>
+            </div>
+        </div>
+        <div id="alerta-error"></div>
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover align-middle" id="tabla-ips">
+                <thead class="table-light">
+                    <tr>
+                        <th>IP</th>
+                        <th>Nombre</th>
+                        <th>Estado</th>
+                    </tr>
+                </thead>
+                <tbody id="tbody-ips">
+                    <tr><td colspan="3" class="text-center">Cargando datos...</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="d-flex justify-content-center align-items-center my-3 gap-2" id="paginacion">
+            <button class="btn btn-outline-primary" id="btn-prev" disabled>&laquo; Anterior</button>
+            <span id="pagina-info">Página 1 de 1</span>
+            <button class="btn btn-outline-primary" id="btn-next" disabled>Siguiente &raquo;</button>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    let datosIps = [];
+    let estados = [];
+    let segmentos = [];
+    let paginaActual = 1;
+    let totalPaginas = 1;
+    let estadoFiltro = "";
+    let segmentoFiltro = "";
+    let pageSize = 20;
+    function cargarDatos(page = 1) {
+        document.getElementById('tbody-ips').innerHTML = '<tr><td colspan="3" class="text-center">Cargando datos...</td></tr>';
+        estadoFiltro = document.getElementById('estadoSelect').value;
+        segmentoFiltro = document.getElementById('segmentoSelect').value;
+        pageSize = parseInt(document.getElementById('pageSizeSelect').value);
+        let url = `/api/soporte/ips?page=${page}&page_size=${pageSize}`;
+        if (segmentoFiltro) url += `&segmento=${encodeURIComponent(segmentoFiltro)}`;
+        if (estadoFiltro) url += `&estado=${encodeURIComponent(estadoFiltro)}`;
+        fetch(url)
+            .then(res => res.json())
+            .then(data => {
+                if (!data.success) {
+                    document.getElementById('alerta-error').innerHTML = '<div class="alert alert-danger">'+data.error+'</div>';
+                    return;
+                }
+                datosIps = data.ips;
+                estados = data.estados;
+                segmentos = data.segmentos;
+                paginaActual = data.page;
+                totalPaginas = data.total_pages;
+                poblarEstados();
+                poblarSegmentos();
+                mostrarDatos();
+                actualizarPaginacion();
+            })
+            .catch(() => {
+                document.getElementById('alerta-error').innerHTML = '<div class="alert alert-danger">Error al consultar los datos.</div>';
+            });
+    }
+    function poblarEstados() {
+        const select = document.getElementById('estadoSelect');
+        const valorActual = select.value;
+        select.innerHTML = '<option value="">Todos</option>';
+        estados.forEach(e => {
+            select.innerHTML += `<option value="${e}">${e}</option>`;
+        });
+        select.value = valorActual;
+    }
+    function poblarSegmentos() {
+        const select = document.getElementById('segmentoSelect');
+        const valorActual = select.value;
+        select.innerHTML = '<option value="">Todos</option>';
+        segmentos.forEach(s => {
+            select.innerHTML += `<option value="${s}">${s}</option>`;
+        });
+        select.value = valorActual;
+    }
+    function mostrarDatos() {
+        const estado = document.getElementById('estadoSelect').value;
+        const segmento = document.getElementById('segmentoSelect').value;
+        const tbody = document.getElementById('tbody-ips');
+        let filtrados = datosIps;
+        if (estado) filtrados = filtrados.filter(x => x.estado === estado);
+        if (segmento) filtrados = filtrados.filter(x => x.segmento === segmento);
+        if (filtrados.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="3" class="text-center">No hay datos para mostrar.</td></tr>';
+            return;
+        }
+        tbody.innerHTML = '';
+        filtrados.forEach(row => {
+            let clase = '';
+            if (row.estado === 'Ambos') clase = 'estado-ambos';
+            else if (row.estado === 'Solo Wisphub') clase = 'estado-wisphub';
+            else if (row.estado === 'Solo GenieACS') clase = 'estado-genieacs';
+            tbody.innerHTML += `
+                <tr class="${clase}">
+                    <td>${row.ip}</td>
+                    <td>${row.nombre}</td>
+                    <td><span class="badge ${row.estado==='Ambos'?'bg-success':(row.estado==='Solo Wisphub'?'bg-warning text-dark':'bg-danger')}">${row.estado}</span></td>
+                </tr>
+            `;
+        });
+    }
+    function actualizarPaginacion() {
+        document.getElementById('pagina-info').textContent = `Página ${paginaActual} de ${totalPaginas}`;
+        document.getElementById('btn-prev').disabled = paginaActual <= 1;
+        document.getElementById('btn-next').disabled = paginaActual >= totalPaginas;
+    }
+    document.getElementById('estadoSelect').addEventListener('change', function() {
+        cargarDatos(1);
+    });
+    document.getElementById('segmentoSelect').addEventListener('change', function() {
+        cargarDatos(1);
+    });
+    document.getElementById('pageSizeSelect').addEventListener('change', function() {
+        cargarDatos(1);
+    });
+    document.getElementById('btn-prev').addEventListener('click', function() {
+        if (paginaActual > 1) cargarDatos(paginaActual - 1);
+    });
+    document.getElementById('btn-next').addEventListener('click', function() {
+        if (paginaActual < totalPaginas) cargarDatos(paginaActual + 1);
+    });
+    window.onload = function() { cargarDatos(1); };
+    </script>
+</body>
+</html>
