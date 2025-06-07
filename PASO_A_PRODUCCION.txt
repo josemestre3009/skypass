@@ -1,0 +1,189 @@
+PASO A PASO PARA INSTALAR Y PONER EN PRODUCCIÓN SKY PASS (BOT WHATSAPP + APP PYTHON)
+==========================================================================
+
+1. ACTUALIZA E INSTALA DEPENDENCIAS DEL SISTEMA
+------------------------------------------------
+apt update && apt upgrade -y
+apt install -y build-essential libcairo2-dev libjpeg-dev libpango1.0-dev libgif-dev librsvg2-dev python3 python3-pip python3-venv git nodejs npm nginx
+
+2. CLONA TU PROYECTO
+---------------------
+git clone https://github.com/josemestre3009/skypass.git
+cd skypass
+
+3. INSTALA Y CONFIGURA LA APP PYTHON
+-------------------------------------
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+
+Prueba que funcione:
+python app.py
+# Detén con Ctrl+C si todo arranca bien
+
+4. INSTALA Y CONFIGURA EL BOT NODE.JS
+--------------------------------------
+cd base-baileys-memory
+rm -rf node_modules package-lock.json
+npm install
+
+5. (YA HECHO) CAMBIA EL PUERTO DEL PORTAL WEB DEL BOT EN app.js
+---------------------------------------------------------------
+# Ya cambiaste el puerto del portal web en QRPortalWeb({ port: PUERTO_LIBRE })
+# Asegúrate de que Express sigue en el puerto 3002:
+# const PORT = process.env.PORT || 3002
+# app.listen(PORT, ...)
+
+6. PRUEBA EL BOT MANUALMENTE
+----------------------------
+node app.js
+# Debes ver mensajes de que el bot y el portal web están escuchando en sus puertos.
+# Prueba los endpoints:
+curl http://localhost:3002/status
+curl -X POST http://localhost:3002/send -H "Content-Type: application/json" -d '{"telefono":"573001234567","mensaje":"Prueba"}'
+# Si todo responde bien, detén con Ctrl+C.
+
+7. CREA SERVICIOS SYSTEMD PARA PRODUCCIÓN
+-----------------------------------------
+# BOT NODE.JS
+Crea /etc/systemd/system/bot-baileys.service:
+
+[Unit]
+Description=Bot Baileys Skypass
+After=network.target
+
+[Service]
+User=root
+WorkingDirectory=/root/skypass/base-baileys-memory
+Environment=PORT=3002
+ExecStart=/usr/bin/node app.js
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+
+# APP PYTHON
+Crea /etc/systemd/system/skypass-web.service:
+
+[Unit]
+Description=Skypass Web App
+After=network.target
+
+[Service]
+User=root
+WorkingDirectory=/root/skypass
+Environment="PATH=/root/skypass/venv/bin"
+ExecStart=/root/skypass/venv/bin/gunicorn -w 4 -b 0.0.0.0:8000 app:app
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+
+8. RECARGA SYSTEMD Y ARRANCA LOS SERVICIOS
+------------------------------------------
+systemctl daemon-reload
+systemctl start bot-baileys
+systemctl enable bot-baileys
+systemctl start skypass-web
+systemctl enable skypass-web
+
+9. CONFIGURA NGINX PARA EXPONER LA APP PYTHON
+---------------------------------------------
+Crea /etc/nginx/sites-available/skypass:
+
+server {
+    listen 80;
+    server_name TU_DOMINIO_O_IP;
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
+Actívalo:
+ln -s /etc/nginx/sites-available/skypass /etc/nginx/sites-enabled/
+nginx -t
+systemctl restart nginx
+
+10. (OPCIONAL) CONFIGURA HTTPS CON LET'S ENCRYPT
+------------------------------------------------
+apt install certbot python3-certbot-nginx -y
+certbot --nginx
+
+11. PRUEBA TODO
+---------------
+- Accede a tu app web por el dominio o IP.
+- Accede al portal web del bot por el puerto que elegiste (ej: http://TU_IP:5050).
+- Prueba enviar mensajes desde tu app Python al endpoint /send del bot.
+
+12. SI ALGO FALLA
+-----------------
+- Verifica los logs de los servicios:
+  journalctl -u bot-baileys -f
+  journalctl -u skypass-web -f
+  tail -n 50 /var/log/nginx/error.log
+- Asegúrate de que los puertos no estén ocupados.
+- Revisa que los endpoints respondan correctamente.
+
+COSAS PARA TENER EN CUENTA EN PRODUCCIÓN
+========================================
+
+1. **Errores de puertos ocupados (EADDRINUSE):**
+   - Si ves un error como `EADDRINUSE`, significa que el puerto ya está en uso. Usa `ss -tuln | grep PUERTO` para ver qué proceso lo usa y mátalo con `kill PID` o cambia el puerto en la configuración.
+
+2. **Firewall bloqueando puertos:**
+   - Asegúrate de abrir los puertos necesarios con `ufw allow PUERTO/tcp` y recarga con `ufw reload`.
+   - Ejemplo: `ufw allow 5050/tcp` para el portal web del bot.
+
+3. **No se muestra el QR en la web:**
+   - Usa siempre la URL pública del portal web del bot para el QR (ej: `http://TU_IP:5050/qr.png?time=...`).
+   - No uses `/qr-image` ni `localhost:3002/qr-image` en el frontend.
+   - Si el QR no se ve, revisa la consola del navegador y asegúrate de que la URL es accesible desde el navegador.
+
+4. **Errores 500 (Internal Server Error):**
+   - Revisa los logs del backend con `journalctl -u skypass-web -n 50` o la terminal donde ejecutas Flask.
+   - Agrega `print()` en la función para depurar y ver dónde falla.
+   - Verifica que el template existe y no tiene errores de sintaxis.
+   - Asegúrate de que el microservicio en el puerto 3002 esté corriendo.
+
+5. **Logs del sistema:**
+   - Usa `journalctl -u NOMBRE_DEL_SERVICIO -n 50` para ver los últimos logs.
+   - Si ves `No journal files were found`, asegúrate de que el servicio está iniciado y el nombre es correcto.
+
+6. **Errores de conexión a microservicio:**
+   - Si tu backend no puede conectarse a `localhost:3002`, asegúrate de que el bot esté corriendo y escuchando en ese puerto.
+   - Usa `systemctl status bot-baileys` y `ss -tuln | grep 3002` para verificar.
+
+7. **Errores de favicon o recursos estáticos:**
+   - Los errores 404 de `/static/favicon.svg` no afectan la funcionalidad, pero puedes agregar un favicon para evitar el mensaje.
+
+8. **Errores de CORS o red:**
+   - Si accedes al QR desde otro dominio/IP, asegúrate de que el puerto esté abierto y no haya restricciones de CORS.
+
+9. **Reiniciar servicios tras cambios:**
+   - Siempre reinicia el servicio después de modificar el código con `systemctl restart skypass-web` o el nombre correspondiente.
+
+10. **Debugging en producción:**
+    - Usa prints y revisa los logs para encontrar errores.
+    - Si tienes errores persistentes, revisa la consola del navegador y los logs del backend.
+
+11. **Duplicidad de rutas o lógica:**
+    - Evita tener la misma lógica en varios archivos (por ejemplo, en `app.py` y `admin.py`). Mantén solo una versión y elimina duplicados.
+
+12. **Variables de entorno y dependencias:**
+    - Asegúrate de que todas las variables de entorno y dependencias estén configuradas correctamente en el VPS.
+
+13. **Pruebas locales vs VPS:**
+    - Recuerda que `localhost` en tu PC no es lo mismo que en el VPS. Usa siempre la IP pública del VPS para recursos que deban ser accesibles desde fuera.
+
+14. **Errores de permisos en archivos/carpetas:**
+    - Si ves errores al crear archivos (como `creds.json`), asegúrate de que la carpeta existe y tiene permisos de escritura para el usuario que ejecuta el bot.
+
+15. **Verifica siempre la URL generada en el HTML:**
+    - Si el QR no se ve, revisa el HTML generado y asegúrate de que la URL del `<img src="...">` es la correcta y accesible.
+
+¡LISTO! Tu proyecto estará instalado y funcionando en producción, superando todos los problemas que tuviste. 

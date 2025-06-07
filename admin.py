@@ -565,24 +565,9 @@ def conectar_whatsapp():
     # Si el estado es iniciando o desconocido, tratarlo como desconectado
     if estado not in ['conectado', 'esperando_qr', 'desconectado', 'error']:
         estado = 'desconectado'
-    qr_url = "http://localhost:3002/qr-image"
+    qr_url = "http://localhost:5050/qr.png?time={int(time())}"
     return render_template('admin/conectar_whatsapp.html', estado=estado, qr_url=qr_url)
 
-@admin_bp.route('/desconectar-whatsapp', methods=['POST'])
-@admin_requerido
-def desconectar_whatsapp():
-    try:
-        resp = requests.post('http://localhost:3002/disconnect', timeout=5)
-        print('[DEPURACIÓN FLASK] Respuesta de /disconnect:', resp.text)
-        data = resp.json()
-        if data.get('success'):
-            flash('WhatsApp desconectado correctamente.', 'success')
-        else:
-            flash('No se pudo desconectar el bot: ' + data.get('message', ''), 'danger')
-    except Exception as e:
-        flash('Error al intentar desconectar el bot: ' + str(e), 'danger')
-    # Redirige a la página de conectar WhatsApp
-    return redirect(url_for('admin.conectar_whatsapp'))
 
 @admin_bp.route('/estado-bot', methods=['GET'])
 @admin_requerido

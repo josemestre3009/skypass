@@ -7,6 +7,8 @@ from admin import admin_bp
 from datetime import datetime
 import random
 import sqlite3
+from time import time
+from soporte import soporte_bp
 
 # Cargar variables desde .env
 load_dotenv()
@@ -16,6 +18,7 @@ app.secret_key = os.getenv("SECRET_KEY")
 
 # Registrar Blueprint de admin
 app.register_blueprint(admin_bp)
+app.register_blueprint(soporte_bp)
 
 # Configuración desde .env
 API_KEY = os.getenv('API_KEY_WISPHUB')
@@ -160,6 +163,21 @@ def obtener_cliente_actual():
         'plan_megas': session.get('plan_megas', '')
     }
 
+
+import requests
+import time
+
+def enviar_whatsapp(telefono, mensaje):
+    try:
+        url = "http://localhost:3002/send"
+        data = {"telefono": telefono, "mensaje": mensaje}
+        response = requests.post(url, json=data, timeout=5)
+        print("WhatsApp enviado:", response.text)
+    except Exception as e:
+        print("Error enviando WhatsApp:", e)
+
+
+
 @app.route("/cambiar_clave", methods=["GET", "POST"])
 @cliente_requerido
 def cambiar_clave():
@@ -190,8 +208,12 @@ def cambiar_clave():
         if not device_id:
             flash("No se encontró el dispositivo del cliente", "error")
             return render_template("users/user_cambiar_clave.html", cliente=cliente)
+            
+        enviar_whatsapp(cliente['celular'], f"¡Hola! El nombre de tu red WiFi será cambiado en 10 segundos. Nueva Contraseña: {nueva_clave}")
+        time.sleep(10)
         ok = cambiar_parametro_genieacs(device_id, 'InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.KeyPassphrase', nueva_clave)
         if ok:
+
             actualizar_parametros_wisphub(cliente['cedula'], nueva_clave=nueva_clave)
             registrar_cambio_usuario(cliente['cedula'], 'Password', 'Nueva')
             flash("Clave actualizada exitosamente", "success")
