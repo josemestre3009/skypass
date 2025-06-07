@@ -246,6 +246,8 @@ def cambiar_nombre_red():
         if not device_id:
             flash("No se encontró el dispositivo del cliente", "error")
             return render_template("users/user_cambiar_nombre_red.html", cliente=cliente)
+        enviar_whatsapp(cliente['celular'], f"¡Hola! tu Nombre de la Red Wifi será cambiada en 10 segundos. Nuevo Nombre: {nuevo_nombre}")
+        time.sleep(10)
         ok = cambiar_parametro_genieacs(device_id, 'InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.SSID', nuevo_nombre)
         if ok:
             actualizar_parametros_wisphub(cliente['cedula'], nuevo_ssid=nuevo_nombre)
