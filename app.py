@@ -209,7 +209,7 @@ def cambiar_clave():
             flash("No se encontró el dispositivo del cliente", "error")
             return render_template("users/user_cambiar_clave.html", cliente=cliente)
             
-        enviar_whatsapp(cliente['celular'], f"¡Hola! El nombre de tu red WiFi será cambiado en 10 segundos. Nueva Contraseña: {nueva_clave}")
+        enviar_whatsapp(cliente['celular'], f"¡Hola! tu contraseña Wifi será cambiada en 10 segundos. Nueva Contraseña: {nueva_clave}")
         time.sleep(10)
         ok = cambiar_parametro_genieacs(device_id, 'InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.KeyPassphrase', nueva_clave)
         if ok:
