@@ -83,6 +83,86 @@
             .option-cards-big { grid-template-columns: 1fr; }
             .dashboard-bg { padding-left: 4vw; padding-right: 4vw; }
         }
+        .estado-bot-badge {
+            font-size: 0.98rem;
+            padding: 0.45em 1.1em;
+            display: flex;
+            align-items: center;
+            gap: 0.7em;
+            border-radius: 1.5em;
+            border: 2px solid #43d17a;
+            background: rgba(255,255,255,0.10);
+            font-weight: 600;
+            min-width: 120px;
+            justify-content: center;
+            margin-bottom: 0.5em;
+            box-shadow: 0 1px 6px 0 rgba(67,209,122,0.07);
+            transition: border-color 0.3s, color 0.3s;
+            color: #43d17a;
+        }
+        .estado-bot-badge.red {
+            border-color: #dc3545;
+            color: #dc3545;
+            box-shadow: 0 1px 6px 0 rgba(220,53,69,0.07);
+        }
+        .estado-bot-badge.yellow {
+            border-color: #ffc107;
+            color: #ffc107;
+            box-shadow: 0 1px 6px 0 rgba(255,193,7,0.07);
+        }
+        .estado-bot-dot {
+            display: inline-block;
+            width: 11px;
+            height: 11px;
+            border-radius: 50%;
+            margin-right: 0.3em;
+            box-shadow: 0 0 0 0 rgba(67,209,122,0.18);
+            position: relative;
+            background: #43d17a;
+        }
+        .estado-bot-dot.pulse {
+            animation: estadoPulse 1.2s infinite;
+        }
+        @keyframes estadoPulse {
+            0% { box-shadow: 0 0 0 0 rgba(67,209,122,0.22); }
+            70% { box-shadow: 0 0 0 6px rgba(67,209,122,0); }
+            100% { box-shadow: 0 0 0 0 rgba(67,209,122,0); }
+        }
+        .estado-bot-dot.red {
+            background: #dc3545;
+            box-shadow: 0 0 0 0 rgba(220,53,69,0.18);
+            animation: estadoPulseRed 1.2s infinite;
+        }
+        @keyframes estadoPulseRed {
+            0% { box-shadow: 0 0 0 0 rgba(220,53,69,0.22); }
+            70% { box-shadow: 0 0 0 6px rgba(220,53,69,0); }
+            100% { box-shadow: 0 0 0 0 rgba(220,53,69,0); }
+        }
+        .estado-bot-dot.yellow {
+            background: #ffc107;
+            box-shadow: 0 0 0 0 rgba(255,193,7,0.18);
+            animation: estadoPulseYellow 1.2s infinite;
+        }
+        @keyframes estadoPulseYellow {
+            0% { box-shadow: 0 0 0 0 rgba(255,193,7,0.22); }
+            70% { box-shadow: 0 0 0 6px rgba(255,193,7,0); }
+            100% { box-shadow: 0 0 0 0 rgba(255,193,7,0); }
+        }
+        .estado-bot-badge .wa-icon {
+            font-size: 1.1em;
+            margin-right: 0.15em;
+            vertical-align: -0.2em;
+        }
+        .estado-bot-text {
+            font-size: 1em;
+            font-weight: 700;
+            letter-spacing: 0.2px;
+            font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+        }
+        @media (max-width: 500px) {
+            .estado-bot-badge { font-size: 0.92rem; padding: 0.3em 0.5em; min-width: 0; }
+            .estado-bot-text { font-size: 0.93em; }
+        }
     </style>
 </head>
 <body>
@@ -91,7 +171,7 @@
             <a class="navbar-brand" href="{{ url_for('admin.dashboard') }}">
                 <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo">
             </a>
-            <form method="POST" action="{{ url_for('admin.logout') }}" class="mb-0">
+            <form id="form-logout-admin" class="mb-0">
                 <button type="submit" class="btn btn-outline-danger rounded-pill px-4">Cerrar Sesión</button>
             </form>
         </div>
@@ -102,18 +182,9 @@
             <i class="bi bi-clipboard-check text-warning"></i>
             <span>Panel de Opciones</span>
         </div>
-
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% set category, message = messages[-1] %}
-                <div id="estado-bot-flash" class="alert alert-{{ category if category != 'error' else 'danger' }} alert-dismissible fade show" role="alert">
-                    {{ message }}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                </div>
-            {% else %}
-                <div id="estado-bot-ajax"></div>
-            {% endif %}
-        {% endwith %}
+        <div class="d-flex justify-content-center mb-3">
+            <div id="estado-bot-ajax" style="min-width:320px;"></div>
+        </div>
 
         <div class="option-cards option-cards-big">
             <a href="{{ url_for('admin.buscar_cliente') }}" class="option-card option-card-big">
@@ -148,6 +219,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
     function actualizarEstadoBot() {
         let estadoDiv = document.getElementById('estado-bot-ajax');
@@ -155,18 +227,64 @@
         fetch("{{ url_for('admin.estado_bot') }}")
             .then(res => res.json())
             .then(data => {
+                let html = '';
                 if (data.conectado) {
-                    estadoDiv.innerHTML = '<div class="alert alert-success mb-2"><i class="bi bi-whatsapp"></i> WhatsApp conectado correctamente.</div>';
+                    html = `<div class='estado-bot-badge'>
+                        <span class='estado-bot-dot pulse'></span>
+                        <i class="bi bi-whatsapp wa-icon"></i>
+                        <span class='estado-bot-text'>WhatsApp <span style='font-weight:900;'>EN LÍNEA</span></span>
+                    </div>`;
+                } else if (data.error || data.estado === 'error') {
+                    html = `<div class='estado-bot-badge yellow'>
+                        <span class='estado-bot-dot yellow'></span>
+                        <i class="bi bi-whatsapp wa-icon"></i>
+                        <span class='estado-bot-text'>WhatsApp <span style='font-weight:900;'>ERROR</span></span>
+                    </div>`;
                 } else {
-                    estadoDiv.innerHTML = '<div class="alert alert-danger mb-2"><i class="bi bi-x-circle"></i> WhatsApp desconectado. No se pueden enviar mensajes automáticos.</div>';
+                    html = `<div class='estado-bot-badge red'>
+                        <span class='estado-bot-dot red'></span>
+                        <i class="bi bi-whatsapp wa-icon"></i>
+                        <span class='estado-bot-text'>WhatsApp <span style='font-weight:900;'>DESCONECTADO</span></span>
+                    </div>`;
                 }
+                estadoDiv.innerHTML = html;
             })
             .catch(() => {
-                estadoDiv.innerHTML = '<div class="alert alert-warning mb-2"><i class="bi bi-exclamation-triangle"></i> No se pudo consultar el estado del bot de WhatsApp.</div>';
+                let estadoDiv = document.getElementById('estado-bot-ajax');
+                estadoDiv.innerHTML = `<div class='estado-bot-badge yellow'>
+                    <span class='estado-bot-dot yellow'></span>
+                    <i class="bi bi-whatsapp wa-icon"></i>
+                    <span class='estado-bot-text'>WhatsApp <span style='font-weight:900;'>ERROR</span></span>
+                </div>`;
             });
     }
     setInterval(actualizarEstadoBot, 5000);
     window.onload = actualizarEstadoBot;
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const formLogout = document.getElementById('form-logout-admin');
+        if (formLogout) {
+            formLogout.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                let resp = await fetch("{{ url_for('admin.logout') }}", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                let res = await resp.json();
+                if (res.success) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Sesión cerrada',
+                        showConfirmButton: false,
+                        timer: 1200
+                    });
+                    setTimeout(() => { window.location.href = res.redirect || '/admin/login'; }, 1200);
+                } else {
+                    Swal.fire({ icon: 'error', title: 'Error', text: res.message || 'No se pudo cerrar la sesión.' });
+                }
+            });
+        }
+    });
     </script>
 </body>
 </html>

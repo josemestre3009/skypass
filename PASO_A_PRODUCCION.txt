@@ -229,3 +229,6 @@ sudo certbot --nginx
 ¡LISTO!  
 Con este archivo, tu despliegue será ordenado, seguro y fácil de depurar.  
 Si tienes dudas o necesitas adaptar algo a tu caso, ¡avísame! 
+
+sudo systemctl daemon-reload
+sudo systemctl restart skypass-web 

@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from werkzeug.security import check_password_hash, generate_password_hash
 import re
 import sqlite3
+import time
 
 # Cargar variables de entorno
 load_dotenv()
@@ -15,6 +16,7 @@ load_dotenv()
 API_KEY = os.getenv('API_KEY_WISPHUB')
 BASE_URL = 'https://api.wisphub.net/api/clientes'
 GENIEACS_API = os.getenv("GENIEACS_API_URL")
+ip_server = os.getenv("IP_SERVER")
 
 # Crear Blueprint
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
@@ -44,12 +46,12 @@ def verificar_admin(username, password):
         print(f"Error al verificar admin: {e}")
         return None
 
-def registrar_cambio(admin_id, cedula, tipo_cambio, valor_anterior, valor_nuevo):
-    """Registra un cambio en el historial"""
+def registrar_cambio(admin_id, cedula, tipo_cambio, valor_nuevo):
+    """Registra un cambio en el historial (sin valor_anterior)"""
     try:
         conn = get_db_connection()
-        cur = conn.execute("INSERT INTO change_history (admin_id, cedula, tipo_cambio, valor_anterior, valor_nuevo, fecha) VALUES (?, ?, ?, ?, ?, ?)",
-                           (admin_id, cedula, tipo_cambio, valor_anterior, valor_nuevo, datetime.now().isoformat()))
+        cur = conn.execute("INSERT INTO change_history (admin_id, cedula, tipo_cambio, valor_nuevo, fecha) VALUES (?, ?, ?, ?, ?)",
+                           (admin_id, cedula, tipo_cambio, valor_nuevo, datetime.now().isoformat()))
         conn.commit()
         conn.close()
         return True
@@ -82,8 +84,8 @@ def obtener_estadisticas_uso():
         conn = get_db_connection()
         cur = conn.execute("SELECT tipo_cambio, COUNT(*) as count FROM change_history GROUP BY tipo_cambio")
         cambios_por_tipo = [dict(row) for row in cur.fetchall()]
-        # Cambios por mes (SQL directo)
-        cur = conn.execute("SELECT DATE_TRUNC('month', fecha) as mes, COUNT(*) as count FROM change_history GROUP BY mes")
+        # Cambios por mes (SQL directo, compatible con SQLite)
+        cur = conn.execute("SELECT substr(fecha, 1, 7) as mes, COUNT(*) as count FROM change_history GROUP BY mes")
         cambios_por_mes = [dict(row) for row in cur.fetchall()]
         # Límites más comunes (SQL directo)
         cur = conn.execute("SELECT limite_personalizado, COUNT(*) as count FROM user_limits GROUP BY limite_personalizado")
@@ -165,29 +167,31 @@ def buscar_cliente_por_cedula(cedula):
     return None
 
 def obtener_device_id_por_ip(ip_buscada):
-    """Obtiene el ID del dispositivo en GenieACS por su IP"""
+    """Obtiene el ID del dispositivo en GenieACS por su IP, buscando en ConnectionRequestURL"""
     try:
         response = requests.get(f"{GENIEACS_API}/devices")
         response.raise_for_status()
         dispositivos = response.json()
-
+        print(f"[GENIEACS] Buscando IP: {ip_buscada}")
         for device in dispositivos:
             device_id = device.get('_id')
-            ip_actual = device.get("InternetGatewayDevice", {}) \
-                              .get("WANDevice", {}) \
-                              .get("1", {}) \
-                              .get("WANConnectionDevice", {}) \
-                              .get("2", {}) \
-                              .get("WANIPConnection", {}) \
-                              .get("1", {}) \
-                              .get("ExternalIPAddress", {}) \
-                              .get("_value")
-
+            # Buscar la IP en ConnectionRequestURL
+            url = device.get("InternetGatewayDevice", {}) \
+                      .get("ManagementServer", {}) \
+                      .get("ConnectionRequestURL", {}) \
+                      .get("_value")
+            ip_actual = None
+            if url:
+                match = re.search(r"https?://([\d.]+):", url)
+                if match:
+                    ip_actual = match.group(1)
+            print(f"[GENIEACS] device_id: {device_id} | url: {url} | ip_actual: {ip_actual}")
             if ip_actual == ip_buscada:
+                print(f"[GENIEACS] ¡Coincidencia encontrada!")
                 return device_id
-
     except Exception as e:
         print(f"Error al buscar dispositivo en GenieACS: {e}")
+    print(f"[GENIEACS] No se encontró ningún device_id para la IP: {ip_buscada}")
     return None
 
 def cambiar_parametro_genieacs(device_id, parametro, valor):
@@ -223,23 +227,53 @@ def get_db_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
+def actualizar_parametros_wisphub(cedula, nueva_clave=None, nuevo_ssid=None):
+    headers = {
+        'Authorization': f'Api-Key {API_KEY}',
+        'Content-Type': 'application/json'
+    }
+    # Busca el cliente para obtener su ID en Wisphub
+    cliente = buscar_cliente_por_cedula(cedula)
+    if not cliente:
+        print('[Wisphub] Cliente no encontrado para actualizar parámetros')
+        return False
+    id_cliente = cliente.get('id_servicio') or cliente.get('id')
+    data = {}
+    if nueva_clave:
+        data['password_ssid_router_wifi'] = nueva_clave
+    if nuevo_ssid:
+        data['ssid_router_wifi'] = nuevo_ssid
+    if not data:
+        return False
+    url = f'https://api.wisphub.net/api/clientes/{id_cliente}/'
+    try:
+        response = requests.patch(url, headers=headers, json=data, timeout=5)
+        print('[Wisphub] Respuesta actualización:', response.status_code, response.text)
+        return response.status_code in (200, 204)
+    except Exception as e:
+        print('[Wisphub] Error actualizando parámetros:', e)
+        return False
+
 # Rutas
 @admin_bp.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        email = request.form.get('username')
-        password = request.form.get('password')
+        if not request.is_json:
+            return jsonify({'success': False, 'message': 'Solo se permite el flujo AJAX.'})
+        data = request.get_json()
+        email = data.get('username')
+        password = data.get('password')
         try:
             result = verificar_admin(email, password)
             if result:
                 session['admin_autenticado'] = True
                 session['admin_id'] = result['id']
                 session['admin_username'] = result['email']
-                return redirect(url_for('admin.dashboard'))
+                return jsonify({'success': True, 'redirect': url_for('admin.dashboard')})
             else:
-                flash('Credenciales inválidas', 'error')
+                return jsonify({'success': False, 'message': 'Credenciales inválidas'})
         except Exception as e:
-            flash('Credenciales inválidas', 'error')
+            return jsonify({'success': False, 'message': 'Credenciales inválidas'})
     return render_template('admin/admin_login.html')
 
 @admin_bp.route('/dashboard', methods=['GET', 'POST'])
@@ -247,7 +281,7 @@ def login():
 def dashboard():
     # Consulta el estado del bot de WhatsApp
     try:
-        resp = requests.get('http://localhost:3002/status', timeout=5)
+        resp = requests.get(f'http://{ip_server}:3002/status', timeout=5)
         data = resp.json()
         if data.get('conectado'):
             flash('✅ WhatsApp conectado correctamente.', 'success')
@@ -395,11 +429,13 @@ def configuracion():
 @admin_bp.route('/cambiar_config', methods=['POST'])
 @admin_requerido
 def cambiar_config():
+    if not request.is_json:
+        return jsonify({'success': False, 'message': 'Solo se permite el flujo AJAX.'})
+    data = request.get_json()
     try:
-        cambios_por_mes = int(request.form.get('cambios_por_mes'))
+        cambios_por_mes = int(data.get('cambios_por_mes'))
         if cambios_por_mes < 1:
-            flash('El valor debe ser mayor a 0', 'error')
-            return redirect(url_for('admin.limites'))
+            return jsonify({'success': False, 'message': 'El valor debe ser mayor a 0'})
         conn = get_db_connection()
         conn.execute("""
             INSERT INTO admin_settings (clave, valor)
@@ -408,109 +444,66 @@ def cambiar_config():
         """, (str(cambios_por_mes),))
         conn.commit()
         conn.close()
-        flash('Límite global actualizado correctamente.', 'global')
+        return jsonify({'success': True, 'message': 'Límite global actualizado correctamente.'})
     except Exception as e:
-        flash(f'Error al actualizar la configuración global: {str(e)}', 'error')
-    return redirect(url_for('admin.limites'))
+        return jsonify({'success': False, 'message': f'Error al actualizar la configuración global: {str(e)}'})
 
 @admin_bp.route('/cambiar_password', methods=['POST'])
 @admin_requerido
 def cambiar_password():
+    if not request.is_json:
+        return jsonify({'success': False, 'message': 'Solo se permite el flujo AJAX.'})
+    data = request.get_json()
     try:
-        password_actual = request.form.get('password_actual')
-        nueva_password = request.form.get('nueva_password')
-        confirmar_password = request.form.get('confirmar_password')
+        password_actual = data.get('password_actual')
+        nueva_password = data.get('nueva_password')
+        confirmar_password = data.get('confirmar_password')
         if len(nueva_password) < 8:
-            flash('La nueva contraseña debe tener al menos 8 caracteres', 'error')
-            return redirect(url_for('admin.configuracion'))
+            return jsonify({'success': False, 'message': 'La nueva contraseña debe tener al menos 8 caracteres'})
         if nueva_password != confirmar_password:
-            flash('Las contraseñas no coinciden', 'error')
-            return redirect(url_for('admin.configuracion'))
+            return jsonify({'success': False, 'message': 'Las contraseñas no coinciden'})
         conn = get_db_connection()
         cur = conn.execute("SELECT * FROM admin_users WHERE id = ?", (session['admin_id'],))
         admin_data = cur.fetchone()
         if not admin_data or not check_password_hash(admin_data['password'], password_actual):
             conn.close()
-            flash('Contraseña actual incorrecta', 'error')
-            return redirect(url_for('admin.configuracion'))
+            return jsonify({'success': False, 'message': 'Contraseña actual incorrecta'})
         hashed_password = generate_password_hash(nueva_password)
         conn.execute("UPDATE admin_users SET password = ? WHERE id = ?", (hashed_password, session['admin_id']))
         conn.commit()
         conn.close()
-        flash('Contraseña actualizada exitosamente', 'success')
+        return jsonify({'success': True, 'message': 'Contraseña actualizada exitosamente'})
     except Exception as e:
-        flash(f'Error al cambiar la contraseña: {str(e)}', 'error')
-    return redirect(url_for('admin.configuracion'))
-
-@admin_bp.route('/cambiar_wifi_cliente', methods=['GET', 'POST'])
-@admin_requerido
-def cambiar_wifi_cliente():
-    cliente = None
-    if request.method == 'GET':
-        cedula = request.args.get('cedula')
-        if cedula:
-            cliente = buscar_cliente_por_cedula(cedula)
-            if not cliente:
-                flash('Cliente no encontrado', 'error')
-        return render_template('admin/admin_cambiar_wifi_cliente.html', cliente=cliente)
-    # POST
-    cedula = request.form.get('cedula')
-    accion = request.form.get('accion')
-    cliente = buscar_cliente_por_cedula(cedula)
-    if not cliente:
-        flash('Cliente no encontrado', 'error')
-        return redirect(url_for('admin.cambiar_wifi_cliente', cedula=cedula))
-    device_id = obtener_device_id_por_ip(cliente.get('ip'))
-    if not device_id:
-        flash('No se encontró el dispositivo del cliente', 'error')
-        return redirect(url_for('admin.cambiar_wifi_cliente', cedula=cedula))
-    if accion == 'ssid':
-        nuevo_ssid = request.form.get('nuevo_ssid')
-        if nuevo_ssid:
-            if cambiar_parametro_genieacs(device_id, 'InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.SSID', nuevo_ssid):
-                registrar_cambio(session['admin_id'], cedula, 'SSID', 'Anterior', nuevo_ssid)
-                flash('Nombre de red actualizado exitosamente', 'success')
-            else:
-                flash('Error al cambiar el nombre de la red', 'error')
-        else:
-            flash('Debe ingresar el nuevo nombre de red', 'error')
-    elif accion == 'password':
-        nueva_password = request.form.get('nueva_password')
-        if nueva_password:
-            if cambiar_parametro_genieacs(device_id, 'InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.KeyPassphrase', nueva_password):
-                registrar_cambio(session['admin_id'], cedula, 'Password', 'Anterior', 'Nueva')
-                flash('Contraseña WiFi actualizada exitosamente', 'success')
-            else:
-                flash('Error al cambiar la contraseña', 'error')
-        else:
-            flash('Debe ingresar la nueva contraseña', 'error')
-    return redirect(url_for('admin.cambiar_wifi_cliente', cedula=cedula))
+        return jsonify({'success': False, 'message': f'Error al cambiar la contraseña: {str(e)}'})
 
 @admin_bp.route('/eliminar_limite', methods=['POST'])
 @admin_requerido
 def eliminar_limite():
-    cedula = request.form.get('cedula')
+    if not request.is_json:
+        return jsonify({'success': False, 'message': 'Solo se permite el flujo AJAX.'})
+    data = request.get_json()
+    cedula = data.get('cedula')
     if not cedula:
-        flash('Cédula no proporcionada', 'error')
-        return redirect(url_for('admin.limites'))
+        return jsonify({'success': False, 'message': 'Cédula no proporcionada'})
     try:
         conn = get_db_connection()
         cur = conn.execute("DELETE FROM user_limits WHERE cedula = ?", (cedula,))
         conn.commit()
         conn.close()
-        flash('Límite personalizado eliminado.', 'personalizado')
+        return jsonify({'success': True, 'message': 'Límite personalizado eliminado.'})
     except Exception as e:
-        flash(f'Error al eliminar el límite personalizado: {str(e)}', 'error')
-    return redirect(url_for('admin.limites'))
+        return jsonify({'success': False, 'message': f'Error al eliminar el límite personalizado: {str(e)}'})
 
 @admin_bp.route('/editar_limite', methods=['POST'])
 @admin_requerido
 def editar_limite():
-    cedula = request.form.get('cedula')
-    nuevo_limite = request.form.get('nuevo_limite')
+    if not request.is_json:
+        return jsonify({'success': False, 'message': 'Solo se permite el flujo AJAX.'})
+    data = request.get_json()
+    cedula = data.get('cedula')
+    nuevo_limite = data.get('nuevo_limite')
     if not cedula or not nuevo_limite:
-        flash('Datos incompletos para editar el límite', 'error')
-        return redirect(url_for('admin.limites'))
+        return jsonify({'success': False, 'message': 'Datos incompletos para editar el límite'})
     try:
         conn = get_db_connection()
         conn.execute("""
@@ -520,44 +513,91 @@ def editar_limite():
         """, (cedula, int(nuevo_limite)))
         conn.commit()
         conn.close()
-        flash('Límite personalizado actualizado correctamente.', 'personalizado')
+        return jsonify({'success': True, 'message': 'Límite personalizado actualizado correctamente.', 'nuevo_limite': int(nuevo_limite)})
     except Exception as e:
-        flash(f'Error al actualizar el límite personalizado: {str(e)}', 'error')
-    return redirect(url_for('admin.limites'))
+        return jsonify({'success': False, 'message': f'Error al actualizar el límite personalizado: {str(e)}'})
 
-@admin_bp.route('/editar_limite_ajax', methods=['POST'])
+@admin_bp.route('/cambiar_wifi_cliente', methods=['GET', 'POST'])
 @admin_requerido
-def editar_limite_ajax():
-    cedula = request.form.get('cedula')
-    nuevo_limite = request.form.get('nuevo_limite')
-    if not cedula or not nuevo_limite:
-        return jsonify(success=False, message='Datos incompletos para editar el límite')
-    try:
-        conn = get_db_connection()
-        conn.execute("""
-            INSERT INTO user_limits (cedula, limite_personalizado)
-            VALUES (?, ?)
-            ON CONFLICT(cedula) DO UPDATE SET limite_personalizado=excluded.limite_personalizado;
-        """, (cedula, int(nuevo_limite)))
-        conn.commit()
-        conn.close()
-        return jsonify(success=True, message='Límite personalizado actualizado correctamente.', nuevo_limite=int(nuevo_limite))
-    except Exception as e:
-        return jsonify(success=False, message=f'Error al actualizar el límite personalizado: {str(e)}')
+def cambiar_wifi_cliente():
+    cliente = None
+    cliente_no_encontrado = False
+    estado_servicio = None
+    if request.method == 'GET':
+        cedula = request.args.get('cedula')
+        if cedula:
+            cliente = buscar_cliente_por_cedula(cedula)
+            if not cliente:
+                cliente_no_encontrado = True
+            else:
+                # Extraer estado del servicio Wisphub
+                servicios = cliente.get('servicios', [])
+                if servicios and isinstance(servicios, list) and len(servicios) > 0:
+                    estado_servicio = servicios[0].get('estado', '').lower()
+                elif 'estado' in cliente:
+                    estado_servicio = cliente.get('estado', '').lower()
+                else:
+                    estado_servicio = 'desconocido'
+        return render_template('admin/admin_cambiar_wifi_cliente.html', cliente=cliente, cliente_no_encontrado=cliente_no_encontrado, estado_servicio=estado_servicio)
+    # POST solo AJAX
+    if not request.is_json:
+        return jsonify({'success': False, 'message': 'Solo se permite el flujo AJAX.'})
+    data = request.get_json()
+    cedula = data.get('cedula')
+    accion = data.get('accion')
+    cliente = buscar_cliente_por_cedula(cedula)
+    if not cliente:
+        return jsonify({'success': False, 'message': 'Cliente no encontrado'})
+    id_cliente = cliente.get('id')
+    # Validar estado del servicio Wisphub
+    servicios = cliente.get('servicios', [])
+    if servicios and isinstance(servicios, list) and len(servicios) > 0:
+        estado_servicio = servicios[0].get('estado', '').lower()
+    elif 'estado' in cliente:
+        estado_servicio = cliente.get('estado', '').lower()
+    else:
+        estado_servicio = 'desconocido'
+    if estado_servicio == 'suspendido':
+        return jsonify({'success': False, 'message': 'El servicio del cliente está suspendido. No se pueden realizar cambios hasta que se reactive.'})
+    device_id = obtener_device_id_por_ip(cliente.get('ip'))
+    if not device_id:
+        return jsonify({'success': False, 'message': 'No se encontró el dispositivo del cliente'})
+    if accion == 'ssid':
+        nuevo_ssid = data.get('nuevo_ssid')
+        if not nuevo_ssid:
+            return jsonify({'success': False, 'message': 'Debe ingresar el nuevo nombre de red'})
+        if cambiar_parametro_genieacs(device_id, 'InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.SSID', nuevo_ssid):
+            actualizar_parametros_wisphub(cedula, nuevo_ssid=nuevo_ssid)
+            registrar_cambio(session['admin_id'], cedula, 'SSID', nuevo_ssid)
+            return jsonify({'success': True})
+        else:
+            return jsonify({'success': False, 'message': 'Error al cambiar el nombre de la red'})
+    elif accion == 'password':
+        nueva_password = data.get('nueva_password')
+        if not nueva_password:
+            return jsonify({'success': False, 'message': 'Debe ingresar la nueva contraseña'})
+        if cambiar_parametro_genieacs(device_id, 'InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.KeyPassphrase', nueva_password):
+            actualizar_parametros_wisphub(cedula, nueva_clave=nueva_password)
+            registrar_cambio(session['admin_id'], cedula, 'Password', 'Nueva')
+            return jsonify({'success': True})
+        else:
+            return jsonify({'success': False, 'message': 'Error al cambiar la contraseña'})
+    return jsonify({'success': False, 'message': 'Acción no válida.'})
 
 @admin_bp.route('/logout', methods=['POST'])
 def logout():
     session.pop('admin_autenticado', None)
+    session.pop('admin_id', None)
+    session.pop('admin_username', None)
     session.pop('cliente_encontrado', None)
-    flash('Sesión cerrada exitosamente', 'success')
-    return redirect(url_for('admin.login'))
+    return jsonify({'success': True, 'redirect': url_for('admin.login')})
 
 @admin_bp.route('/conectar-whatsapp')
 @admin_requerido
 def conectar_whatsapp():
     estado = None
     try:
-        resp = requests.get('http://localhost:3002/status', timeout=3)
+        resp = requests.get(f'http://{ip_server}:3002/status', timeout=3)
         data = resp.json()
         estado = data.get('estado')
     except Exception as e:
@@ -565,7 +605,7 @@ def conectar_whatsapp():
     # Si el estado es iniciando o desconocido, tratarlo como desconectado
     if estado not in ['conectado', 'esperando_qr', 'desconectado', 'error']:
         estado = 'desconectado'
-    qr_url = "http://localhost:5050/qr.png?time={int(time())}"
+    qr_url = f"http://{ip_server}:5050/qr.png?time={int(time.time())}"
     return render_template('admin/conectar_whatsapp.html', estado=estado, qr_url=qr_url)
 
 
@@ -573,7 +613,7 @@ def conectar_whatsapp():
 @admin_requerido
 def estado_bot():
     try:
-        resp = requests.get('http://localhost:3002/status', timeout=5)
+        resp = requests.get(f'http://{ip_server}:3002/status', timeout=5)
         data = resp.json()
         return jsonify(data)
     except Exception as e:
@@ -716,4 +756,22 @@ def api_dispositivos_conectados():
             })
         return jsonify({'success': True, 'dispositivos': lista})
     except Exception as e:
-        return jsonify({'success': False, 'dispositivos': [], 'error': str(e)}) 
+        return jsonify({'success': False, 'dispositivos': [], 'error': str(e)})
+
+@admin_bp.route('/eliminar_cambio_historial', methods=['POST'])
+@admin_requerido
+def eliminar_cambio_historial():
+    if not request.is_json:
+        return jsonify({'success': False, 'message': 'Solo se permite el flujo AJAX.'})
+    data = request.get_json()
+    id_cambio = data.get('id')
+    if not id_cambio:
+        return jsonify({'success': False, 'message': 'ID no proporcionado.'})
+    try:
+        conn = get_db_connection()
+        cur = conn.execute("DELETE FROM change_history WHERE id = ?", (id_cambio,))
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Error al eliminar el registro: {str(e)}'}) 

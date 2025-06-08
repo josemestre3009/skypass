@@ -136,16 +136,6 @@
                 <i class="bi bi-clipboard-check text-warning"></i>
                 <span>Panel de Cliente</span>
             </div>
-            {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-            {% for category, message in messages %}
-            <div class="alert alert-{{ category }} alert-dismissible fade show mt-3" role="alert">
-                {{ message }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
-            {% endfor %}
-            {% endif %}
-            {% endwith %}
             <div class="option-cards mb-4">
                 <a href="{{ url_for('cambiar_nombre_red') }}" class="option-card">
                     <span class="option-icon text-blue"><i class="bi bi-globe2"></i></span>
@@ -168,6 +158,15 @@
                         </div>
                         <div class="info-cliente-item"><strong>Cédula:</strong> {{ cliente.cedula }}</div>
                         <div class="info-cliente-item"><strong>Celular:</strong> {{ cliente.celular }}</div>
+                        <div class="info-cliente-item"><strong>Estado Servicio:</strong> 
+                            {% if estado_servicio == 'activo' %}
+                                <span class="badge bg-success">Activo</span>
+                            {% elif estado_servicio == 'suspendido' %}
+                                <span class="badge bg-danger">Suspendido</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Desconocido</span>
+                            {% endif %}
+                        </div>
                     </div>
                 </div>
             </div>

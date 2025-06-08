@@ -16,6 +16,20 @@
         .card { border-radius: 1.2rem; box-shadow: 0 4px 24px 0 rgba(31,38,135,0.07); border: none; }
         .btn-outline-primary, .btn-secondary, .btn-success { border-radius: 2rem !important; }
         .titulo { font-size: 2rem; font-weight: 700; color: #2563eb; display: flex; align-items: center; gap: 0.5rem; margin-bottom: 2rem; justify-content: center; }
+        /* Fondo semitransparente para el modal */
+        .modal-backdrop.show {
+            opacity: 0.5 !important;
+            background: #fff !important;
+        }
+        /* Barra de progreso fluida */
+        .progress-bar-animated-custom {
+            animation: progressBarAnim 5s linear forwards;
+            background: #2563eb !important;
+        }
+        @keyframes progressBarAnim {
+            from { width: 0%; }
+            to { width: 100%; }
+        }
     </style>
 </head>
 <body>
@@ -33,17 +47,7 @@
 
         <div class="card p-4">
             <div class="titulo">🔒 Cambiar Contraseña de la Red Wifi</div>
-            {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-            {% for category, message in messages %}
-            <div class="alert alert-{{ category if category != 'error' else 'danger' }} alert-dismissible fade show mb-3" role="alert">
-                {{ message }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
-            </div>
-            {% endfor %}
-            {% endif %}
-            {% endwith %}
-            <form method="POST">
+            <form id="form-cambiar-clave" autocomplete="off">
                 <div class="mb-3">
                     <label for="nueva_clave" class="form-label">Nueva Contraseña</label>
                     <input type="password" class="form-control" id="nueva_clave" name="nueva_clave" required>
@@ -73,5 +77,84 @@
         }
     </script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- SweetAlert2 CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.getElementById('form-cambiar-clave');
+        if (form) {
+            form.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                // 1. Mostrar modal de carga con SweetAlert2
+                Swal.fire({
+                    title: 'Procesando tu solicitud',
+                    html: '<div id="swal-mensaje">Enviando mensaje de WhatsApp...</div><div class="progress mt-3" style="height: 8px;"><div id="swal-barra" class="progress-bar bg-primary" role="progressbar" style="width: 0%"></div></div><div style="color:#888; font-size:1rem; margin-top:0.5rem;">No cierres ni recargues esta página</div>',
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
+                    showConfirmButton: false,
+                    didOpen: () => {
+                        Swal.showLoading();
+                    }
+                });
+                // Barra de progreso animada
+                const barra = document.getElementById('swal-barra');
+                let barraInterval = null;
+                if (barra) {
+                    let progreso = 0;
+                    barra.style.width = '0%';
+                    barraInterval = setInterval(() => {
+                        progreso += 2;
+                        barra.style.width = progreso + '%';
+                        if (progreso >= 100) clearInterval(barraInterval);
+                    }, 100);
+                }
+                // 2. Enviar WhatsApp por AJAX
+                let formData = new FormData(form);
+                let data = {};
+                formData.forEach((value, key) => { data[key] = value; });
+                let mensajeDiv = document.getElementById('swal-mensaje');
+                if (mensajeDiv) mensajeDiv.innerHTML = 'Enviando mensaje de WhatsApp...';
+                let resp1 = await fetch(window.location.pathname + '?accion=whatsapp', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                let res1 = await resp1.json();
+                if (!res1.success) {
+                    if (barraInterval) clearInterval(barraInterval);
+                    Swal.fire({ icon: 'error', title: 'Error', text: 'Error al enviar WhatsApp: ' + (res1.message || '') });
+                    return;
+                }
+                // 3. Esperar 1 segundo
+                await new Promise(r => setTimeout(r, 1000));
+                // 4. Cambiar mensaje y hacer cambio de clave por AJAX
+                if (mensajeDiv) mensajeDiv.innerHTML = 'Actualizando tu contraseña...';
+                let resp2 = await fetch(window.location.pathname + '?accion=cambiar', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                let res2 = await resp2.json();
+                if (!res2.success) {
+                    if (barraInterval) clearInterval(barraInterval);
+                    Swal.fire({ icon: 'error', title: 'Error', text: 'Error al cambiar la contraseña: ' + (res2.message || '') });
+                    return;
+                }
+                // 5. Completar barra y mostrar éxito
+                if (barra) barra.style.width = '100%';
+                await new Promise(r => setTimeout(r, 1000));
+                Swal.fire({
+                    icon: 'success',
+                    title: '¡Contraseña cambiada exitosamente!',
+                    showConfirmButton: false,
+                    timer: 1800
+                });
+                setTimeout(() => { window.location.href = '/dashboard'; }, 1800);
+            });
+        }
+    });
+    </script>
 </body>
 </html>

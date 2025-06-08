@@ -24,6 +24,7 @@ app.register_blueprint(soporte_bp)
 API_KEY = os.getenv('API_KEY_WISPHUB')
 BASE_URL = 'https://api.wisphub.net/api/clientes'
 GENIEACS_API = os.getenv("GENIEACS_API_URL")
+ip_server = os.getenv("IP_SERVER")
 
 # Funciones de utilidad para clientes
 # (Aquí puedes agregar funciones propias si necesitas lógica de cliente)
@@ -119,7 +120,7 @@ def index():
             try:
                 print(f"[DEPURACIÓN] Enviando código {codigo} a WhatsApp: {whatsapp}")
                 resp = requests.post(
-                    'http://localhost:3002/send',
+                    f'http://{ip_server}:3002/send',
                     json={
                         'telefono': whatsapp,
                         'mensaje': f'Tu código de verificación es: {codigo}'
@@ -150,8 +151,32 @@ def verificar_codigo_ajax():
 def dashboard():
     limpiar_historial_antiguo()
     cliente = obtener_cliente_actual()
+    # Obtener el estado del servicio Wisphub
+    estado_servicio = None
+    try:
+        headers = {
+            'Authorization': f'Api-Key {API_KEY}',
+            'Content-Type': 'application/json'
+        }
+        response = requests.get(BASE_URL, headers=headers, params={'cedula': cliente['cedula']}, timeout=7)
+        print('--- RESPUESTA WISPHUB ---')
+        print(response.text)
+        if response.status_code == 200:
+            data = response.json()
+            clientes = data.get('results', [])
+            for c in clientes:
+                if c.get('cedula') == cliente['cedula']:
+                    servicios = c.get('servicios', [])
+                    if servicios and isinstance(servicios, list) and len(servicios) > 0:
+                        estado_servicio = servicios[0].get('estado', '').lower()
+                    elif 'estado' in c:
+                        estado_servicio = c.get('estado', '').lower()
+                    else:
+                        estado_servicio = 'desconocido'
+    except Exception as e:
+        estado_servicio = None
     cambios_realizados = contar_cambios_usuario_mes(cliente['cedula'])
-    return render_template("users/user_dashboard.html", cliente=cliente, cambios_realizados=cambios_realizados)
+    return render_template("users/user_dashboard.html", cliente=cliente, cambios_realizados=cambios_realizados, estado_servicio=estado_servicio)
 
 # Función para obtener el cliente actual desde la sesión
 def obtener_cliente_actual():
@@ -169,7 +194,7 @@ import time
 
 def enviar_whatsapp(telefono, mensaje):
     try:
-        url = "http://localhost:3002/send"
+        url = f"http://{ip_server}:3002/send"
         data = {"telefono": telefono, "mensaje": mensaje}
         response = requests.post(url, json=data, timeout=5)
         print("WhatsApp enviado:", response.text)
@@ -183,44 +208,84 @@ def enviar_whatsapp(telefono, mensaje):
 def cambiar_clave():
     limpiar_historial_antiguo()
     cliente = obtener_cliente_actual()
+    accion = request.args.get('accion')
     if request.method == "POST":
+        # Control de límite de cambios para ambos flujos
         limite_cambios = obtener_limite_cliente(cliente['cedula'])
         cambios_realizados = contar_cambios_usuario_mes(cliente['cedula'])
         if cambios_realizados >= limite_cambios:
-            flash(f"Has alcanzado el límite de {limite_cambios} cambios permitidos este mes.", "error")
-            return render_template("users/user_cambiar_clave.html", cliente=cliente)
-        nueva_clave = request.form.get("nueva_clave")
-        confirmar_clave = request.form.get("confirmar_clave")
+            msg = f"Has alcanzado el límite de {limite_cambios} cambios permitidos este mes."
+            return jsonify({'success': False, 'message': msg})
+        # Solo aceptar datos JSON (AJAX)
+        if not request.is_json:
+            return jsonify({'success': False, 'message': 'Solo se permite el flujo AJAX.'})
+        # Validar estado del servicio Wisphub
+        headers = {
+            'Authorization': f'Api-Key {API_KEY}',
+            'Content-Type': 'application/json'
+        }
+        estado_servicio = None
+        try:
+            response = requests.get(BASE_URL, headers=headers, params={'cedula': cliente['cedula']}, timeout=7)
+            if response.status_code == 200:
+                data = response.json()
+                clientes = data.get('results', [])
+                for c in clientes:
+                    if c.get('cedula') == cliente['cedula']:
+                        servicios = c.get('servicios', [])
+                        if servicios and isinstance(servicios, list) and len(servicios) > 0:
+                            estado_servicio = servicios[0].get('estado', '').lower()
+                        elif 'estado' in c:
+                            estado_servicio = c.get('estado', '').lower()
+                        else:
+                            estado_servicio = 'desconocido'
+        except Exception as e:
+            estado_servicio = None
+        if estado_servicio != 'activo':
+            return jsonify({'success': False, 'message': 'El servicio debe estar ACTIVO para poder realizar cambios.'})
+        data = request.get_json()
+        nueva_clave = data.get("nueva_clave")
+        confirmar_clave = data.get("confirmar_clave")
+        # Validaciones comunes
         if not nueva_clave or not confirmar_clave:
-            flash("Por favor ingrese y confirme la nueva clave", "error")
-            return render_template("users/user_cambiar_clave.html", cliente=cliente)
+            msg = "Por favor ingrese y confirme la nueva clave"
+            return jsonify({'success': False, 'message': msg})
         if nueva_clave != confirmar_clave:
-            flash("Las contraseñas no coinciden", "error")
-            return render_template("users/user_cambiar_clave.html", cliente=cliente)
+            msg = "Las contraseñas no coinciden"
+            return jsonify({'success': False, 'message': msg})
         if len(nueva_clave) < 8:
-            flash("La contraseña debe tener al menos 8 caracteres", "error")
-            return render_template("users/user_cambiar_clave.html", cliente=cliente)
+            msg = "La contraseña debe tener al menos 8 caracteres"
+            return jsonify({'success': False, 'message': msg})
         ip = session.get('ip')
         if not ip:
-            flash("No se encontró la IP del cliente", "error")
-            return render_template("users/user_cambiar_clave.html", cliente=cliente)
+            msg = "No se encontró la IP del cliente"
+            return jsonify({'success': False, 'message': msg})
         device_id = obtener_device_id_por_ip(ip)
         if not device_id:
-            flash("No se encontró el dispositivo del cliente", "error")
-            return render_template("users/user_cambiar_clave.html", cliente=cliente)
-            
-        enviar_whatsapp(cliente['celular'], f"¡Hola! tu contraseña Wifi será cambiada en 10 segundos. Nueva Contraseña: {nueva_clave}")
-        time.sleep(10)
-        ok = cambiar_parametro_genieacs(device_id, 'InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.KeyPassphrase', nueva_clave)
-        if ok:
-
-            actualizar_parametros_wisphub(cliente['cedula'], nueva_clave=nueva_clave)
-            registrar_cambio_usuario(cliente['cedula'], 'Password', 'Nueva')
-            flash("Clave actualizada exitosamente", "success")
-            return redirect(url_for("dashboard"))
-        else:
-            flash("Error al cambiar la clave", "error")
-            return render_template("users/user_cambiar_clave.html", cliente=cliente)
+            msg = "No se encontró el dispositivo del cliente"
+            return jsonify({'success': False, 'message': msg})
+        # Lógica AJAX: solo enviar WhatsApp
+        if accion == 'whatsapp':
+            whatsapp = normalizar_numero(cliente['celular'])
+            if not whatsapp:
+                return jsonify({'success': False, 'message': 'El número de teléfono no es válido para WhatsApp.'})
+            try:
+                enviar_whatsapp(whatsapp, f"¡Hola! tu contraseña Wifi será cambiada en unos segundos. Nueva Contraseña: {nueva_clave}")
+                return jsonify({'success': True})
+            except Exception as e:
+                return jsonify({'success': False, 'message': str(e)})
+        # Lógica AJAX: solo cambiar la clave
+        if accion == 'cambiar':
+            ok = cambiar_parametro_genieacs(device_id, 'InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.KeyPassphrase', nueva_clave)
+            if ok:
+                actualizar_parametros_wisphub(cliente['cedula'], nueva_clave=nueva_clave)
+                registrar_cambio_usuario(cliente['cedula'], 'Password', 'Nueva')
+                return jsonify({'success': True})
+            else:
+                return jsonify({'success': False, 'message': 'Error al cambiar la clave en el dispositivo.'})
+        # Si no es una acción válida
+        return jsonify({'success': False, 'message': 'Acción no válida.'})
+    # Solo renderiza la plantilla en GET
     return render_template("users/user_cambiar_clave.html", cliente=cliente)
 
 @app.route("/cambiar_nombre_red", methods=["GET", "POST"])
@@ -228,35 +293,77 @@ def cambiar_clave():
 def cambiar_nombre_red():
     limpiar_historial_antiguo()
     cliente = obtener_cliente_actual()
+    accion = request.args.get('accion')
     if request.method == "POST":
+        # Control de límite de cambios para ambos flujos
         limite_cambios = obtener_limite_cliente(cliente['cedula'])
         cambios_realizados = contar_cambios_usuario_mes(cliente['cedula'])
         if cambios_realizados >= limite_cambios:
-            flash(f"Has alcanzado el límite de {limite_cambios} cambios permitidos este mes.", "error")
-            return render_template("users/user_cambiar_nombre_red.html", cliente=cliente)
-        nuevo_nombre = request.form.get("nuevo_nombre")
+            msg = f"Has alcanzado el límite de {limite_cambios} cambios permitidos este mes."
+            return jsonify({'success': False, 'message': msg})
+        # Solo aceptar datos JSON (AJAX)
+        if not request.is_json:
+            return jsonify({'success': False, 'message': 'Solo se permite el flujo AJAX.'})
+        # Validar estado del servicio Wisphub
+        headers = {
+            'Authorization': f'Api-Key {API_KEY}',
+            'Content-Type': 'application/json'
+        }
+        estado_servicio = None
+        try:
+            response = requests.get(BASE_URL, headers=headers, params={'cedula': cliente['cedula']}, timeout=7)
+            if response.status_code == 200:
+                data = response.json()
+                clientes = data.get('results', [])
+                for c in clientes:
+                    if c.get('cedula') == cliente['cedula']:
+                        servicios = c.get('servicios', [])
+                        if servicios and isinstance(servicios, list) and len(servicios) > 0:
+                            estado_servicio = servicios[0].get('estado', '').lower()
+                        elif 'estado' in c:
+                            estado_servicio = c.get('estado', '').lower()
+                        else:
+                            estado_servicio = 'desconocido'
+        except Exception as e:
+            estado_servicio = None
+        if estado_servicio != 'activo':
+            return jsonify({'success': False, 'message': 'El servicio debe estar ACTIVO para poder realizar cambios.'})
+        data = request.get_json()
+        nuevo_nombre = data.get("nuevo_nombre")
+        # Validaciones comunes
         if not nuevo_nombre:
-            flash("Por favor ingrese un nuevo nombre", "error")
-            return render_template("users/user_cambiar_nombre_red.html", cliente=cliente)
+            msg = "Por favor ingrese un nuevo nombre"
+            return jsonify({'success': False, 'message': msg})
         ip = session.get('ip')
         if not ip:
-            flash("No se encontró la IP del cliente", "error")
-            return render_template("users/user_cambiar_nombre_red.html", cliente=cliente)
+            msg = "No se encontró la IP del cliente"
+            return jsonify({'success': False, 'message': msg})
         device_id = obtener_device_id_por_ip(ip)
         if not device_id:
-            flash("No se encontró el dispositivo del cliente", "error")
-            return render_template("users/user_cambiar_nombre_red.html", cliente=cliente)
-        enviar_whatsapp(cliente['celular'], f"¡Hola! tu Nombre de la Red Wifi será cambiada en 10 segundos. Nuevo Nombre: {nuevo_nombre}")
-        time.sleep(10)
-        ok = cambiar_parametro_genieacs(device_id, 'InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.SSID', nuevo_nombre)
-        if ok:
-            actualizar_parametros_wisphub(cliente['cedula'], nuevo_ssid=nuevo_nombre)
-            registrar_cambio_usuario(cliente['cedula'], 'SSID', nuevo_nombre)
-            flash("Nombre de red actualizado exitosamente", "success")
-            return redirect(url_for("dashboard"))
-        else:
-            flash("Error al cambiar el nombre de la red", "error")
-            return render_template("users/user_cambiar_nombre_red.html", cliente=cliente)
+            msg = "No se encontró el dispositivo del cliente"
+            return jsonify({'success': False, 'message': msg})
+        # Lógica AJAX: solo enviar WhatsApp
+        if accion == 'whatsapp':
+            whatsapp = normalizar_numero(cliente['celular'])
+            if not whatsapp:
+                return jsonify({'success': False, 'message': 'El número de teléfono no es válido para WhatsApp.'})
+            try:
+                enviar_whatsapp(whatsapp, f"¡Hola! tu Nombre de la Red Wifi será cambiada en unos segundos. Nuevo Nombre: {nuevo_nombre}")
+                return jsonify({'success': True})
+            except Exception as e:
+                return jsonify({'success': False, 'message': str(e)})
+        # Lógica AJAX: solo cambiar el nombre
+        if accion == 'cambiar':
+            ok = cambiar_parametro_genieacs(device_id, 'InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.SSID', nuevo_nombre)
+            if ok:
+                actualizar_parametros_wisphub(cliente['cedula'], nuevo_ssid=nuevo_nombre)
+                registrar_cambio_usuario(cliente['cedula'], 'SSID', nuevo_nombre)
+                return jsonify({'success': True})
+            else:
+                return jsonify({'success': False, 'message': 'Error al cambiar el nombre de la red en el dispositivo.'})
+        # Si no es una acción válida
+        return jsonify({'success': False, 'message': 'Acción no válida.'})
+    # Solo renderiza la plantilla en GET
     return render_template("users/user_cambiar_nombre_red.html", cliente=cliente)
 
 @app.route("/cerrar_sesion", methods=["POST"])
@@ -275,21 +382,27 @@ def obtener_device_id_por_ip(ip_buscada):
         response = requests.get(f"{GENIEACS_API}/devices")
         response.raise_for_status()
         dispositivos = response.json()
+        print(f"[GENIEACS] Buscando IP: {ip_buscada}")
         for device in dispositivos:
             device_id = device.get('_id')
-            ip_actual = device.get("InternetGatewayDevice", {}) \
-                              .get("WANDevice", {}) \
-                              .get("1", {}) \
-                              .get("WANConnectionDevice", {}) \
-                              .get("2", {}) \
-                              .get("WANIPConnection", {}) \
-                              .get("1", {}) \
-                              .get("ExternalIPAddress", {}) \
-                              .get("_value")
+            # Buscar la IP en ConnectionRequestURL
+            url = device.get("InternetGatewayDevice", {}) \
+                      .get("ManagementServer", {}) \
+                      .get("ConnectionRequestURL", {}) \
+                      .get("_value")
+            ip_actual = None
+            if url:
+                import re
+                match = re.search(r"https?://([\d.]+):", url)
+                if match:
+                    ip_actual = match.group(1)
+            print(f"[GENIEACS] device_id: {device_id} | url: {url} | ip_actual: {ip_actual}")
             if ip_actual == ip_buscada:
+                print(f"[GENIEACS] ¡Coincidencia encontrada!")
                 return device_id
     except Exception as e:
         print(f"Error al buscar dispositivo en GenieACS: {e}")
+    print(f"[GENIEACS] No se encontró ningún device_id para la IP: {ip_buscada}")
     return None
 
 def cambiar_parametro_genieacs(device_id, parametro, valor):

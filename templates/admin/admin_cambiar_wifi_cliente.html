@@ -31,7 +31,7 @@
             <a class="navbar-brand" href="{{ url_for('admin.dashboard') }}">
                 <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo">
             </a>
-            <form method="POST" action="{{ url_for('admin.logout') }}" class="mb-0">
+            <form id="form-logout-admin" class="mb-0">
                 <button type="submit" class="btn btn-outline-danger rounded-pill px-4">Cerrar Sesión</button>
             </form>
         </div>
@@ -43,16 +43,7 @@
         </div>
         <div class="container-fluid maxw-1100">
             <div class="card shadow p-4">
-                {% with messages = get_flashed_messages(with_categories=true) %}
-                {% if messages %}
-                {% for category, message in messages %}
-                <div class="alert alert-{{ category if category != 'error' else 'danger' }} alert-dismissible fade show mb-3" role="alert">
-                    {{ message }}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
-                </div>
-                {% endfor %}
-                {% endif %}
-                {% endwith %}
+
                 <!-- Formulario para buscar cliente por cédula -->
                 <form method="GET" action="{{ url_for('admin.cambiar_wifi_cliente') }}" class="mb-4">
                     <div class="mb-3">
@@ -67,13 +58,22 @@
                     <div class="mb-4">
                         <h6>Información del Cliente:</h6>
                         <div class="row g-3">
-                            <div class="col-12 col-md-4"><strong>Nombre:</strong> {{ cliente.nombre }}</div>
-                            <div class="col-12 col-md-4"><strong>Cédula:</strong> {{ cliente.cedula }}</div>
-                            <div class="col-12 col-md-4"><strong>IP:</strong> {{ cliente.ip }}</div>
+                            <div class="col-12 col-md-3"><strong>Nombre:</strong> {{ cliente.nombre }}</div>
+                            <div class="col-12 col-md-3"><strong>Cédula:</strong> {{ cliente.cedula }}</div>
+                            <div class="col-12 col-md-3"><strong>IP:</strong> {{ cliente.ip }}</div>
+                            <div class="col-12 col-md-3"><strong>Estado Servicio:</strong> 
+                                {% if estado_servicio == 'activo' %}
+                                    <span class="badge bg-success">Activo</span>
+                                {% elif estado_servicio == 'suspendido' %}
+                                    <span class="badge bg-danger">Suspendido</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Desconocido</span>
+                                {% endif %}
+                            </div>
                         </div>
                     </div>
                     <!-- Cambiar SSID -->
-                    <form method="POST" action="{{ url_for('admin.cambiar_wifi_cliente') }}" class="mb-3">
+                    <form id="form-cambiar-ssid" autocomplete="off">
                         <input type="hidden" name="cedula" value="{{ cliente.cedula }}">
                         <input type="hidden" name="accion" value="ssid">
                         <div class="mb-2">
@@ -85,7 +85,7 @@
                         </div>
                     </form>
                     <!-- Cambiar Contraseña -->
-                    <form method="POST" action="{{ url_for('admin.cambiar_wifi_cliente') }}">
+                    <form id="form-cambiar-password" autocomplete="off">
                         <input type="hidden" name="cedula" value="{{ cliente.cedula }}">
                         <input type="hidden" name="accion" value="password">
                         <div class="mb-2">
@@ -111,12 +111,148 @@
         </div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- SweetAlert2 CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    {% if cliente_no_encontrado %}
+    <script>
+    Swal.fire({
+        icon: 'error',
+        title: 'Cliente no encontrado',
+        text: 'No existe ningún cliente con esa cédula.',
+        confirmButtonColor: '#3085d6',
+        confirmButtonText: 'Aceptar'
+    });
+    </script>
+    {% endif %}
     <script>
         function togglePassword() {
             const passwordInput = document.getElementById('nueva_password');
             const checkbox = document.getElementById('mostrarPassword');
             passwordInput.type = checkbox.checked ? 'text' : 'password';
         }
+        // AJAX para cambiar SSID
+        const formSsid = document.getElementById('form-cambiar-ssid');
+        if (formSsid) {
+            formSsid.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                Swal.fire({
+                    title: 'Procesando solicitud',
+                    html: '<div id="swal-mensaje">Actualizando nombre de red...</div><div class="progress mt-3" style="height: 8px;"><div id="swal-barra" class="progress-bar bg-primary" role="progressbar" style="width: 0%"></div></div>',
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
+                    showConfirmButton: false,
+                    didOpen: () => { Swal.showLoading(); }
+                });
+                const barra = document.getElementById('swal-barra');
+                let barraInterval = null;
+                if (barra) {
+                    let progreso = 0;
+                    barra.style.width = '0%';
+                    barraInterval = setInterval(() => {
+                        progreso += 2;
+                        barra.style.width = progreso + '%';
+                        if (progreso >= 100) clearInterval(barraInterval);
+                    }, 100);
+                }
+                let formData = new FormData(formSsid);
+                let data = {};
+                formData.forEach((value, key) => { data[key] = value; });
+                let resp = await fetch(window.location.pathname, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                let res = await resp.json();
+                if (!res.success) {
+                    if (barraInterval) clearInterval(barraInterval);
+                    Swal.fire({ icon: 'error', title: 'Error', text: res.message || 'Error al cambiar el nombre de la red.' });
+                    return;
+                }
+                if (barra) barra.style.width = '100%';
+                await new Promise(r => setTimeout(r, 1000));
+                Swal.fire({
+                    icon: 'success',
+                    title: '¡Nombre de red actualizado!',
+                    showConfirmButton: false,
+                    timer: 1800
+                });
+                setTimeout(() => { window.location.reload(); }, 1800);
+            });
+        }
+        // AJAX para cambiar contraseña
+        const formPass = document.getElementById('form-cambiar-password');
+        if (formPass) {
+            formPass.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                Swal.fire({
+                    title: 'Procesando solicitud',
+                    html: '<div id="swal-mensaje">Actualizando contraseña...</div><div class="progress mt-3" style="height: 8px;"><div id="swal-barra" class="progress-bar bg-primary" role="progressbar" style="width: 0%"></div></div>',
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
+                    showConfirmButton: false,
+                    didOpen: () => { Swal.showLoading(); }
+                });
+                const barra = document.getElementById('swal-barra');
+                let barraInterval = null;
+                if (barra) {
+                    let progreso = 0;
+                    barra.style.width = '0%';
+                    barraInterval = setInterval(() => {
+                        progreso += 2;
+                        barra.style.width = progreso + '%';
+                        if (progreso >= 100) clearInterval(barraInterval);
+                    }, 100);
+                }
+                let formData = new FormData(formPass);
+                let data = {};
+                formData.forEach((value, key) => { data[key] = value; });
+                let resp = await fetch(window.location.pathname, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                let res = await resp.json();
+                if (!res.success) {
+                    if (barraInterval) clearInterval(barraInterval);
+                    Swal.fire({ icon: 'error', title: 'Error', text: res.message || 'Error al cambiar la contraseña.' });
+                    return;
+                }
+                if (barra) barra.style.width = '100%';
+                await new Promise(r => setTimeout(r, 1000));
+                Swal.fire({
+                    icon: 'success',
+                    title: '¡Contraseña cambiada exitosamente!',
+                    showConfirmButton: false,
+                    timer: 1800
+                });
+                setTimeout(() => { window.location.reload(); }, 1800);
+            });
+        }
+        // AJAX para cerrar sesión
+        document.addEventListener('DOMContentLoaded', function() {
+            const formLogout = document.getElementById('form-logout-admin');
+            if (formLogout) {
+                formLogout.addEventListener('submit', async function(e) {
+                    e.preventDefault();
+                    let resp = await fetch("{{ url_for('admin.logout') }}", {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                    let res = await resp.json();
+                    if (res.success) {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Sesión cerrada',
+                            showConfirmButton: false,
+                            timer: 1200
+                        });
+                        setTimeout(() => { window.location.href = res.redirect || '/admin/login'; }, 1200);
+                    } else {
+                        Swal.fire({ icon: 'error', title: 'Error', text: res.message || 'No se pudo cerrar la sesión.' });
+                    }
+                });
+            }
+        });
     </script>
 </body>
 </html>
