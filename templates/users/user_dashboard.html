@@ -168,6 +168,11 @@
                             {% endif %}
                         </div>
                     </div>
+                    <!-- NUEVA SECCIÓN: DATOS WIFI -->
+                    <div class="info-cliente-row mt-3">
+                        <div class="info-cliente-item"><strong>Nombre de Red (SSID):</strong> {{ ssid_actual or 'No disponible' }}</div>
+                        <div class="info-cliente-item"><strong>Contraseña Actual:</strong> {{ password_actual or 'No disponible' }}</div>
+                    </div>
                 </div>
             </div>
         </div>

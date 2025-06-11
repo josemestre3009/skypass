@@ -4,7 +4,7 @@ import os
 from dotenv import load_dotenv
 import functools
 from admin import admin_bp
-from datetime import datetime
+from datetime import datetime, timedelta
 import random
 import sqlite3
 from time import time
@@ -98,14 +98,48 @@ def cliente_requerido(func):
 # Rutas para clientes
 @app.route("/", methods=["GET", "POST"])
 def index():
+    if request.method == "GET":
+        session.clear()  # Limpia cualquier sesión previa al mostrar el login
     if request.method == "POST":
+        # --- BLOQUEO POR INTENTOS FALLIDOS DE CÉDULA ---
+        intentos_cedula = session.get('intentos_cedula', 0)
+        bloqueo_cedula_hasta = session.get('bloqueo_cedula_hasta')
+        ahora = datetime.now()
+        if bloqueo_cedula_hasta:
+            try:
+                bloqueo_cedula_dt = datetime.fromisoformat(bloqueo_cedula_hasta)
+                if ahora < bloqueo_cedula_dt:
+                    segundos_restantes = int((bloqueo_cedula_dt - ahora).total_seconds())
+                    minutos = segundos_restantes // 60
+                    segundos = segundos_restantes % 60
+                    return jsonify({'success': False, 'code': 'bloqueo_cedula', 'message': f'Has superado el número de intentos. Intenta de nuevo en {minutos} minutos y {segundos} segundos.'})
+            except Exception:
+                pass
         cedula = request.form.get("cedula")
         if not cedula:
-            return jsonify({'success': False, 'code': 'sin_cedula', 'message': 'Por favor ingrese su cédula'})
+            intentos_cedula += 1
+            intentos_restantes = 3 - intentos_cedula
+            session['intentos_cedula'] = intentos_cedula
+            if intentos_cedula >= 3:
+                session['bloqueo_cedula_hasta'] = (ahora + timedelta(minutes=2)).isoformat()
+                session['intentos_cedula'] = 0
+                return jsonify({'success': False, 'code': 'bloqueo_cedula', 'message': 'Has superado el número de intentos permitidos. Tu acceso ha sido bloqueado por 2 minutos.'})
+            else:
+                return jsonify({'success': False, 'code': 'sin_cedula', 'message': f'Por favor ingrese su cédula. Te quedan {intentos_restantes} intento(s) antes de ser bloqueado.'})
         cliente, error = buscar_cliente_por_cedula(cedula)
         if error:
-            return jsonify({'success': False, 'code': error['code'], 'message': error['message']})
+            intentos_cedula += 1
+            intentos_restantes = 3 - intentos_cedula
+            session['intentos_cedula'] = intentos_cedula
+            if intentos_cedula >= 3:
+                session['bloqueo_cedula_hasta'] = (ahora + timedelta(minutes=2)).isoformat()
+                session['intentos_cedula'] = 0
+                return jsonify({'success': False, 'code': 'bloqueo_cedula', 'message': 'Has superado el número de intentos permitidos. Tu acceso ha sido bloqueado por 2 minutos.'})
+            else:
+                return jsonify({'success': False, 'code': error['code'], 'message': f"{error['message']} Te quedan {intentos_restantes} intento(s) antes de ser bloqueado."})
         if cliente:
+            session.pop('intentos_cedula', None)
+            session.pop('bloqueo_cedula_hasta', None)
             whatsapp = cliente.get('telefono', '')
             whatsapp = normalizar_numero(whatsapp)
             if not whatsapp:
@@ -116,43 +150,115 @@ def index():
             codigo = str(random.randint(100000, 999999))
             session['codigo_verificacion'] = codigo
             session['telefono'] = whatsapp
-            # Enviar código por WhatsApp usando el microservicio
+            session['nombre'] = cliente.get('nombre', '')
+            session['cedula'] = cedula
+            # Enviar WhatsApp automáticamente
             try:
-                print(f"[DEPURACIÓN] Enviando código {codigo} a WhatsApp: {whatsapp}")
-                resp = requests.post(
-                    f'http://{ip_server}:3002/send',
-                    json={
-                        'telefono': whatsapp,
-                        'mensaje': f'Tu código de verificación es: {codigo}'
-                    },
-                    timeout=7
-                )
-                data = resp.json()
-                print(f"[DEPURACIÓN] Respuesta del microservicio: {data}")
-                if not data.get('success'):
-                    return jsonify({'success': False, 'code': 'error_envio', 'message': 'No se pudo enviar el código por WhatsApp. ' + data.get('message', '')})
+                enviar_whatsapp(whatsapp, f'Tu código de verificación es: {codigo}')
             except Exception as e:
-                print(f"[DEPURACIÓN] Excepción al enviar código: {e}")
+                print(f"[DEPURACIÓN] Error al enviar WhatsApp: {e}")
                 return jsonify({'success': False, 'code': 'error_envio', 'message': 'No se pudo enviar el código por WhatsApp. ' + str(e)})
             return jsonify({'success': True, 'ultimos4': ultimos4})
     return render_template("users/user_login.html")
 
+@app.route("/seleccionar_servicio", methods=["POST"])
+def seleccionar_servicio():
+    ip = request.form.get("ip")
+    if not ip:
+        return jsonify({'success': False})
+    session['ip'] = ip
+    return jsonify({'success': True, 'redirect': url_for('dashboard')})
+
 @app.route('/verificar_codigo_ajax', methods=['POST'])
 def verificar_codigo_ajax():
     codigo = request.form.get('codigo')
+    # --- BLOQUEO POR INTENTOS FALLIDOS ---
+    intentos = session.get('intentos_codigo', 0)
+    bloqueo_hasta = session.get('bloqueo_codigo_hasta')
+    ahora = datetime.now()
+    if bloqueo_hasta:
+        try:
+            bloqueo_hasta_dt = datetime.fromisoformat(bloqueo_hasta)
+            if ahora < bloqueo_hasta_dt:
+                segundos_restantes = int((bloqueo_hasta_dt - ahora).total_seconds())
+                minutos = segundos_restantes // 60
+                segundos = segundos_restantes % 60
+                return jsonify({'success': False, 'message': f'Has superado el número de intentos. Intenta de nuevo en {minutos} minutos y {segundos} segundos.'})
+        except Exception:
+            pass  # Si hay error, ignora y sigue
     if codigo == session.get('codigo_verificacion'):
         session.pop('_flashes', None)  # Limpiar mensajes anteriores
+        session.pop('intentos_codigo', None)
+        session.pop('bloqueo_codigo_hasta', None)
+        cedula = session.get('cedula')
+        # Unificar servicios de todos los clientes con la misma cédula
+        data = None
+        try:
+            response = requests.get(BASE_URL, headers={
+                'Authorization': f'Api-Key {API_KEY}',
+                'Content-Type': 'application/json'
+            }, params={'cedula': cedula}, timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+        except Exception as e:
+            data = None
+        servicios_unificados = []
+        if data and 'results' in data:
+            for c in data['results']:
+                if c.get('cedula') == cedula:
+                    servicios = c.get('servicios', [])
+                    if servicios:
+                        for s in servicios:
+                            if s.get('ip'):
+                                # Añadir la dirección si existe
+                                s_copy = dict(s)
+                                s_copy['direccion'] = c.get('direccion', '')
+                                servicios_unificados.append(s_copy)
+                    elif c.get('ip'):
+                        servicios_unificados.append({'ip': c.get('ip'), 'nombre_servicio': c.get('nombre_servicio', ''), 'ssid_router_wifi': c.get('ssid_router_wifi', ''), 'estado': c.get('estado', ''), 'direccion': c.get('direccion', '')})
+        # Si hay más de un servicio, pedir selección
+        if len(servicios_unificados) > 1:
+            lista_servicios = []
+            for idx, s in enumerate(servicios_unificados, 1):
+                nombre = f"Servicio de Internet {idx}"
+                direccion = s.get('direccion', '')
+                ssid = s.get('ssid_router_wifi', '')
+                texto = nombre
+                if direccion:
+                    texto += f" ({direccion})"
+                if ssid:
+                    texto += f" - SSID: {ssid}"
+                lista_servicios.append({
+                    'ip': s.get('ip', ''),
+                    'texto': texto
+                })
+            return jsonify({'success': True, 'multiple_servicios': True, 'servicios': lista_servicios})
+        # Si solo hay uno, guardar en sesión y redirigir
+        ip = servicios_unificados[0]['ip'] if servicios_unificados else session.get('ip')
+        session['ip'] = ip
         flash('Sesión iniciada correctamente', 'success')
         return jsonify({'success': True, 'redirect': url_for('dashboard')})
-    return jsonify({'success': False, 'message': 'Código incorrecto.'})
+    # Si el código es incorrecto
+    intentos += 1
+    intentos_restantes = 3 - intentos
+    session['intentos_codigo'] = intentos
+    if intentos >= 3:
+        session['bloqueo_codigo_hasta'] = (ahora + timedelta(minutes=2)).isoformat()
+        session['intentos_codigo'] = 0  # Reinicia el contador tras bloquear
+        return jsonify({'success': False, 'message': 'Has superado el número de intentos permitidos. Tu acceso ha sido bloqueado por 2 minutos.'})
+    else:
+        return jsonify({'success': False, 'message': f'Código incorrecto. Te quedan {intentos_restantes} intento(s) antes de ser bloqueado.'})
 
 @app.route("/dashboard")
 @cliente_requerido
 def dashboard():
     limpiar_historial_antiguo()
     cliente = obtener_cliente_actual()
-    # Obtener el estado del servicio Wisphub
+    # Obtener el estado del servicio Wisphub y datos wifi
     estado_servicio = None
+    ssid_actual = ''
+    password_actual = ''
+    ip_seleccionada = session.get('ip')
     try:
         headers = {
             'Authorization': f'Api-Key {API_KEY}',
@@ -164,19 +270,44 @@ def dashboard():
         if response.status_code == 200:
             data = response.json()
             clientes = data.get('results', [])
+            servicio_encontrado = None
             for c in clientes:
                 if c.get('cedula') == cliente['cedula']:
                     servicios = c.get('servicios', [])
                     if servicios and isinstance(servicios, list) and len(servicios) > 0:
-                        estado_servicio = servicios[0].get('estado', '').lower()
-                    elif 'estado' in c:
-                        estado_servicio = c.get('estado', '').lower()
-                    else:
-                        estado_servicio = 'desconocido'
+                        for s in servicios:
+                            if s.get('ip') == ip_seleccionada:
+                                servicio_encontrado = s
+                                break
+                        if servicio_encontrado:
+                            break
+                    elif c.get('ip') == ip_seleccionada:
+                        # Caso de cliente sin lista de servicios pero con ip directa
+                        servicio_encontrado = c
+                        break
+            if servicio_encontrado:
+                estado_servicio = servicio_encontrado.get('estado', '').lower()
+                ssid_actual = servicio_encontrado.get('ssid_router_wifi', '')
+                password_actual = servicio_encontrado.get('password_ssid_router_wifi', '')
+            else:
+                # Fallback: primer servicio del primer cliente
+                for c in clientes:
+                    if c.get('cedula') == cliente['cedula']:
+                        servicios = c.get('servicios', [])
+                        if servicios and isinstance(servicios, list) and len(servicios) > 0:
+                            s = servicios[0]
+                            estado_servicio = s.get('estado', '').lower()
+                            ssid_actual = s.get('ssid_router_wifi', '')
+                            password_actual = s.get('password_ssid_router_wifi', '')
+                        else:
+                            estado_servicio = c.get('estado', '').lower() if 'estado' in c else 'desconocido'
+                            ssid_actual = c.get('ssid_router_wifi', '')
+                            password_actual = c.get('password_ssid_router_wifi', '')
+                        break
     except Exception as e:
         estado_servicio = None
     cambios_realizados = contar_cambios_usuario_mes(cliente['cedula'])
-    return render_template("users/user_dashboard.html", cliente=cliente, cambios_realizados=cambios_realizados, estado_servicio=estado_servicio)
+    return render_template("users/user_dashboard.html", cliente=cliente, cambios_realizados=cambios_realizados, estado_servicio=estado_servicio, ssid_actual=ssid_actual, password_actual=password_actual)
 
 # Función para obtener el cliente actual desde la sesión
 def obtener_cliente_actual():
@@ -573,6 +704,25 @@ def get_db_connection():
     conn = sqlite3.connect('skypass.db')
     conn.row_factory = sqlite3.Row
     return conn
+
+@app.route('/reenviar_codigo', methods=['POST'])
+def reenviar_codigo():
+    telefono = session.get('telefono')
+    codigo = session.get('codigo_verificacion')
+    if not telefono or not codigo:
+        return jsonify({'success': False, 'message': 'No hay sesión activa.'})
+    try:
+        enviar_whatsapp(telefono, f'Tu código de verificación es: {codigo}')
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.after_request
+def add_header(response):
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, post-check=0, pre-check=0, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '-1'
+    return response
 
 if __name__ == "__main__":
     app.run(debug=True)

@@ -226,6 +226,30 @@ sudo certbot --nginx
 
 ---
 
+MONITOREO AUTOMÁTICO DEL BOT WHATSAPP (REINICIO AUTOMÁTICO)
+==========================================================
+
+Para asegurar que el bot de WhatsApp se mantenga siempre activo, puedes usar un script de monitoreo que revisa periódicamente el estado del bot y lo reinicia si detecta que está caído o no responde correctamente.
+
+
+
+2. Dale permisos de ejecución:
+
+    chmod +x ~/skypass/monitor-bot.sh
+
+3. Programa el script en cron para que se ejecute cada 2 minutos:
+
+    crontab -e
+
+Y añade la línea:
+
+    */2 * * * * /root/skypass/monitor-bot.sh
+
+Esto revisará el estado del bot cada 2 minutos y lo reiniciará automáticamente si es necesario. El log de reinicios quedará en ~/monitor-bot.log.
+
+---
+
+
 ¡LISTO!  
 Con este archivo, tu despliegue será ordenado, seguro y fácil de depurar.  
 Si tienes dudas o necesitas adaptar algo a tu caso, ¡avísame! 

@@ -100,15 +100,15 @@ def obtener_estadisticas_uso():
         print(f"Error al obtener estadísticas: {e}")
         return {}
 
-def actualizar_limite_cliente(cedula, nuevo_limite):
-    """Actualiza o inserta el límite de cambios para un cliente"""
+def actualizar_limite_cliente(ip, nombre, nuevo_limite):
+    """Actualiza o inserta el límite de cambios para un cliente por IP"""
     try:
         conn = get_db_connection()
         conn.execute("""
-            INSERT INTO user_limits (cedula, limite_personalizado)
-            VALUES (?, ?)
-            ON CONFLICT(cedula) DO UPDATE SET limite_personalizado=excluded.limite_personalizado;
-        """, (cedula, nuevo_limite))
+            INSERT INTO user_limits (ip, nombre, limite_personalizado)
+            VALUES (?, ?, ?)
+            ON CONFLICT(ip) DO UPDATE SET limite_personalizado=excluded.limite_personalizado, nombre=excluded.nombre;
+        """, (ip, nombre, nuevo_limite))
         conn.commit()
         conn.close()
         return True
@@ -365,19 +365,37 @@ def estadisticas():
 @admin_requerido
 def limites():
     if request.method == 'POST':
-        cedula = request.form.get('cedula')
+        ip = request.form.get('ip')
         nuevo_limite = int(request.form.get('nuevo_limite'))
-        print('[LOG] POST /limites - cedula:', cedula, 'nuevo_limite:', nuevo_limite)
-        cliente = buscar_cliente_por_cedula(cedula)
-        print('[LOG] Resultado buscar_cliente_por_cedula:', cliente)
+        print('[LOG] POST /limites - ip:', ip, 'nuevo_limite:', nuevo_limite)
+        # Buscar nombre del cliente por IP
+        cliente = None
+        try:
+            from app import BASE_URL, API_KEY
+            import requests
+            headers = {
+                'Authorization': f'Api-Key {API_KEY}',
+                'Content-Type': 'application/json'
+            }
+            resp = requests.get(BASE_URL, headers=headers, params={'ip': ip}, timeout=7)
+            if resp.status_code == 200:
+                data = resp.json()
+                clientes = data.get('results', [])
+                for c in clientes:
+                    if c.get('ip') == ip or c.get('ip_address') == ip:
+                        cliente = c
+                        break
+        except Exception as e:
+            print('[LOG] Error buscando cliente por IP:', e)
         if not cliente:
-            flash('La cédula ingresada no corresponde a ningún cliente en Wisphub.', 'error')
+            flash('La IP ingresada no corresponde a ningún cliente en Wisphub.', 'error')
             return redirect(url_for('admin.limites'))
+        nombre = cliente.get('nombre', '')
         conn = get_db_connection()
-        cur = conn.execute("SELECT * FROM user_limits WHERE cedula = ?", (cedula,))
+        cur = conn.execute("SELECT * FROM user_limits WHERE ip = ?", (ip,))
         existe = cur.fetchone()
         conn.close()
-        if actualizar_limite_cliente(cedula, nuevo_limite):
+        if actualizar_limite_cliente(ip, nombre, nuevo_limite):
             if existe:
                 flash('Límite personalizado actualizado correctamente.', 'personalizado')
             else:
@@ -482,12 +500,12 @@ def eliminar_limite():
     if not request.is_json:
         return jsonify({'success': False, 'message': 'Solo se permite el flujo AJAX.'})
     data = request.get_json()
-    cedula = data.get('cedula')
-    if not cedula:
-        return jsonify({'success': False, 'message': 'Cédula no proporcionada'})
+    ip = data.get('ip')
+    if not ip:
+        return jsonify({'success': False, 'message': 'IP no proporcionada'})
     try:
         conn = get_db_connection()
-        cur = conn.execute("DELETE FROM user_limits WHERE cedula = ?", (cedula,))
+        cur = conn.execute("DELETE FROM user_limits WHERE ip = ?", (ip,))
         conn.commit()
         conn.close()
         return jsonify({'success': True, 'message': 'Límite personalizado eliminado.'})
@@ -500,17 +518,36 @@ def editar_limite():
     if not request.is_json:
         return jsonify({'success': False, 'message': 'Solo se permite el flujo AJAX.'})
     data = request.get_json()
-    cedula = data.get('cedula')
+    ip = data.get('ip')
     nuevo_limite = data.get('nuevo_limite')
-    if not cedula or not nuevo_limite:
+    if not ip or not nuevo_limite:
         return jsonify({'success': False, 'message': 'Datos incompletos para editar el límite'})
     try:
+        # Buscar nombre del cliente por IP
+        nombre = ''
+        try:
+            from app import BASE_URL, API_KEY
+            import requests
+            headers = {
+                'Authorization': f'Api-Key {API_KEY}',
+                'Content-Type': 'application/json'
+            }
+            resp = requests.get(BASE_URL, headers=headers, params={'ip': ip}, timeout=7)
+            if resp.status_code == 200:
+                data_ws = resp.json()
+                clientes = data_ws.get('results', [])
+                for c in clientes:
+                    if c.get('ip') == ip or c.get('ip_address') == ip:
+                        nombre = c.get('nombre', '')
+                        break
+        except Exception as e:
+            print('[LOG] Error buscando nombre por IP:', e)
         conn = get_db_connection()
         conn.execute("""
-            INSERT INTO user_limits (cedula, limite_personalizado)
-            VALUES (?, ?)
-            ON CONFLICT(cedula) DO UPDATE SET limite_personalizado=excluded.limite_personalizado;
-        """, (cedula, int(nuevo_limite)))
+            INSERT INTO user_limits (ip, nombre, limite_personalizado)
+            VALUES (?, ?, ?)
+            ON CONFLICT(ip) DO UPDATE SET limite_personalizado=excluded.limite_personalizado, nombre=excluded.nombre;
+        """, (ip, nombre, int(nuevo_limite)))
         conn.commit()
         conn.close()
         return jsonify({'success': True, 'message': 'Límite personalizado actualizado correctamente.', 'nuevo_limite': int(nuevo_limite)})
@@ -774,4 +811,33 @@ def eliminar_cambio_historial():
         conn.close()
         return jsonify({'success': True})
     except Exception as e:
-        return jsonify({'success': False, 'message': f'Error al eliminar el registro: {str(e)}'}) 
+        return jsonify({'success': False, 'message': f'Error al eliminar el registro: {str(e)}'})
+
+@admin_bp.route('/buscar_clientes')
+@admin_requerido
+def buscar_clientes():
+    query = request.args.get('query', '').strip()
+    if not query or len(query) < 2:
+        return jsonify({'success': True, 'clientes': []})
+    try:
+        from app import BASE_URL, API_KEY
+        import requests
+        headers = {
+            'Authorization': f'Api-Key {API_KEY}',
+            'Content-Type': 'application/json'
+        }
+        # Buscar por nombre o IP
+        params = {'search': query}
+        resp = requests.get(BASE_URL, headers=headers, params=params, timeout=7)
+        clientes = []
+        if resp.status_code == 200:
+            data = resp.json()
+            for c in data.get('results', []):
+                ip = c.get('ip') or c.get('ip_address')
+                nombre = c.get('nombre', '')
+                if ip:
+                    clientes.append({'ip': ip, 'nombre': nombre})
+        return jsonify({'success': True, 'clientes': clientes})
+    except Exception as e:
+        print('[LOG] Error en buscar_clientes:', e)
+        return jsonify({'success': False, 'clientes': []}) 

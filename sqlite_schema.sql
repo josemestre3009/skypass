@@ -29,7 +29,9 @@ CREATE TABLE change_limits (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+DROP TABLE IF EXISTS user_limits;
 CREATE TABLE user_limits (
-  cedula TEXT PRIMARY KEY,
+  ip TEXT PRIMARY KEY,
+  nombre TEXT,
   limite_personalizado INTEGER
 ); 

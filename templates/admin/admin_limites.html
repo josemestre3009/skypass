@@ -51,6 +51,54 @@
         .navbar .btn {
             border-radius: 2rem !important;
         }
+        #ip {
+            background: #fff;
+            border-radius: 1.5rem;
+            box-shadow: 0 2px 8px 0 rgba(31,38,135,0.07);
+            border: 1.5px solid #e5e7eb;
+            font-size: 1.08rem;
+            padding-left: 1.2rem;
+            padding-right: 1.2rem;
+            transition: box-shadow 0.2s;
+        }
+        #ip:focus {
+            box-shadow: 0 4px 16px 0 rgba(31,38,135,0.13);
+            border-color: #2563eb;
+        }
+        #nombre-cliente-preview {
+            margin-top: 0.3rem;
+            font-size: 1.08rem;
+            font-weight: 500;
+            color: #2563eb;
+            background: #f4f8fd;
+            border-radius: 1.2rem;
+            display: inline-block;
+            padding: 0.25rem 1.1rem;
+            box-shadow: 0 1px 4px 0 rgba(31,38,135,0.07);
+            min-width: 120px;
+            min-height: 1.8rem;
+        }
+        .form-control {
+            border-radius: 0.5rem !important;
+            box-shadow: none !important;
+            font-size: 1.08rem;
+            border: 1.5px solid #e5e7eb;
+            padding-left: 1rem;
+            padding-right: 1rem;
+            height: 44px;
+        }
+        .form-control:focus {
+            border-color: #2563eb;
+            box-shadow: 0 0 0 2px rgba(37,99,235,0.08);
+        }
+        .btn-primary {
+            border-radius: 2rem !important;
+            font-size: 1.08rem;
+            font-weight: 600;
+            padding: 0.7rem 2.2rem;
+            height: auto;
+            display: inline-block;
+        }
     </style>
 </head>
 <body>
@@ -109,8 +157,8 @@
                 <form id="form-limite-personalizado" class="mb-4" autocomplete="off">
                     <div class="row g-2 align-items-end flex-column flex-md-row">
                         <div class="col-12 col-md-5">
-                            <label for="cedula" class="form-label">Cédula del Cliente</label>
-                            <input type="text" class="form-control" id="cedula" name="cedula" required>
+                            <label for="ip" class="form-label">IP del Cliente</label>
+                            <input type="text" class="form-control" id="ip" name="ip" required placeholder="Ej: 192.168.1.10">
                         </div>
                         <div class="col-12 col-md-5">
                             <label for="nuevo_limite" class="form-label">Nuevo Límite</label>
@@ -125,7 +173,8 @@
                     <table class="table table-striped">
                         <thead>
                             <tr>
-                                <th>Cédula</th>
+                                <th>IP</th>
+                                <th>Nombre</th>
                                 <th>Límite Personalizado</th>
                                 <th>Acción</th>
                             </tr>
@@ -133,11 +182,12 @@
                         <tbody>
                             {% for limite in limites %}
                             <tr>
-                                <td>{{ limite.cedula }}</td>
+                                <td>{{ limite.ip }}</td>
+                                <td>{{ limite.nombre or '' }}</td>
                                 <td>{{ limite.limite_personalizado }}</td>
                                 <td>
-                                    <form id="form-eliminar-{{ limite.cedula }}" class="form-eliminar-limite" autocomplete="off" style="display:inline;">
-                                        <input type="hidden" name="cedula" value="{{ limite.cedula }}">
+                                    <form id="form-eliminar-{{ limite.ip }}" class="form-eliminar-limite" autocomplete="off" style="display:inline;">
+                                        <input type="hidden" name="ip" value="{{ limite.ip }}">
                                         <button type="submit" class="btn btn-outline-danger btn-sm" onclick="return confirm('¿Eliminar límite personalizado? El cliente quedará sujeto al límite global.')">Eliminar</button>
                                     </form>
                                 </td>

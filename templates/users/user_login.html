@@ -74,8 +74,17 @@
                     <label for="codigo" class="form-label">Código de Verificación</label>
                     <input type="text" class="form-control" id="codigo" name="codigo" maxlength="6" required>
                 </div>
+                <div class="mb-2 text-center text-secondary" style="font-size: 0.98rem;">
+                    ¿No te ha llegado el código en 30 segundos? <br>
+                    <span class="text-primary">Haz clic en <b>Reenviar código</b>.</span>
+                </div>
                 <div class="d-grid gap-2">
                     <button type="submit" class="btn btn-success">Verificar Código</button>
+                </div>
+                <div class="d-grid gap-2 mb-2">
+                    <button type="button" class="btn btn-link" id="btn-reenviar-codigo">
+                        <i class="bi bi-arrow-clockwise"></i> Reenviar código
+                    </button>
                 </div>
             </form>
         </div>
@@ -88,11 +97,12 @@
         const formCodigo = document.getElementById('form-codigo');
         const verificacionStep = document.getElementById('verificacion-step');
         const ultimos4 = document.getElementById('ultimos4');
+        const btnReenviar = document.getElementById('btn-reenviar-codigo');
 
+        // Función única para mostrar cualquier alerta con SweetAlert2
         function mostrarAlertaError(code, message) {
             let icon = 'error';
             let title = 'Error';
-            let text = message;
             if (code === 'cliente_no_encontrado') {
                 icon = 'warning';
                 title = 'Cliente no encontrado';
@@ -108,12 +118,28 @@
             } else if (code === 'sin_cedula') {
                 icon = 'info';
                 title = 'Cédula requerida';
+            } else if (code === 'bloqueo_cedula') {
+                icon = 'error';
+                title = 'Demasiados intentos';
+            } else if (code === 'bloqueo_codigo') {
+                icon = 'error';
+                title = 'Demasiados intentos';
+            } else if (code === 'error_numero') {
+                icon = 'error';
+                title = 'Teléfono inválido';
             }
-            Swal.fire({ icon, title, text });
+            Swal.fire({ icon, title, text: message });
         }
 
         formCedula.addEventListener('submit', function(e) {
             e.preventDefault();
+            Swal.fire({
+                title: 'Buscando cliente...',
+                html: '<div class="d-flex justify-content-center align-items-center"><span class="spinner-border text-primary" role="status" aria-hidden="true"></span></div>',
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                showConfirmButton: false
+            });
             fetch('/', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -121,6 +147,7 @@
             })
             .then(res => res.json())
             .then(data => {
+                Swal.close();
                 if (data.success) {
                     ultimos4.textContent = data.ultimos4;
                     verificacionStep.style.display = '';
@@ -142,14 +169,96 @@
                 .then(res => res.json())
                 .then(data => {
                     if (data.success) {
-                        Swal.fire({ icon: 'success', title: '¡Verificación exitosa!', showConfirmButton: false, timer: 1200 });
-                        formCodigo.style.display = 'none';
-                        if (data.redirect) {
-                            setTimeout(() => { window.location.href = data.redirect; }, 1200);
+                        if (data.multiple_servicios) {
+                            // Mostrar SweetAlert2 para seleccionar servicio después de verificar código
+                            let opciones = data.servicios.map(s =>
+                                `<option value="${s.ip}">${s.texto}</option>`
+                            ).join('');
+                            Swal.fire({
+                                title: 'Selecciona el servicio',
+                                html: `<select id="select-servicio" class="form-select">${opciones}</select>`,
+                                confirmButtonText: 'Continuar',
+                                preConfirm: () => {
+                                    return document.getElementById('select-servicio').value;
+                                }
+                            }).then(result => {
+                                if (result.isConfirmed && result.value) {
+                                    fetch('/seleccionar_servicio', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                                        body: `ip=${encodeURIComponent(result.value)}`
+                                    })
+                                    .then(res => res.json())
+                                    .then(data2 => {
+                                        if (data2.success) {
+                                            Swal.fire({ icon: 'success', title: '¡Verificación exitosa!', showConfirmButton: false, timer: 1200 });
+                                            formCodigo.style.display = 'none';
+                                            setTimeout(() => { window.location.href = data2.redirect; }, 1200);
+                                        } else {
+                                            Swal.fire('Error', 'No se pudo seleccionar el servicio', 'error');
+                                        }
+                                    });
+                                }
+                            });
+                        } else {
+                            Swal.fire({ icon: 'success', title: '¡Verificación exitosa!', showConfirmButton: false, timer: 1200 });
+                            formCodigo.style.display = 'none';
+                            if (data.redirect) {
+                                setTimeout(() => { window.location.href = data.redirect; }, 1200);
+                            }
                         }
                     } else {
                         mostrarAlertaError(data.code, data.message);
                     }
+                });
+            });
+        }
+
+        if (btnReenviar) {
+            btnReenviar.addEventListener('click', function() {
+                btnReenviar.disabled = true;
+                fetch('/reenviar_codigo', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: ''
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Código reenviado',
+                            text: 'El código fue reenviado a tu WhatsApp.',
+                            timer: 1500,
+                            showConfirmButton: false
+                        });
+                    } else {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error',
+                            text: data.message || 'No se pudo reenviar el código.'
+                        });
+                    }
+                    // Temporizador de 30 segundos
+                    let segundos = 30;
+                    btnReenviar.textContent = `Reenviar código (${segundos})`;
+                    const interval = setInterval(() => {
+                        segundos--;
+                        btnReenviar.textContent = `Reenviar código (${segundos})`;
+                        if (segundos <= 0) {
+                            clearInterval(interval);
+                            btnReenviar.textContent = 'Reenviar código';
+                            btnReenviar.disabled = false;
+                        }
+                    }, 1000);
+                })
+                .catch(() => {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: 'No se pudo reenviar el código.'
+                    });
+                    btnReenviar.disabled = false;
                 });
             });
         }
