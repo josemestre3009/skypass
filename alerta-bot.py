@@ -1,6 +1,8 @@
 import requests
 
-API_KEY = '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'
+import os
+API_KEY = os.getenv("BREVO_API_KEY")
+
 url = "https://api.brevo.com/v3/smtp/email"
 
 data = {
