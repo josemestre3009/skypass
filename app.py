@@ -342,7 +342,7 @@ def cambiar_clave():
     accion = request.args.get('accion')
     if request.method == "POST":
         # Control de límite de cambios para ambos flujos
-        limite_cambios = obtener_limite_cliente(cliente['cedula'])
+        limite_cambios = obtener_limite_cliente(session.get('ip'))
         cambios_realizados = contar_cambios_usuario_mes(cliente['cedula'])
         if cambios_realizados >= limite_cambios:
             msg = f"Has alcanzado el límite de {limite_cambios} cambios permitidos este mes."
@@ -430,7 +430,7 @@ def cambiar_nombre_red():
     accion = request.args.get('accion')
     if request.method == "POST":
         # Control de límite de cambios para ambos flujos
-        limite_cambios = obtener_limite_cliente(cliente['cedula'])
+        limite_cambios = obtener_limite_cliente(session.get('ip'))
         cambios_realizados = contar_cambios_usuario_mes(cliente['cedula'])
         if cambios_realizados >= limite_cambios:
             msg = f"Has alcanzado el límite de {limite_cambios} cambios permitidos este mes."
@@ -595,10 +595,10 @@ def contar_cambios_usuario_mes(cedula):
         print(f"Error contando cambios del usuario: {e}")
         return 0
 
-def obtener_limite_cliente(cedula):
+def obtener_limite_cliente(ip):
     try:
         conn = get_db_connection()
-        cur = conn.execute("SELECT limite_personalizado FROM user_limits WHERE cedula = ?", (cedula,))
+        cur = conn.execute("SELECT limite_personalizado FROM user_limits WHERE ip = ?", (ip,))
         data = cur.fetchone()
         conn.close()
         if data and data['limite_personalizado']:
