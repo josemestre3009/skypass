@@ -1,10 +1,10 @@
 import requests
 
-API_KEY = 'daGnjD705T9Ips63'
+API_KEY = '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'
 url = "https://api.brevo.com/v3/smtp/email"
 
 data = {
-    "sender": {"name": "Alerta Servidor", "email": "8f8977001@smtp-brevo.com"},
+    "sender": {"name": "Alerta Servidor", "email": "jmestresaucedo@gmail.com"},
     "to": [{"email": "jmestresaucedo@gmail.com", "name": "Jose"}],
     "subject": "Alerta: Bot WhatsApp",
     "htmlContent": "<h2>¡El bot de WhatsApp ha fallado!</h2><p>Revisa el servidor.</p>"

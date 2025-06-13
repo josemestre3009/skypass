@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash, jsonify
 from functools import wraps
 import requests
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import os
 from dotenv import load_dotenv
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -252,6 +252,39 @@ def actualizar_parametros_wisphub(cedula, nueva_clave=None, nuevo_ssid=None):
         return response.status_code in (200, 204)
     except Exception as e:
         print('[Wisphub] Error actualizando parámetros:', e)
+        return False
+
+def obtener_estado_online_device(ip_buscada, minutos_online=5):
+    """Devuelve True si el dispositivo con esa IP está online en GenieACS (último informe reciente)."""
+    try:
+        response = requests.get(f"{GENIEACS_API}/devices", timeout=7)
+        response.raise_for_status()
+        dispositivos = response.json()
+        for device in dispositivos:
+            url = device.get("InternetGatewayDevice", {}) \
+                .get("ManagementServer", {}) \
+                .get("ConnectionRequestURL", {}) \
+                .get("_value", '')
+            ip_actual = ''
+            if url:
+                match = re.search(r"https?://([\d.]+):", url)
+                if match:
+                    ip_actual = match.group(1)
+            if ip_actual == ip_buscada:
+                # Revisar _lastInform
+                last_inform = device.get('_lastInform')
+                if last_inform:
+                    try:
+                        dt = datetime.fromisoformat(last_inform.replace('Z', '+00:00'))
+                        ahora = datetime.now(timezone.utc)
+                        if (ahora - dt) <= timedelta(minutes=minutos_online):
+                            return True
+                    except Exception:
+                        pass
+                return False
+        return False
+    except Exception as e:
+        print(f"Error al validar online GenieACS: {e}")
         return False
 
 # Rutas
@@ -596,7 +629,12 @@ def cambiar_wifi_cliente():
         estado_servicio = 'desconocido'
     if estado_servicio == 'suspendido':
         return jsonify({'success': False, 'message': 'El servicio del cliente está suspendido. No se pueden realizar cambios hasta que se reactive.'})
-    device_id = obtener_device_id_por_ip(cliente.get('ip'))
+    ip_cliente = cliente.get('ip')
+    if not ip_cliente:
+        return jsonify({'success': False, 'message': 'No se encontró la IP del cliente'})
+    if not obtener_estado_online_device(ip_cliente):
+        return jsonify({'success': False, 'message': 'El dispositivo está desconectado. Debe estar online para realizar cambios.'})
+    device_id = obtener_device_id_por_ip(ip_cliente)
     if not device_id:
         return jsonify({'success': False, 'message': 'No se encontró el dispositivo del cliente'})
     if accion == 'ssid':

@@ -4,7 +4,7 @@ import os
 from dotenv import load_dotenv
 import functools
 from admin import admin_bp
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import random
 import sqlite3
 from time import time
@@ -391,6 +391,9 @@ def cambiar_clave():
         if not ip:
             msg = "No se encontró la IP del cliente"
             return jsonify({'success': False, 'message': msg})
+        if not obtener_estado_online_device(ip):
+            msg = "El dispositivo está desconectado. Debe estar online para realizar cambios."
+            return jsonify({'success': False, 'message': msg})
         device_id = obtener_device_id_por_ip(ip)
         if not device_id:
             msg = "No se encontró el dispositivo del cliente"
@@ -468,6 +471,9 @@ def cambiar_nombre_red():
         ip = session.get('ip')
         if not ip:
             msg = "No se encontró la IP del cliente"
+            return jsonify({'success': False, 'message': msg})
+        if not obtener_estado_online_device(ip):
+            msg = "El dispositivo está desconectado. Debe estar online para realizar cambios."
             return jsonify({'success': False, 'message': msg})
         device_id = obtener_device_id_por_ip(ip)
         if not device_id:
@@ -723,6 +729,41 @@ def add_header(response):
     response.headers['Pragma'] = 'no-cache'
     response.headers['Expires'] = '-1'
     return response
+
+def obtener_estado_online_device(ip_buscada, minutos_online=5):
+    """Devuelve True si el dispositivo con esa IP está online en GenieACS (último informe reciente)."""
+    try:
+        import re
+        from datetime import datetime, timezone, timedelta
+        response = requests.get(f"{GENIEACS_API}/devices", timeout=7)
+        response.raise_for_status()
+        dispositivos = response.json()
+        for device in dispositivos:
+            url = device.get("InternetGatewayDevice", {}) \
+                .get("ManagementServer", {}) \
+                .get("ConnectionRequestURL", {}) \
+                .get("_value", '')
+            ip_actual = ''
+            if url:
+                match = re.search(r"https?://([\d.]+):", url)
+                if match:
+                    ip_actual = match.group(1)
+            if ip_actual == ip_buscada:
+                # Revisar _lastInform
+                last_inform = device.get('_lastInform')
+                if last_inform:
+                    try:
+                        dt = datetime.fromisoformat(last_inform.replace('Z', '+00:00'))
+                        ahora = datetime.now(timezone.utc)
+                        if (ahora - dt) <= timedelta(minutes=minutos_online):
+                            return True
+                    except Exception:
+                        pass
+                return False
+        return False
+    except Exception as e:
+        print(f"Error al validar online GenieACS: {e}")
+        return False
 
 if __name__ == "__main__":
     app.run(debug=True)
