@@ -1,119 +1,140 @@
-# SKYPass - Sistema de Gestión de Clientes
+# SKYPass - Sistema Integral de Gestión de Clientes y Automatización
 
-**SKYPass** es una aplicación web desarrollada en Flask (Python) con Bootstrap, diseñada para la gestión de clientes de servicios de internet SKY. Permite administrar usuarios, visualizar dispositivos conectados (integración con GenieACS), y cuenta con un microservicio de WhatsApp para notificaciones automáticas. Utiliza SQLite como base de datos para facilitar la instalación y portabilidad.
-
----
-
-## Características principales
-
-- Gestión de clientes y usuarios.
-- Panel de administración con búsqueda rápida y filtros.
-- Visualización de dispositivos conectados (routers) vía GenieACS.
-- Integración con WhatsApp (microservicio Baileys).
-- Interfaz moderna y responsiva (Bootstrap).
-- Base de datos local (SQLite).
+**SKYPass** es una plataforma web desarrollada en Python (Flask) y Bootstrap, diseñada para la gestión de clientes de servicios de internet, automatización de notificaciones vía WhatsApp y administración avanzada de dispositivos (integración GenieACS). Incluye un microservicio Node.js para WhatsApp (Baileys) y utiliza SQLite para máxima portabilidad.
 
 ---
 
-# Instalación y despliegue en Linux (Producción)
+## ✨ Características principales
 
-A continuación tienes una guía paso a paso para instalar y ejecutar la aplicación en un servidor Linux.
+- **Gestión de clientes y usuarios** con panel de administración, búsqueda y filtros avanzados.
+- **Visualización y control de dispositivos** conectados (routers) vía integración con GenieACS.
+- **Automatización de notificaciones** y flujos conversacionales por WhatsApp (microservicio Baileys).
+- **Interfaz moderna y responsiva** gracias a Bootstrap.
+- **Base de datos local** (SQLite) fácil de instalar y mantener.
+- **Seguridad**: control de acceso, límites de cambios y logs de auditoría.
+- **Despliegue sencillo** en Linux, con soporte para Docker y servicios systemd.
 
-## 1. Requisitos previos
+---
 
-- Python 3.8 o superior
+## 📁 Estructura del proyecto
+
+```
+skypass/
+│
+├── app.py                # Aplicación principal Flask
+├── admin.py              # Módulo de administración y utilidades
+├── soporte.py            # Módulo de soporte y vistas protegidas
+├── init_db.py            # Script para inicializar la base de datos
+├── sqlite_schema.sql     # Esquema SQL de la base de datos
+├── requirements.txt      # Dependencias Python
+├── PASO_A_PRODUCCION.txt # Guía detallada de despliegue en producción
+│
+├── base-baileys-memory/  # Microservicio WhatsApp (Node.js/Baileys)
+│   ├── app.js
+│   ├── bot_sessions/
+│   └── README.md
+│
+├── static/               # Archivos estáticos (CSS, imágenes)
+├── templates/            # Plantillas HTML (usuarios, admin, soporte)
+└── monitor-bot.sh        # Script de monitoreo automático del bot
+```
+
+---
+
+## 🗄️ Esquema de la base de datos (SQLite)
+
+- **admin_users**: Usuarios administradores (id, username, email, password)
+- **admin_settings**: Configuración global clave-valor
+- **change_history**: Historial de cambios realizados por usuarios/admins
+- **change_limits**: Control de límites de cambios por usuario/mes
+- **user_limits**: Límites personalizados por IP
+
+> El script `init_db.py` crea automáticamente las tablas necesarias.
+
+---
+
+## 🚀 Instalación rápida
+
+### 1. Requisitos previos
+
+- Python 3.8+
+- Node.js 16+ (para el bot WhatsApp)
 - Git
-- (Opcional) Docker y Docker Compose
-- (Opcional) Servidor web como Nginx para servir en producción
+- (Opcional) Nginx, Docker
 
----
-
-## 2. Clonar el repositorio
+### 2. Clona el repositorio
 
 ```bash
 git clone https://github.com/tu_usuario/skypass.git
 cd skypass
 ```
 
----
-
-## 3. Crear y activar un entorno virtual
+### 3. Entorno virtual e instalación de dependencias
 
 ```bash
 python3 -m venv venv
 source venv/bin/activate
-```
-
----
-
-## 4. Instalar dependencias
-
-```bash
 pip install -r requirements.txt
 ```
 
----
-
-## 5. Inicializar la base de datos
+### 4. Inicializa la base de datos
 
 ```bash
 python init_db.py
 ```
 
-Esto creará el archivo `skypass.db` con las tablas necesarias.
+### 5. Configura variables de entorno
 
----
+Crea un archivo `.env` en la raíz con tus claves:
 
-## 6. (Opcional) Configurar variables de entorno
-
-Si necesitas variables de entorno (por ejemplo, para claves o configuraciones), crea un archivo `.env` en la raíz del proyecto.
-
----
-
-## 7. Ejecutar la aplicación en modo producción
-
-**Recomendado:** Usa un servidor WSGI como Gunicorn.
-
-```bash
-gunicorn -w 4 -b 0.0.0.0:8000 app:app
+```
+SECRET_KEY=tu_clave_secreta
+API_KEY_WISPHUB=tu_api_key
+GENIEACS_API_URL=tu_url_genieacs
+IP_SERVER=tu_ip
 ```
 
-Esto levantará la app en el puerto 8000 con 4 workers.
+---
+
+## 🤖 Microservicio WhatsApp (Baileys)
+
+### Instalación
+
+```bash
+cd base-baileys-memory
+npm install
+npm start
+```
+
+- Sube tu archivo `creds.json` a `base-baileys-memory/bot_sessions/`
+- Consulta la [documentación oficial de Baileys](https://bot-whatsapp.netlify.app/) para flujos avanzados.
 
 ---
 
-## 8. (Opcional) Configurar Nginx como proxy inverso
+## 🛡️ Despliegue en producción (Linux)
 
-1. Instala Nginx:
-   ```bash
-   sudo apt update && sudo apt install nginx
-   ```
-2. Crea un archivo de configuración para tu sitio, por ejemplo `/etc/nginx/sites-available/skypass`:
-   ```nginx
-   server {
-       listen 80;
-       server_name tu_dominio.com;
+### 1. Instala dependencias del sistema
 
-       location / {
-           proxy_pass http://127.0.0.1:8000;
-           proxy_set_header Host $host;
-           proxy_set_header X-Real-IP $remote_addr;
-           proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-           proxy_set_header X-Forwarded-Proto $scheme;
-       }
-   }
-   ```
-3. Habilita el sitio y recarga Nginx:
-   ```bash
-   sudo ln -s /etc/nginx/sites-available/skypass /etc/nginx/sites-enabled/
-   sudo systemctl reload nginx
-   ```
+```bash
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y build-essential python3 python3-pip python3-venv git nginx
+```
+
+### 2. Configura servicios systemd
+
+- Crea servicios para el bot y la app Flask usando Gunicorn (ver ejemplos en `PASO_A_PRODUCCION.txt`).
+- Configura Nginx como proxy inverso para servir la app en producción.
+- (Opcional) Configura HTTPS con Let's Encrypt.
+
+### 3. Monitoreo automático
+
+Utiliza `monitor-bot.sh` y cron para reiniciar el bot WhatsApp si se cae.
 
 ---
 
-## 9. (Opcional) Usar Docker
+## 🐳 Docker (opcional)
 
-Si prefieres usar Docker, asegúrate de tener el archivo `Dockerfile` y ejecuta:
+Si prefieres Docker, crea un `Dockerfile` y ejecuta:
 
 ```bash
 docker build -t skypass .
@@ -122,12 +143,26 @@ docker run -d -p 8000:8000 --name skypass skypass
 
 ---
 
-## 10. Notas adicionales
+## 📝 Notas y buenas prácticas
 
-- Para ejecutar el microservicio de WhatsApp, sigue las instrucciones específicas en la carpeta correspondiente.
-- Recuerda proteger tu base de datos y archivos sensibles.
-- Puedes personalizar la configuración de Gunicorn y Nginx según tus necesidades.
+- Protege tu base de datos y archivos sensibles (.env, creds.json).
+- Reinicia los servicios tras cualquier cambio de código.
+- Consulta los logs de systemd y Nginx para depuración.
+- Personaliza los límites y configuraciones desde el panel admin.
 
 ---
 
-¿Dudas? ¡Revisa este README o contacta al desarrollador principal. 
+## 📚 Recursos útiles
+
+- [Documentación Baileys/WhatsApp](https://bot-whatsapp.netlify.app/)
+- [Roadmap y comunidad](https://github.com/orgs/codigoencasa/projects/1)
+- [Discord de soporte](https://link.codigoencasa.com/DISCORD)
+
+---
+
+## ❓ Soporte
+
+¿Dudas o problemas?  
+Revisa este README, el archivo `PASO_A_PRODUCCION.txt` o contacta al desarrollador principal.
+
+--- 
