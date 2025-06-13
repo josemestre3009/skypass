@@ -4,7 +4,7 @@ const fs = require('fs');
 
 const QRPortalWeb = require('@bot-whatsapp/portal')
 const BaileysProvider = require('@bot-whatsapp/provider/baileys')
-const MockAdapter = require('@bot-whatsapp/database/mock')
+const JsonFileAdapter = require('@bot-whatsapp/database/json')
 
 // --- Express para microservicio ---
 const express = require('express')
@@ -32,7 +32,9 @@ function setEstado(nuevoEstado) {
 const adapterFlow = createFlow([]) // Sin flujos automáticos
 
 const main = async () => {
-    const adapterDB = new MockAdapter()
+    const adapterDB = new JsonFileAdapter({
+        path: path.join(__dirname, 'db')
+    })
     providerInstance = createProvider(BaileysProvider, { printQRInTerminal: false, generateQr: true })
 
     // Eventos para QR y estado
