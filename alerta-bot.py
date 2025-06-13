@@ -1,6 +1,9 @@
 import requests
-
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
 API_KEY = os.getenv("BREVO_API_KEY")
 
 url = "https://api.brevo.com/v3/smtp/email"
