@@ -27,6 +27,9 @@ python app.py
 cd ~/skypass/base-baileys-memory
 rm -rf node_modules package-lock.json
 npm install
+npm install @bot-whatsapp/database-json
+   rm -rf ./base-baileys-memory/db
+   rm -rf ./base-baileys-memory/bot_sessions
 
 # Prueba el bot manualmente:
 node app.js
@@ -40,8 +43,6 @@ curl -X POST http://localhost:3002/send -H "Content-Type: application/json" -d '
 ------------------------------------------------
 
 1. Copia o crea los archivos de credenciales necesarios en el servidor:
-   - Para el bot de WhatsApp:
-     - Sube tu archivo `creds.json` a `/root/skypass/base-baileys-memory/bot_sessions/`
    - Para la app Python, si usas variables de entorno o un archivo `.env`, créalo en `/root/skypass/`:
      nano /root/skypass/.env
      Y agrega tus claves, por ejemplo:
@@ -49,8 +50,7 @@ curl -X POST http://localhost:3002/send -H "Content-Type: application/json" -d '
      API_KEY=tu_api_key
 
 2. Asegúrate de que los archivos tengan los permisos correctos:
-   sudo chown root:root /root/skypass/base-baileys-memory/bot_sessions/creds.json
-   sudo chmod 600 /root/skypass/base-baileys-memory/bot_sessions/creds.json
+   
    # Haz lo mismo para cualquier otro archivo sensible (.env, claves, etc)
 
 3. Verifica que las rutas y nombres de los archivos coincidan con lo que espera tu código.
