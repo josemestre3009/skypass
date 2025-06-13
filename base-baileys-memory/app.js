@@ -14,10 +14,7 @@ const app = express()
 app.use(cors())
 app.use(bodyParser.json())
 
-const sessionsDir = path.join(__dirname, 'bot_sessions');
-if (!fs.existsSync(sessionsDir)) {
-    fs.mkdirSync(sessionsDir, { recursive: true });
-}
+
 
 let globalQR = null
 let isConnected = false
