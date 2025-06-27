@@ -299,6 +299,7 @@ def login():
         try:
             result = verificar_admin(email, password)
             if result:
+                #session.permanent = True
                 session['admin_autenticado'] = True
                 session['admin_id'] = result['id']
                 session['admin_username'] = result['email']

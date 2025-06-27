@@ -156,5 +156,80 @@
         }
     });
     </script>
+
+    <script>
+    let tiempoInactividad = 4 * 60 * 1000; // 4 minutos
+    let tiempoExpiracion = 5 * 60 * 1000; // 5 minutos
+    let alertaMostrada = false;
+    let timeoutAlerta, timeoutCerrar;
+
+    function resetTimers() {
+        clearTimeout(timeoutAlerta);
+        clearTimeout(timeoutCerrar);
+        alertaMostrada = false;
+        timeoutAlerta = setTimeout(mostrarAlertaSesion, tiempoInactividad);
+        timeoutCerrar = setTimeout(cerrarSesion, tiempoExpiracion);
+    }
+
+    function mostrarAlertaSesion() {
+        alertaMostrada = true;
+        Swal.fire({
+            title: '¿Quieres continuar en tu sesión?',
+            text: 'Tu sesión está a punto de expirar por inactividad.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Continuar en mi sesión',
+            cancelButtonText: 'Cerrar sesión',
+            allowOutsideClick: false,
+            allowEscapeKey: false
+        }).then((result) => {
+            if (result.isConfirmed) {
+                fetch('/renovar_sesion', {method: 'POST'})
+                    .then(() => {
+                        resetTimers();
+                        Swal.fire({
+                            icon: 'success',
+                            title: '¡Sesión renovada!',
+                            timer: 1000,
+                            showConfirmButton: false
+                        });
+                    });
+            } else {
+                cerrarSesion();
+            }
+        });
+    }
+
+    function cerrarSesion() {
+        fetch('/cerrar_sesion', {method: 'POST'})
+            .then(() => {
+                window.location.href = '/';
+            });
+    }
+
+    function verificarSesionActiva() {
+        fetch('/verificar_sesion', {method: 'POST'})
+            .then(res => {
+                if (res.status === 401) {
+                    window.location.href = '/';
+                }
+                return res.json();
+            })
+            .catch(() => {
+                window.location.href = '/';
+            });
+    }
+
+    ['click', 'mousemove', 'keydown', 'scroll', 'touchstart'].forEach(evt => {
+        document.addEventListener(evt, function() {
+            if (!alertaMostrada) resetTimers();
+        }, true);
+    });
+
+    window.onload = function() {
+        resetTimers();
+        setInterval(verificarSesionActiva, 30000);
+    };
+    </script>
 </body>
 </html>

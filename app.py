@@ -15,6 +15,8 @@ load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY")
+app.permanent_session_lifetime = timedelta(minutes=5)
+app.config['SESSION_REFRESH_EACH_REQUEST'] = False
 
 # Registrar Blueprint de admin
 app.register_blueprint(admin_bp)
@@ -138,6 +140,7 @@ def index():
             else:
                 return jsonify({'success': False, 'code': error['code'], 'message': f"{error['message']} Te quedan {intentos_restantes} intento(s) antes de ser bloqueado."})
         if cliente:
+            session.permanent = True
             session.pop('intentos_cedula', None)
             session.pop('bloqueo_cedula_hasta', None)
             whatsapp = cliente.get('telefono', '')
@@ -764,6 +767,17 @@ def obtener_estado_online_device(ip_buscada, minutos_online=5):
     except Exception as e:
         print(f"Error al validar online GenieACS: {e}")
         return False
+
+@app.route('/verificar_sesion', methods=['POST'])
+def verificar_sesion():
+    if not session.get("cliente_encontrado"):
+        return jsonify({'error': 'Sesión expirada'}), 401
+    return jsonify({'ok': True})
+
+@app.route('/renovar_sesion', methods=['POST'])
+def renovar_sesion():
+    session.modified = True  # Renueva la sesión
+    return '', 204
 
 if __name__ == "__main__":
     app.run(debug=True)

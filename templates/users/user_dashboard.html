@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.svg') }}">
+    
     <style>
         body {
             background: #f7f9fb;
@@ -180,6 +181,84 @@
 
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script>
+    let tiempoInactividad = 4 * 60 * 1000; // 4 minutos
+    let tiempoExpiracion = 5 * 60 * 1000; // 5 minutos
+    let alertaMostrada = false;
+    let timeoutAlerta, timeoutCerrar;
+
+    function resetTimers() {
+        clearTimeout(timeoutAlerta);
+        clearTimeout(timeoutCerrar);
+        alertaMostrada = false;
+        // Mostrar alerta 1 minuto antes de expirar
+        timeoutAlerta = setTimeout(mostrarAlertaSesion, tiempoInactividad);
+        // Cerrar sesión automáticamente a los 5 minutos
+        timeoutCerrar = setTimeout(cerrarSesion, tiempoExpiracion);
+    }
+
+    function mostrarAlertaSesion() {
+        alertaMostrada = true;
+        Swal.fire({
+            title: '¿Quieres continuar en tu sesión?',
+            text: 'Tu sesión está a punto de expirar por inactividad.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Continuar en mi sesión',
+            cancelButtonText: 'Cerrar sesión',
+            allowOutsideClick: false,
+            allowEscapeKey: false
+        }).then((result) => {
+            if (result.isConfirmed) {
+                // Renovar sesión
+                fetch('/renovar_sesion', {method: 'POST'})
+                    .then(() => {
+                        resetTimers();
+                        Swal.fire({
+                            icon: 'success',
+                            title: '¡Sesión renovada!',
+                            timer: 1000,
+                            showConfirmButton: false
+                        });
+                    });
+            } else {
+                cerrarSesion();
+            }
+        });
+    }
+
+    function cerrarSesion() {
+        fetch('/cerrar_sesion', {method: 'POST'})
+            .then(() => {
+                window.location.href = '/';
+            });
+    }
+
+    function verificarSesionActiva() {
+        fetch('/verificar_sesion', {method: 'POST'})
+            .then(res => {
+                if (res.status === 401) {
+                    window.location.href = '/';
+                }
+                return res.json();
+            })
+            .catch(() => {
+                window.location.href = '/';
+            });
+    }
+
+    ['click', 'mousemove', 'keydown', 'scroll', 'touchstart'].forEach(evt => {
+        document.addEventListener(evt, function() {
+            if (!alertaMostrada) resetTimers();
+        }, true);
+    });
+
+    window.onload = function() {
+        resetTimers();
+        setInterval(verificarSesionActiva, 30000); // Verifica la sesión cada 30 segundos
+    };
+    </script>
 </body>
 
 
