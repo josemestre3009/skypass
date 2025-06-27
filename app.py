@@ -15,7 +15,7 @@ load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY")
-app.permanent_session_lifetime = timedelta(minutes=5)
+app.permanent_session_lifetime = timedelta(minutes=2)
 app.config['SESSION_REFRESH_EACH_REQUEST'] = False
 
 # Registrar Blueprint de admin
