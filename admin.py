@@ -681,7 +681,7 @@ def conectar_whatsapp():
     # Si el estado es iniciando o desconocido, tratarlo como desconectado
     if estado not in ['conectado', 'esperando_qr', 'desconectado', 'error']:
         estado = 'desconectado'
-    qr_url = f"https://qr.skypass.com.co/qr.png?time={int(time.time())}"
+    qr_url = f"http://{ip_server}:3002/qr-image?time={int(time.time())}"
     return render_template('admin/conectar_whatsapp.html', estado=estado, qr_url=qr_url)
 
 
