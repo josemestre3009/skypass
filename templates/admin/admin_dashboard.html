@@ -228,7 +228,7 @@
             .then(res => res.json())
             .then(data => {
                 let html = '';
-                if (data.conectado) {
+                if (data.conectado && data.estado === 'conectado') {
                     html = `<div class='estado-bot-badge'>
                         <span class='estado-bot-dot pulse'></span>
                         <i class="bi bi-whatsapp wa-icon"></i>

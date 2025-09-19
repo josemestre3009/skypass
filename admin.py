@@ -676,7 +676,9 @@ def conectar_whatsapp():
         resp = requests.get(f'http://{ip_server}:3002/status', timeout=3)
         data = resp.json()
         estado = data.get('estado')
+        print(f"[DEBUG] Estado del bot: {estado}, Datos completos: {data}")
     except Exception as e:
+        print(f"[DEBUG] Error al consultar bot: {e}")
         estado = 'error'
     # Si el estado es iniciando o desconocido, tratarlo como desconectado
     if estado not in ['conectado', 'esperando_qr', 'desconectado', 'error']:
