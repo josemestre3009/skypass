@@ -17,6 +17,7 @@ API_KEY = os.getenv('API_KEY_WISPHUB')
 BASE_URL = 'https://api.wisphub.net/api/clientes'
 GENIEACS_API = os.getenv("GENIEACS_API_URL")
 ip_server = os.getenv("IP_SERVER")
+qr_server = os.getenv("QR_SERVER")
 
 # Crear Blueprint
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
@@ -683,7 +684,7 @@ def conectar_whatsapp():
     # Si el estado es iniciando o desconocido, tratarlo como desconectado
     if estado not in ['conectado', 'esperando_qr', 'desconectado', 'error']:
         estado = 'desconectado'
-    qr_url = f"http://{ip_server}:3002/qr-image?time={int(time.time())}"
+    qr_url = f"https://{qr_server}/qr-image?time={int(time.time())}"
     return render_template('admin/conectar_whatsapp.html', estado=estado, qr_url=qr_url)
 
 
