@@ -684,7 +684,7 @@ def conectar_whatsapp():
     # Si el estado es iniciando o desconocido, tratarlo como desconectado
     if estado not in ['conectado', 'esperando_qr', 'desconectado', 'error']:
         estado = 'desconectado'
-    qr_url = f"https://{qr_server}/qr-image?time={int(time.time())}"
+    qr_url = f"http://{qr_server}/qr-image?time={int(time.time())}"
     return render_template('admin/conectar_whatsapp.html', estado=estado, qr_url=qr_url)
 
 
@@ -697,6 +697,29 @@ def estado_bot():
         return jsonify(data)
     except Exception as e:
         return jsonify({'conectado': False, 'error': str(e)})
+
+@admin_bp.route('/reiniciar-bot', methods=['POST'])
+@admin_requerido
+def reiniciar_bot():
+    try:
+        resp = requests.post(f'http://{ip_server}:3002/restart', timeout=10)
+        data = resp.json()
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@admin_bp.route('/verificar-sesion', methods=['POST'])
+def verificar_sesion_admin():
+    if 'admin_id' not in session:
+        return jsonify({'error': 'Sesión expirada'}), 401
+    return jsonify({'ok': True})
+
+@admin_bp.route('/renovar-sesion', methods=['POST'])
+@admin_requerido
+def renovar_sesion_admin():
+    session.modified = True  # Renueva la sesión
+    return '', 204
+
 
 @admin_bp.route('/api/buscar_clientes')
 def api_buscar_clientes():

@@ -54,16 +54,17 @@ function scheduleReconnect() {
         
         reconnectTimeout = setTimeout(async () => {
             try {
+                reconnectAttempts++;
                 await initBot();
             } catch (error) {
                 console.log('[ERROR] Error en reconexión:', error);
-                reconnectAttempts++;
+                // No incrementar intentos aquí, ya se hizo arriba
                 scheduleReconnect();
             }
         }, delay);
     } else {
-        console.log('[ERROR] Máximo número de intentos de reconexión alcanzado');
-        setEstado('error');
+        console.log('[ERROR] Máximo número de intentos de reconexión alcanzado. Bot permanecerá desconectado.');
+        setEstado('desconectado'); // Cambiar a 'desconectado' en lugar de 'error'
     }
 }
 
@@ -124,12 +125,15 @@ async function initBot() {
             console.log('[DEBUG] Evento error:', err);
             isConnected = false
             globalQR = null
-            setEstado('error');
             console.log('[ESTADO BOT] Error inesperado:', err);
             
-            // Programar reconexión automática para errores recuperables
-            if (err.code !== 'ERR_INVALID_CREDENTIALS') {
+            // Solo reconectar para errores recuperables y no críticos
+            if (err.code !== 'ERR_INVALID_CREDENTIALS' && err.code !== 'ERR_SESSION_EXPIRED') {
+                setEstado('desconectado'); // Cambiar a desconectado en lugar de error
                 scheduleReconnect();
+            } else {
+                setEstado('desconectado'); // Para errores críticos, solo marcar como desconectado
+                console.log('[ESTADO BOT] Error crítico, no se intentará reconexión automática');
             }
         })
 
@@ -143,7 +147,7 @@ async function initBot() {
         
     } catch (error) {
         console.log('[ERROR] Error al inicializar bot:', error);
-        setEstado('error');
+        setEstado('desconectado'); // Cambiar a desconectado en lugar de error
         scheduleReconnect();
     }
 }
@@ -184,6 +188,29 @@ app.get('/status', (req, res) => {
         intentos_reconexion: reconnectAttempts,
         max_intentos: maxReconnectAttempts
     })
+})
+
+// Reiniciar bot manualmente
+app.post('/restart', async (req, res) => {
+    console.log('[DEPURACIÓN BOT] Reinicio manual solicitado');
+    try {
+        // Limpiar timeout de reconexión si existe
+        if (reconnectTimeout) {
+            clearTimeout(reconnectTimeout);
+            reconnectTimeout = null;
+        }
+        
+        // Resetear intentos
+        resetReconnectAttempts();
+        
+        // Reiniciar bot
+        await initBot();
+        
+        res.json({ success: true, message: 'Bot reiniciado correctamente' });
+    } catch (error) {
+        console.log('[ERROR] Error al reiniciar bot:', error);
+        res.json({ success: false, error: error.message });
+    }
 })
 // Desconectar sesión
 app.post('/disconnect', async (req, res) => {

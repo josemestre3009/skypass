@@ -220,13 +220,23 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="{{ url_for('static', filename='session-timeout.js') }}"></script>
     <script>
     function actualizarEstadoBot() {
         let estadoDiv = document.getElementById('estado-bot-ajax');
         if (!estadoDiv) return;
         fetch("{{ url_for('admin.estado_bot') }}")
-            .then(res => res.json())
+            .then(res => {
+                // Si la respuesta es 302 (redirección), significa que la sesión expiró
+                if (res.status === 302) {
+                    window.location.href = '/admin/login';
+                    return;
+                }
+                return res.json();
+            })
             .then(data => {
+                if (!data) return; // Si no hay datos, no actualizar
+                
                 let html = '';
                 if (data.conectado && data.estado === 'conectado') {
                     html = `<div class='estado-bot-badge'>
@@ -250,16 +260,29 @@
                 estadoDiv.innerHTML = html;
             })
             .catch(() => {
-                let estadoDiv = document.getElementById('estado-bot-ajax');
-                estadoDiv.innerHTML = `<div class='estado-bot-badge yellow'>
-                    <span class='estado-bot-dot yellow'></span>
-                    <i class="bi bi-whatsapp wa-icon"></i>
-                    <span class='estado-bot-text'>WhatsApp <span style='font-weight:900;'>ERROR</span></span>
-                </div>`;
+                // En caso de error de red, no mostrar error de WhatsApp
+                console.log('Error al actualizar estado del bot');
             });
     }
     setInterval(actualizarEstadoBot, 10000);
     window.onload = actualizarEstadoBot;
+
+    // Verificación de sesión automática
+    function verificarSesionAdmin() {
+        fetch('/admin/verificar-sesion', {method: 'POST'})
+            .then(res => {
+                if (res.status === 401) {
+                    window.location.href = '/admin/login';
+                }
+                return res.json();
+            })
+            .catch(() => {
+                window.location.href = '/admin/login';
+            });
+    }
+
+    // Verificar sesión cada 20 segundos
+    setInterval(verificarSesionAdmin, 20000);
 
     document.addEventListener('DOMContentLoaded', function() {
         const formLogout = document.getElementById('form-logout-admin');
