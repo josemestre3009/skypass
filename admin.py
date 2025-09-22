@@ -164,7 +164,7 @@ def buscar_cliente_por_cedula(cedula):
         if cliente.get('cedula') == cedula:
             print(f'[LOG] Cliente encontrado')
             return cliente
-    print('[LOG] Cliente no encontrado en Wisphub')
+    print('[LOG] Cliente no encontrado ')
     return None
 
 def obtener_device_id_por_ip(ip_buscada):
@@ -423,7 +423,7 @@ def limites():
         except Exception as e:
             print('[LOG] Error buscando cliente por IP:', e)
         if not cliente:
-            flash('La IP ingresada no corresponde a ningún cliente en Wisphub.', 'error')
+            flash('La IP ingresada no corresponde a ningún cliente.', 'error')
             return redirect(url_for('admin.limites'))
         nombre = cliente.get('nombre', '')
         cedula = cliente.get('cedula', '')
@@ -590,7 +590,7 @@ def buscar_cliente_limite():
                         break
         
         if not cliente:
-            return jsonify({'success': False, 'message': 'Cliente no encontrado en Wisphub'})
+            return jsonify({'success': False, 'message': 'Cliente no encontrado'})
         
         # Obtener IP y cédula del cliente
         ip_cliente = cliente.get('ip') or cliente.get('ip_address', '')
