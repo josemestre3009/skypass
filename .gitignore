@@ -1,6 +1,6 @@
 # Ignorar archivos de configuración local
 .env
-CREDENCIALES BASE DE DATOS SUPABASE.txt
+
 
 # Ignorar directorios de Python y entorno virtual
 __pycache__/
@@ -13,6 +13,11 @@ node_modules/
 # Ignorar archivos de IDE o editores de texto (si es necesario)
 .vscode/
 .idea/
+
+# Archivos de WhatsApp (se regeneran automáticamente)
+base-baileys-memory/bot.qr.png
+base-baileys-memory/bot_sessions/
+base-baileys-memory/*.log
 
 
 skypass.db

@@ -101,15 +101,15 @@ def obtener_estadisticas_uso():
         print(f"Error al obtener estadísticas: {e}")
         return {}
 
-def actualizar_limite_cliente(ip, nombre, nuevo_limite):
+def actualizar_limite_cliente(ip, nombre, nuevo_limite, cedula=''):
     """Actualiza o inserta el límite de cambios para un cliente por IP"""
     try:
         conn = get_db_connection()
         conn.execute("""
-            INSERT INTO user_limits (ip, nombre, limite_personalizado)
-            VALUES (?, ?, ?)
-            ON CONFLICT(ip) DO UPDATE SET limite_personalizado=excluded.limite_personalizado, nombre=excluded.nombre;
-        """, (ip, nombre, nuevo_limite))
+            INSERT INTO user_limits (ip, cedula, nombre, limite_personalizado)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(ip) DO UPDATE SET limite_personalizado=excluded.limite_personalizado, nombre=excluded.nombre, cedula=excluded.cedula;
+        """, (ip, cedula, nombre, nuevo_limite))
         conn.commit()
         conn.close()
         return True
@@ -426,11 +426,12 @@ def limites():
             flash('La IP ingresada no corresponde a ningún cliente en Wisphub.', 'error')
             return redirect(url_for('admin.limites'))
         nombre = cliente.get('nombre', '')
+        cedula = cliente.get('cedula', '')
         conn = get_db_connection()
         cur = conn.execute("SELECT * FROM user_limits WHERE ip = ?", (ip,))
         existe = cur.fetchone()
         conn.close()
-        if actualizar_limite_cliente(ip, nombre, nuevo_limite):
+        if actualizar_limite_cliente(ip, nombre, nuevo_limite, cedula):
             if existe:
                 flash('Límite personalizado actualizado correctamente.', 'personalizado')
             else:
@@ -442,7 +443,7 @@ def limites():
     try:
         print('[LOG] GET /limites - Consultando user_limits')
         conn = get_db_connection()
-        cur = conn.execute("SELECT * FROM user_limits")
+        cur = conn.execute("SELECT * FROM user_limits ORDER BY ip")
         limites = [dict(row) for row in cur.fetchall()]
         print('[LOG] user_limits:', limites)
         print('[LOG] Consultando admin_settings para max_cambios_mes')
@@ -547,6 +548,71 @@ def eliminar_limite():
     except Exception as e:
         return jsonify({'success': False, 'message': f'Error al eliminar el límite personalizado: {str(e)}'})
 
+@admin_bp.route('/buscar_cliente_limite', methods=['POST'])
+@admin_requerido
+def buscar_cliente_limite():
+    """Busca un cliente por IP o cédula para límites"""
+    if not request.is_json:
+        return jsonify({'success': False, 'message': 'Solo se permite el flujo AJAX.'})
+    data = request.get_json()
+    busqueda = data.get('busqueda', '').strip()
+    
+    if not busqueda:
+        return jsonify({'success': False, 'message': 'Debe ingresar una IP o cédula'})
+    
+    try:
+        headers = {
+            'Authorization': f'Api-Key {API_KEY}',
+            'Content-Type': 'application/json'
+        }
+        
+        cliente = None
+        # Determinar si es IP o cédula
+        if busqueda.replace('.', '').isdigit() and len(busqueda.split('.')) == 4:
+            # Es una IP
+            resp = requests.get(BASE_URL, headers=headers, params={'ip': busqueda}, timeout=7)
+            if resp.status_code == 200:
+                data_ws = resp.json()
+                clientes = data_ws.get('results', [])
+                for c in clientes:
+                    if c.get('ip') == busqueda or c.get('ip_address') == busqueda:
+                        cliente = c
+                        break
+        else:
+            # Es una cédula
+            resp = requests.get(BASE_URL, headers=headers, params={'cedula': busqueda}, timeout=7)
+            if resp.status_code == 200:
+                data_ws = resp.json()
+                clientes = data_ws.get('results', [])
+                for c in clientes:
+                    if c.get('cedula') == busqueda:
+                        cliente = c
+                        break
+        
+        if not cliente:
+            return jsonify({'success': False, 'message': 'Cliente no encontrado en Wisphub'})
+        
+        # Obtener IP y cédula del cliente
+        ip_cliente = cliente.get('ip') or cliente.get('ip_address', '')
+        cedula_cliente = cliente.get('cedula', '')
+        nombre_cliente = cliente.get('nombre', '')
+        
+        if not ip_cliente:
+            return jsonify({'success': False, 'message': 'El cliente no tiene IP asignada'})
+        
+        return jsonify({
+            'success': True,
+            'cliente': {
+                'ip': ip_cliente,
+                'cedula': cedula_cliente,
+                'nombre': nombre_cliente
+            }
+        })
+        
+    except Exception as e:
+        print(f'[LOG] Error buscando cliente: {e}')
+        return jsonify({'success': False, 'message': f'Error al buscar cliente: {str(e)}'})
+
 @admin_bp.route('/editar_limite', methods=['POST'])
 @admin_requerido
 def editar_limite():
@@ -554,6 +620,7 @@ def editar_limite():
         return jsonify({'success': False, 'message': 'Solo se permite el flujo AJAX.'})
     data = request.get_json()
     ip = data.get('ip')
+    cedula = data.get('cedula', '')
     nuevo_limite = data.get('nuevo_limite')
     if not ip or not nuevo_limite:
         return jsonify({'success': False, 'message': 'Datos incompletos para editar el límite'})
@@ -574,15 +641,16 @@ def editar_limite():
                 for c in clientes:
                     if c.get('ip') == ip or c.get('ip_address') == ip:
                         nombre = c.get('nombre', '')
+                        cedula = c.get('cedula', cedula)  # Usar cédula encontrada si no se proporcionó
                         break
         except Exception as e:
             print('[LOG] Error buscando nombre por IP:', e)
         conn = get_db_connection()
         conn.execute("""
-            INSERT INTO user_limits (ip, nombre, limite_personalizado)
-            VALUES (?, ?, ?)
-            ON CONFLICT(ip) DO UPDATE SET limite_personalizado=excluded.limite_personalizado, nombre=excluded.nombre;
-        """, (ip, nombre, int(nuevo_limite)))
+            INSERT INTO user_limits (ip, cedula, nombre, limite_personalizado)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(ip) DO UPDATE SET limite_personalizado=excluded.limite_personalizado, nombre=excluded.nombre, cedula=excluded.cedula;
+        """, (ip, cedula, nombre, int(nuevo_limite)))
         conn.commit()
         conn.close()
         return jsonify({'success': True, 'message': 'Límite personalizado actualizado correctamente.', 'nuevo_limite': int(nuevo_limite)})

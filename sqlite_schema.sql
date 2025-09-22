@@ -32,6 +32,7 @@ CREATE TABLE change_limits (
 DROP TABLE IF EXISTS user_limits;
 CREATE TABLE user_limits (
   ip TEXT PRIMARY KEY,
+  cedula TEXT,
   nombre TEXT,
   limite_personalizado INTEGER
 ); 

@@ -156,24 +156,37 @@
                 {% endwith %}
                 <form id="form-limite-personalizado" class="mb-4" autocomplete="off">
                     <div class="row g-2 align-items-end flex-column flex-md-row">
-                        <div class="col-12 col-md-5">
-                            <label for="ip" class="form-label">IP del Cliente</label>
-                            <input type="text" class="form-control" id="ip" name="ip" required placeholder="Ej: 192.168.1.10">
+                        <div class="col-12 col-md-4">
+                            <label for="busqueda" class="form-label">IP o Cédula del Cliente</label>
+                            <input type="text" class="form-control" id="busqueda" name="busqueda" required placeholder="Ej: 192.168.1.10 o 12345678">
+                            <div id="cliente-info" class="mt-2" style="display: none;">
+                                <small class="text-muted">
+                                    <strong>Cliente encontrado:</strong> <span id="cliente-nombre"></span><br>
+                                    <strong>IP:</strong> <span id="cliente-ip"></span> | 
+                                    <strong>Cédula:</strong> <span id="cliente-cedula"></span>
+                                </small>
+                            </div>
                         </div>
-                        <div class="col-12 col-md-5">
+                        <div class="col-12 col-md-3">
                             <label for="nuevo_limite" class="form-label">Nuevo Límite</label>
                             <input type="number" class="form-control" id="nuevo_limite" name="nuevo_limite" required min="1">
                         </div>
-                        <div class="col-12 col-md-2 d-grid">
-                            <button type="submit" class="btn btn-primary">Actualizar Límite</button>
+                        <div class="col-12 col-md-2">
+                            <button type="button" id="btn-buscar" class="btn btn-outline-primary w-100">Buscar</button>
+                        </div>
+                        <div class="col-12 col-md-3 d-grid">
+                            <button type="submit" class="btn btn-primary" id="btn-actualizar" disabled>Actualizar Límite</button>
                         </div>
                     </div>
+                    <input type="hidden" id="ip" name="ip">
+                    <input type="hidden" id="cedula" name="cedula">
                 </form>
                 <div class="table-responsive">
                     <table class="table table-striped">
                         <thead>
                             <tr>
                                 <th>IP</th>
+                                <th>Cédula</th>
                                 <th>Nombre</th>
                                 <th>Límite Personalizado</th>
                                 <th>Acción</th>
@@ -183,6 +196,7 @@
                             {% for limite in limites %}
                             <tr>
                                 <td>{{ limite.ip }}</td>
+                                <td>{{ limite.cedula or '' }}</td>
                                 <td>{{ limite.nombre or '' }}</td>
                                 <td>{{ limite.limite_personalizado }}</td>
                                 <td>
@@ -301,11 +315,77 @@
             setTimeout(() => { window.location.reload(); }, 1800);
         });
     }
+    // Búsqueda de cliente
+    const btnBuscar = document.getElementById('btn-buscar');
+    const inputBusqueda = document.getElementById('busqueda');
+    const clienteInfo = document.getElementById('cliente-info');
+    const btnActualizar = document.getElementById('btn-actualizar');
+    const inputIp = document.getElementById('ip');
+    const inputCedula = document.getElementById('cedula');
+
+    if (btnBuscar) {
+        btnBuscar.addEventListener('click', async function() {
+            const busqueda = inputBusqueda.value.trim();
+            if (!busqueda) {
+                Swal.fire({ icon: 'warning', title: 'Atención', text: 'Debe ingresar una IP o cédula' });
+                return;
+            }
+
+            Swal.fire({
+                title: 'Buscando cliente...',
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                showConfirmButton: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+
+            try {
+                const resp = await fetch("{{ url_for('admin.buscar_cliente_limite') }}", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ busqueda: busqueda })
+                });
+                const res = await resp.json();
+
+                if (res.success) {
+                    // Mostrar información del cliente
+                    document.getElementById('cliente-nombre').textContent = res.cliente.nombre || 'Sin nombre';
+                    document.getElementById('cliente-ip').textContent = res.cliente.ip;
+                    document.getElementById('cliente-cedula').textContent = res.cliente.cedula || 'Sin cédula';
+                    clienteInfo.style.display = 'block';
+                    
+                    // Llenar campos ocultos
+                    inputIp.value = res.cliente.ip;
+                    inputCedula.value = res.cliente.cedula || '';
+                    
+                    // Habilitar botón de actualizar
+                    btnActualizar.disabled = false;
+                    
+                    Swal.close();
+                } else {
+                    Swal.fire({ icon: 'error', title: 'Error', text: res.message || 'Cliente no encontrado' });
+                    clienteInfo.style.display = 'none';
+                    btnActualizar.disabled = true;
+                }
+            } catch (error) {
+                Swal.fire({ icon: 'error', title: 'Error', text: 'Error de conexión al buscar cliente' });
+                clienteInfo.style.display = 'none';
+                btnActualizar.disabled = true;
+            }
+        });
+    }
+
     // Límite personalizado
     const formPersonal = document.getElementById('form-limite-personalizado');
     if (formPersonal) {
         formPersonal.addEventListener('submit', async function(e) {
             e.preventDefault();
+            
+            if (!inputIp.value) {
+                Swal.fire({ icon: 'warning', title: 'Atención', text: 'Debe buscar un cliente primero' });
+                return;
+            }
+
             Swal.fire({
                 title: 'Procesando',
                 html: '<div id="swal-mensaje">Actualizando límite personalizado...</div><div class="progress mt-3" style="height: 8px;"><div id="swal-barra" class="progress-bar bg-primary" role="progressbar" style="width: 0%"></div></div>',
