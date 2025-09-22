@@ -139,6 +139,11 @@ curl -X POST http://localhost:3002/send -H "Content-Type: application/json" -d '
 # - Si el error es de permisos, revisa el usuario y la propiedad de los archivos.
 # - Si el error es "no module named app", asegúrate de que el archivo app.py está en /root/skypass.
 
+
+
+
+
+
 7. CONFIGURA NGINX PARA EXPONER LA APP PYTHON
 ---------------------------------------------
 sudo nano /etc/nginx/sites-available/skypass
