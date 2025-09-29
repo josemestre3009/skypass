@@ -96,10 +96,13 @@
                                         <i class="bi bi-arrow-down-up text-muted"></i>
                                     </div>
                                 </th>
+                                <th class="border-bottom">
+                                    <span>Acciones</span>
+                                </th>
                             </tr>
                         </thead>
                         <tbody id="tbody-dispositivos">
-                            <tr><td colspan="4" class="text-secondary text-center">Cargando información...</td></tr>
+                            <tr><td colspan="5" class="text-secondary text-center">Cargando información...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -183,7 +186,7 @@
         
         // Renderizar tabla
         if (dispositivosPaginados.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="4" class="text-warning text-center">No hay datos para mostrar.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5" class="text-warning text-center">No hay datos para mostrar.</td></tr>';
         } else {
             tbody.innerHTML = '';
             dispositivosPaginados.forEach(d => {
@@ -203,6 +206,11 @@
                         </td>
                         <td>
                             ${getEstadoDispositivo(d.ultimo_informe)}
+                        </td>
+                        <td>
+                            <button class="btn btn-outline-danger btn-sm" onclick="eliminarDevice('${d.device_id}', '${d.ip}')" title="Eliminar dispositivo">
+                                <i class="bi bi-trash"></i>
+                            </button>
                         </td>
                     </tr>
                 `;
@@ -336,7 +344,7 @@
                     dispositivosData = [];
                     renderTabla();
                 } else {
-                    tbody.innerHTML = `<tr><td colspan='4' class='text-danger text-center'>${data.error || 'No se pudieron obtener los datos de GenieACS.'}</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan='5' class='text-danger text-center'>${data.error || 'No se pudieron obtener los datos de los dispositivos.'}</td></tr>`;
                 }
             })
             .catch(err => {
@@ -368,6 +376,68 @@
 
     // Verificar sesión cada 20 segundos
     setInterval(verificarSesionAdmin, 20000);
+    
+    // Función para eliminar un dispositivo
+    async function eliminarDevice(deviceId, ip) {
+        try {
+            // Decodificar el device_id si está codificado
+            const deviceIdDecoded = deviceId ? decodeURIComponent(deviceId) : deviceId;
+            const displayId = deviceIdDecoded || ip;
+            
+            const result = await Swal.fire({
+                title: '¿Eliminar dispositivo?',
+                text: `¿Estás seguro de que deseas eliminar el dispositivo ${displayId}? Esta acción no se puede deshacer.`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Sí, eliminar',
+                cancelButtonText: 'Cancelar',
+                confirmButtonColor: '#dc3545',
+                cancelButtonColor: '#6c757d'
+            });
+            
+            if (result.isConfirmed) {
+                const response = await fetch('/admin/eliminar_device', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        device_id: deviceId,
+                        ip: ip
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Dispositivo eliminado',
+                        text: 'El dispositivo ha sido eliminado exitosamente.',
+                        timer: 2000,
+                        showConfirmButton: false
+                    });
+                    // Recargar la lista de dispositivos
+                    setTimeout(() => {
+                        cargarDispositivos();
+                    }, 2000);
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: data.message || 'No se pudo eliminar el dispositivo.'
+                    });
+                }
+            }
+        } catch (error) {
+            console.error('Error al eliminar dispositivo:', error);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'Error de conexión al eliminar el dispositivo.'
+            });
+        }
+    }
     
     document.addEventListener('DOMContentLoaded', function() {
         const formLogout = document.getElementById('form-logout-admin');

@@ -211,6 +211,19 @@ def cambiar_parametro_genieacs(device_id, parametro, valor):
         print(f"Error al cambiar parámetro en GenieACS: {e}")
         return False
 
+def eliminar_device_genieacs(device_id):
+    """Elimina un dispositivo de GenieACS"""
+    try:
+        from urllib.parse import quote
+        url = f"{GENIEACS_API}/devices/{quote(device_id, safe='')}"
+        response = requests.delete(url)
+        response.raise_for_status()
+        print(f"[GENIEACS] Dispositivo eliminado exitosamente: {device_id}")
+        return True
+    except Exception as e:
+        print(f"Error al eliminar dispositivo de GenieACS: {e}")
+        return False
+
 def obtener_cambios_por_mes_global():
     try:
         conn = get_db_connection()
@@ -945,6 +958,36 @@ def eliminar_cambio_historial():
         return jsonify({'success': True})
     except Exception as e:
         return jsonify({'success': False, 'message': f'Error al eliminar el registro: {str(e)}'})
+
+@admin_bp.route('/eliminar_device', methods=['POST'])
+@admin_requerido
+def eliminar_device():
+    """Elimina un dispositivo de GenieACS"""
+    if not request.is_json:
+        return jsonify({'success': False, 'message': 'Solo se permite el flujo AJAX.'})
+    
+    data = request.get_json()
+    device_id = data.get('device_id')
+    ip = data.get('ip')
+    
+    if not device_id and not ip:
+        return jsonify({'success': False, 'message': 'Se requiere device_id o IP del dispositivo.'})
+    
+    try:
+        # Si solo se proporciona IP, buscar el device_id
+        if not device_id and ip:
+            device_id = obtener_device_id_por_ip(ip)
+            if not device_id:
+                return jsonify({'success': False, 'message': f'No se encontró el dispositivo con IP: {ip}'})
+        
+        # Eliminar el dispositivo
+        if eliminar_device_genieacs(device_id):
+            return jsonify({'success': True, 'message': 'Dispositivo eliminado exitosamente.'})
+        else:
+            return jsonify({'success': False, 'message': 'Error al eliminar el dispositivo.'})
+            
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Error al eliminar dispositivo: {str(e)}'})
 
 @admin_bp.route('/buscar_clientes')
 @admin_requerido

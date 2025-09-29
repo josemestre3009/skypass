@@ -111,7 +111,7 @@ def api_soporte_ips():
             print(f'[WISPHUB] Excepción: {e}')
             return jsonify({'success': False, 'error': f'Error al consultar Wisphub: {str(e)}'})
 
-        # 2. Obtener dispositivos de GenieACS
+        # 2. Obtener dispositivos del sistema
         dispositivos = []
         try:
             print('[GENIEACS] Consultando dispositivos...')
@@ -137,10 +137,10 @@ def api_soporte_ips():
                             'modelo': device.get("InternetGatewayDevice", {}).get("DeviceInfo", {}).get("ModelName", {}).get("_value", ''),
                             'fabricante': device.get("InternetGatewayDevice", {}).get("DeviceInfo", {}).get("Manufacturer", {}).get("_value", ''),
                         })
-            print(f'[GENIEACS] Total IPs GenieACS: {len(dispositivos)}')
+            print(f'[GENIEACS] Total IPs dispositivos: {len(dispositivos)}')
         except Exception as e:
             print(f'[GENIEACS] Excepción: {e}')
-            return jsonify({'success': False, 'error': f'Error al consultar GenieACS: {str(e)}'})
+            return jsonify({'success': False, 'error': f'Error al consultar dispositivos: {str(e)}'})
 
         # 3. Comparar IPs (sin zona ni cédula)
         print(f'[COMPARA] Armando diccionarios de IPs...')
@@ -159,13 +159,13 @@ def api_soporte_ips():
                 resultado.append({
                     'ip': ip,
                     'nombre': '',
-                    'estado': 'Solo GenieACS'
+                    'estado': 'Solo Dispositivos'
                 })
         def ip_key(ip_str):
             return tuple(int(part) for part in ip_str.split('.') if part.isdigit())
         resultado.sort(key=lambda x: ip_key(x['ip']))
         print(f'[COMPARA] Total resultado: {len(resultado)}')
-        estados = ['Ambos', 'Solo Wisphub', 'Solo GenieACS']
+        estados = ['Ambos', 'Solo Wisphub', 'Solo Dispositivos']
         # --- Calcular segmentos de red (primeros 3 octetos) ---
         def get_segmento(ip):
             partes = ip.split('.')
