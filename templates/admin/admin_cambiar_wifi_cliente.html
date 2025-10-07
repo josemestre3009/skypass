@@ -55,27 +55,57 @@
                     </div>
                 </form>
                 {% if cliente %}
-                    <div class="mb-4">
-                        <h6>Información del Cliente:</h6>
-                        <div class="row g-3">
-                            <div class="col-12 col-md-3"><strong>Nombre:</strong> {{ cliente.nombre }}</div>
-                            <div class="col-12 col-md-3"><strong>Cédula:</strong> {{ cliente.cedula }}</div>
-                            <div class="col-12 col-md-3"><strong>IP:</strong> {{ cliente.ip }}</div>
-                            <div class="col-12 col-md-3"><strong>Estado Servicio:</strong> 
-                                {% if estado_servicio == 'activo' %}
-                                    <span class="badge bg-success">Activo</span>
-                                {% elif estado_servicio == 'suspendido' %}
-                                    <span class="badge bg-danger">Suspendido</span>
+                    {% if cliente.servicios and cliente.servicios|length > 1 and not ip_seleccionada %}
+                        <!-- No mostrar información del cliente hasta que se seleccione un servicio -->
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i>
+                            Este cliente tiene múltiples servicios. Por favor selecciona el servicio que deseas modificar.
+                        </div>
+                    {% else %}
+                        <div class="mb-4">
+                            <h6>Información del Cliente:</h6>
+                            <div class="row g-3">
+                                {% if ip_seleccionada %}
+                                    {% for servicio in cliente.servicios %}
+                                        {% if servicio.ip == ip_seleccionada %}
+                                            <div class="col-12 col-md-3"><strong>Nombre:</strong> {{ servicio.nombre_cliente or cliente.nombre }}</div>
+                                            <div class="col-12 col-md-3"><strong>Cédula:</strong> {{ cliente.cedula }}</div>
+                                            <div class="col-12 col-md-3"><strong>IP:</strong> {{ servicio.ip }}</div>
+                                            <div class="col-12 col-md-3"><strong>Estado Servicio:</strong> 
+                                                {% if servicio.estado|lower == 'activo' %}
+                                                    <span class="badge bg-success">Activo</span>
+                                                {% elif servicio.estado|lower == 'suspendido' %}
+                                                    <span class="badge bg-danger">Suspendido</span>
+                                                {% else %}
+                                                    <span class="badge bg-secondary">Desconocido</span>
+                                                {% endif %}
+                                            </div>
+                                        {% endif %}
+                                    {% endfor %}
                                 {% else %}
-                                    <span class="badge bg-secondary">Desconocido</span>
+                                    <div class="col-12 col-md-3"><strong>Nombre:</strong> {{ cliente.nombre }}</div>
+                                    <div class="col-12 col-md-3"><strong>Cédula:</strong> {{ cliente.cedula }}</div>
+                                    <div class="col-12 col-md-3"><strong>IP:</strong> {{ cliente.ip }}</div>
+                                    <div class="col-12 col-md-3"><strong>Estado Servicio:</strong> 
+                                        {% if estado_servicio == 'activo' %}
+                                            <span class="badge bg-success">Activo</span>
+                                        {% elif estado_servicio == 'suspendido' %}
+                                            <span class="badge bg-danger">Suspendido</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">Desconocido</span>
+                                        {% endif %}
+                                    </div>
                                 {% endif %}
                             </div>
                         </div>
-                    </div>
+                    {% endif %}
+                    
+                    {% if not (cliente.servicios and cliente.servicios|length > 1 and not ip_seleccionada) %}
                     <!-- Cambiar SSID -->
                     <form id="form-cambiar-ssid" autocomplete="off">
                         <input type="hidden" name="cedula" value="{{ cliente.cedula }}">
                         <input type="hidden" name="accion" value="ssid">
+                        <input type="hidden" name="ip" value="{{ ip_seleccionada or cliente.ip }}">
                         <div class="mb-2">
                             <label for="nuevo_ssid" class="form-label">Nuevo Nombre de Red (SSID)</label>
                             <input type="text" class="form-control" id="nuevo_ssid" name="nuevo_ssid" required>
@@ -88,6 +118,7 @@
                     <form id="form-cambiar-password" autocomplete="off">
                         <input type="hidden" name="cedula" value="{{ cliente.cedula }}">
                         <input type="hidden" name="accion" value="password">
+                        <input type="hidden" name="ip" value="{{ ip_seleccionada or cliente.ip }}">
                         <div class="mb-2">
                             <label for="nueva_password" class="form-label">Nueva Contraseña WiFi</label>
                             <input type="password" class="form-control" id="nueva_password" name="nueva_password" required>
@@ -101,6 +132,7 @@
                             <button type="submit" class="btn btn-primary">Cambiar Contraseña WiFi</button>
                         </div>
                     </form>
+                    {% endif %}
                 {% endif %}
             </div>
         </div>
@@ -126,6 +158,53 @@
     </script>
     {% endif %}
     <script>
+        // Verificar si hay múltiples servicios al cargar la página
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM cargado, verificando servicios...');
+            
+            {% if cliente and cliente.servicios and cliente.servicios|length > 1 and not ip_seleccionada %}
+                console.log('Mostrando popup de selección...');
+                // Hay múltiples servicios y no se ha seleccionado uno, mostrar popup
+                const serviciosData = {{ cliente.servicios | tojson | safe }};
+                let opciones = '';
+                
+                serviciosData.forEach((servicio, index) => {
+                    const ip = servicio.ip || '';
+                    const direccion = servicio.direccion || '';
+                    
+                    // Solo mostrar IP y dirección en el popup
+                    let texto = `IP: ${ip}`;
+                    if (direccion) {
+                        texto += ` | Dirección: ${direccion}`;
+                    }
+                    
+                    opciones += `<option value="${ip}">${texto}</option>`;
+                });
+                
+                Swal.fire({
+                    title: 'Selecciona el servicio',
+                    html: `<select id="select-servicio" class="form-select">${opciones}</select>`,
+                    confirmButtonText: 'Continuar',
+                    cancelButtonText: 'Cancelar',
+                    showCancelButton: true,
+                    preConfirm: () => {
+                        return document.getElementById('select-servicio').value;
+                    }
+                }).then(result => {
+                    if (result.isConfirmed) {
+                        console.log('Servicio seleccionado:', result.value);
+                        // Redirigir directamente
+                        window.location.href = `/admin/cambiar_wifi_cliente?cedula={{ cliente.cedula }}&ip=${encodeURIComponent(result.value)}`;
+                    } else {
+                        // Si cancela, volver al dashboard
+                        window.location.href = '/admin/dashboard';
+                    }
+                });
+            {% else %}
+                console.log('No hay múltiples servicios o no se encontró cliente');
+            {% endif %}
+        });
+        
         function togglePassword() {
             const passwordInput = document.getElementById('nueva_password');
             const checkbox = document.getElementById('mostrarPassword');
@@ -174,8 +253,9 @@
                 Swal.fire({
                     icon: 'success',
                     title: '¡Nombre de red actualizado!',
-                    showConfirmButton: false,
-                    timer: 1800
+                    text: res.message || 'La ONU se reiniciará automáticamente para aplicar los cambios. Por favor espere unos minutos.',
+                    showConfirmButton: true,
+                    confirmButtonText: 'Entendido'
                 });
                 setTimeout(() => { window.location.reload(); }, 1800);
             });
@@ -223,8 +303,9 @@
                 Swal.fire({
                     icon: 'success',
                     title: '¡Contraseña cambiada exitosamente!',
-                    showConfirmButton: false,
-                    timer: 1800
+                    text: res.message || 'La ONU se reiniciará automáticamente para aplicar los cambios. Por favor espere unos minutos.',
+                    showConfirmButton: true,
+                    confirmButtonText: 'Entendido'
                 });
                 setTimeout(() => { window.location.reload(); }, 1800);
             });

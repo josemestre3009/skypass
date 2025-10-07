@@ -417,7 +417,7 @@ def cambiar_clave():
             if ok:
                 actualizar_parametros_wisphub(cliente['cedula'], nueva_clave=nueva_clave)
                 registrar_cambio_usuario(cliente['cedula'], 'Password', 'Nueva')
-                return jsonify({'success': True})
+                return jsonify({'success': True, 'message': 'Contraseña cambiada exitosamente. La ONU se reiniciará automáticamente para aplicar los cambios. Por favor espere unos minutos.'})
             else:
                 return jsonify({'success': False, 'message': 'Error al cambiar la clave en el dispositivo.'})
         # Si no es una acción válida
@@ -498,7 +498,7 @@ def cambiar_nombre_red():
             if ok:
                 actualizar_parametros_wisphub(cliente['cedula'], nuevo_ssid=nuevo_nombre)
                 registrar_cambio_usuario(cliente['cedula'], 'SSID', nuevo_nombre)
-                return jsonify({'success': True})
+                return jsonify({'success': True, 'message': 'Nombre de red cambiado exitosamente. La ONU se reiniciará automáticamente para aplicar los cambios. Por favor espere unos minutos.'})
             else:
                 return jsonify({'success': False, 'message': 'Error al cambiar el nombre de la red en el dispositivo.'})
         # Si no es una acción válida
@@ -551,13 +551,64 @@ def cambiar_parametro_genieacs(device_id, parametro, valor):
         url = f"{GENIEACS_API}/devices/{quote(device_id, safe='')}/tasks?connection_request"
         data = {
             "name": "setParameterValues",
-            "parameterValues": [[parametro, valor, "xsd:string"]]
+            "parameterValues": [[parametro, valor]]
         }
-        response = requests.post(url, json=data)
+        print(f"[GenieACS] Cambiando parámetro: {parametro} = {valor} en device {device_id}")
+        response = requests.post(url, json=data, timeout=10)
+        print(f"[GenieACS] Respuesta: {response.status_code} - {response.text}")
         response.raise_for_status()
-        return True
+        
+        # Verificar que la tarea se creó correctamente
+        if response.status_code in [200, 201, 202]:
+            print(f"[GenieACS] Parámetro {parametro} cambiado exitosamente")
+            
+            # Si es un cambio de WiFi, reiniciar la ONU para aplicar cambios
+            if 'WLANConfiguration' in parametro:
+                print(f"[GenieACS] Cambio de WiFi detectado, reiniciando ONU...")
+                try:
+                    reiniciar_onu_genieacs(device_id)
+                except Exception as e:
+                    print(f"[GenieACS] Error al reiniciar ONU: {e}")
+            
+            return True
+        else:
+            print(f"[GenieACS] Error inesperado: {response.status_code}")
+            return False
+            
+    except requests.exceptions.Timeout:
+        print(f"[GenieACS] Timeout al cambiar parámetro {parametro}")
+        return False
+    except requests.exceptions.ConnectionError:
+        print(f"[GenieACS] Error de conexión al cambiar parámetro {parametro}")
+        return False
     except Exception as e:
-        print(f"Error al cambiar parámetro en GenieACS: {e}")
+        print(f"[GenieACS] Error al cambiar parámetro {parametro}: {e}")
+        return False
+
+def reiniciar_onu_genieacs(device_id):
+    """Reinicia la ONU para aplicar cambios WiFi"""
+    try:
+        from urllib.parse import quote
+        url = f"{GENIEACS_API}/devices/{quote(device_id, safe='')}/tasks?connection_request"
+        
+        # Reiniciar ONU completa
+        data_reboot = {
+            "name": "reboot",
+            "parameterValues": []
+        }
+        print(f"[GenieACS] Reiniciando ONU completa en device {device_id}")
+        response = requests.post(url, json=data_reboot, timeout=15)
+        print(f"[GenieACS] Respuesta reinicio ONU: {response.status_code} - {response.text}")
+        
+        if response.status_code in [200, 201, 202]:
+            print(f"[GenieACS] ONU reiniciada exitosamente")
+            return True
+        else:
+            print(f"[GenieACS] Error al reiniciar ONU: {response.status_code}")
+            return False
+            
+    except Exception as e:
+        print(f"[GenieACS] Error al reiniciar ONU: {e}")
         return False
 
 def registrar_cambio_usuario(cedula, tipo_cambio, valor_nuevo):

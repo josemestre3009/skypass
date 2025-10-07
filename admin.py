@@ -202,13 +202,64 @@ def cambiar_parametro_genieacs(device_id, parametro, valor):
         url = f"{GENIEACS_API}/devices/{quote(device_id, safe='')}/tasks?connection_request"
         data = {
             "name": "setParameterValues",
-            "parameterValues": [[parametro, valor, "xsd:string"]]
+            "parameterValues": [[parametro, valor]]
         }
-        response = requests.post(url, json=data)
+        print(f"[GenieACS] Cambiando parámetro: {parametro} = {valor} en device {device_id}")
+        response = requests.post(url, json=data, timeout=10)
+        print(f"[GenieACS] Respuesta: {response.status_code} - {response.text}")
         response.raise_for_status()
-        return True
+        
+        # Verificar que la tarea se creó correctamente
+        if response.status_code in [200, 201, 202]:
+            print(f"[GenieACS] Parámetro {parametro} cambiado exitosamente")
+            
+            # Si es un cambio de WiFi, reiniciar la ONU para aplicar cambios
+            if 'WLANConfiguration' in parametro:
+                print(f"[GenieACS] Cambio de WiFi detectado, reiniciando ONU...")
+                try:
+                    reiniciar_onu_genieacs(device_id)
+                except Exception as e:
+                    print(f"[GenieACS] Error al reiniciar ONU: {e}")
+            
+            return True
+        else:
+            print(f"[GenieACS] Error inesperado: {response.status_code}")
+            return False
+            
+    except requests.exceptions.Timeout:
+        print(f"[GenieACS] Timeout al cambiar parámetro {parametro}")
+        return False
+    except requests.exceptions.ConnectionError:
+        print(f"[GenieACS] Error de conexión al cambiar parámetro {parametro}")
+        return False
     except Exception as e:
-        print(f"Error al cambiar parámetro en GenieACS: {e}")
+        print(f"[GenieACS] Error al cambiar parámetro {parametro}: {e}")
+        return False
+
+def reiniciar_onu_genieacs(device_id):
+    """Reinicia la ONU para aplicar cambios WiFi"""
+    try:
+        from urllib.parse import quote
+        url = f"{GENIEACS_API}/devices/{quote(device_id, safe='')}/tasks?connection_request"
+        
+        # Reiniciar ONU completa
+        data_reboot = {
+            "name": "reboot",
+            "parameterValues": []
+        }
+        print(f"[GenieACS] Reiniciando ONU completa en device {device_id}")
+        response = requests.post(url, json=data_reboot, timeout=15)
+        print(f"[GenieACS] Respuesta reinicio ONU: {response.status_code} - {response.text}")
+        
+        if response.status_code in [200, 201, 202]:
+            print(f"[GenieACS] ONU reiniciada exitosamente")
+            return True
+        else:
+            print(f"[GenieACS] Error al reiniciar ONU: {response.status_code}")
+            return False
+            
+    except Exception as e:
+        print(f"[GenieACS] Error al reiniciar ONU: {e}")
         return False
 
 def eliminar_device_genieacs(device_id):
@@ -241,7 +292,7 @@ def get_db_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
-def actualizar_parametros_wisphub(cedula, nueva_clave=None, nuevo_ssid=None):
+def actualizar_parametros_wisphub(cedula, nueva_clave=None, nuevo_ssid=None, ip_especifica=None):
     headers = {
         'Authorization': f'Api-Key {API_KEY}',
         'Content-Type': 'application/json'
@@ -251,21 +302,68 @@ def actualizar_parametros_wisphub(cedula, nueva_clave=None, nuevo_ssid=None):
     if not cliente:
         print('[Wisphub] Cliente no encontrado para actualizar parámetros')
         return False
-    id_cliente = cliente.get('id_servicio') or cliente.get('id')
+    
+    # Si se especifica una IP, buscar el cliente específico con esa IP
+    if ip_especifica:
+        print(f'[Wisphub] Buscando cliente específico con IP: {ip_especifica}')
+        try:
+            response = requests.get(BASE_URL, headers=headers, params={'cedula': cedula}, timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+                clientes = data.get('results', [])
+                for c in clientes:
+                    if c.get('cedula') == cedula:
+                        servicios = c.get('servicios', [])
+                        if servicios:
+                            for s in servicios:
+                                if s.get('ip') == ip_especifica:
+                                    print(f'[Wisphub] Encontrado servicio específico con IP: {ip_especifica}')
+                                    id_cliente = c.get('id_servicio') or c.get('id')
+                                    break
+                            else:
+                                continue
+                            break
+                        elif c.get('ip') == ip_especifica:
+                            print(f'[Wisphub] Encontrado cliente directo con IP: {ip_especifica}')
+                            id_cliente = c.get('id_servicio') or c.get('id')
+                            break
+                else:
+                    print(f'[Wisphub] No se encontró cliente específico con IP: {ip_especifica}')
+                    id_cliente = cliente.get('id_servicio') or cliente.get('id')
+        except Exception as e:
+            print(f'[Wisphub] Error buscando cliente específico: {e}')
+            id_cliente = cliente.get('id_servicio') or cliente.get('id')
+    else:
+        id_cliente = cliente.get('id_servicio') or cliente.get('id')
     data = {}
     if nueva_clave:
         data['password_ssid_router_wifi'] = nueva_clave
+        print(f'[Wisphub] Actualizando contraseña WiFi para cliente {cedula}')
     if nuevo_ssid:
         data['ssid_router_wifi'] = nuevo_ssid
+        print(f'[Wisphub] Actualizando SSID WiFi para cliente {cedula}')
     if not data:
+        print('[Wisphub] No hay datos para actualizar')
         return False
     url = f'https://api.wisphub.net/api/clientes/{id_cliente}/'
     try:
-        response = requests.patch(url, headers=headers, json=data, timeout=5)
-        print('[Wisphub] Respuesta actualización:', response.status_code, response.text)
-        return response.status_code in (200, 204)
+        print(f'[Wisphub] Enviando datos: {data} a {url}')
+        response = requests.patch(url, headers=headers, json=data, timeout=10)
+        print(f'[Wisphub] Respuesta actualización: {response.status_code} - {response.text}')
+        if response.status_code in (200, 204):
+            print('[Wisphub] Parámetros actualizados exitosamente en Wisphub')
+            return True
+        else:
+            print(f'[Wisphub] Error en respuesta: {response.status_code}')
+            return False
+    except requests.exceptions.Timeout:
+        print('[Wisphub] Timeout al actualizar parámetros')
+        return False
+    except requests.exceptions.ConnectionError:
+        print('[Wisphub] Error de conexión al actualizar parámetros')
+        return False
     except Exception as e:
-        print('[Wisphub] Error actualizando parámetros:', e)
+        print(f'[Wisphub] Error actualizando parámetros: {e}')
         return False
 
 def obtener_estado_online_device(ip_buscada, minutos_online=5):
@@ -678,46 +776,131 @@ def cambiar_wifi_cliente():
     estado_servicio = None
     if request.method == 'GET':
         cedula = request.args.get('cedula')
+        ip_seleccionada = request.args.get('ip')
         if cedula:
-            cliente = buscar_cliente_por_cedula(cedula)
-            if not cliente:
+            # Obtener TODOS los clientes con esa cédula (igual que en el login)
+            headers = {
+                'Authorization': f'Api-Key {API_KEY}',
+                'Content-Type': 'application/json'
+            }
+            try:
+                response = requests.get(BASE_URL, headers=headers, params={'cedula': cedula}, timeout=10)
+                if response.status_code == 200:
+                    data = response.json()
+                    clientes = data.get('results', [])
+                    print(f'[DEBUG] Clientes encontrados: {len(clientes)}')
+                    
+                    # Unificar servicios de todos los clientes con la misma cédula
+                    servicios_unificados = []
+                    cliente_principal = None
+                    
+                    for c in clientes:
+                        if c.get('cedula') == cedula:
+                            if not cliente_principal:
+                                cliente_principal = c  # Usar el primer cliente como principal
+                            
+                            servicios = c.get('servicios', [])
+                            if servicios:
+                                for s in servicios:
+                                    if s.get('ip'):
+                                        # Crear servicio con datos específicos de cada cliente
+                                        s_copy = dict(s)
+                                        s_copy['direccion'] = c.get('direccion', '')
+                                        s_copy['nombre_cliente'] = c.get('nombre', '')  # Nombre específico de cada cliente
+                                        servicios_unificados.append(s_copy)
+                            elif c.get('ip'):
+                                servicios_unificados.append({
+                                    'ip': c.get('ip'),
+                                    'nombre_servicio': c.get('nombre_servicio', ''),
+                                    'ssid_router_wifi': c.get('ssid_router_wifi', ''),
+                                    'estado': c.get('estado', ''),
+                                    'direccion': c.get('direccion', ''),
+                                    'nombre_cliente': c.get('nombre', '')  # Nombre específico de cada cliente
+                                })
+                    
+                    print(f'[DEBUG] Servicios unificados: {servicios_unificados}')
+                    print(f'[DEBUG] Cantidad de servicios: {len(servicios_unificados)}')
+                    
+                    if cliente_principal:
+                        cliente = cliente_principal
+                        servicios = servicios_unificados
+                    else:
+                        cliente_no_encontrado = True
+                else:
+                    cliente_no_encontrado = True
+            except Exception as e:
+                print(f'[ERROR] Error obteniendo clientes: {e}')
                 cliente_no_encontrado = True
-            else:
-                # Extraer estado del servicio Wisphub
-                servicios = cliente.get('servicios', [])
-                if servicios and isinstance(servicios, list) and len(servicios) > 0:
-                    estado_servicio = servicios[0].get('estado', '').lower()
-                elif 'estado' in cliente:
-                    estado_servicio = cliente.get('estado', '').lower()
+        
+        # Determinar estado del servicio si hay cliente
+        if cliente and servicios and len(servicios) > 0:
+            # Si se especificó una IP, buscar ese servicio específico
+            if ip_seleccionada:
+                for servicio in servicios:
+                    if servicio.get('ip') == ip_seleccionada:
+                        estado_servicio = servicio.get('estado', '').lower()
+                        break
                 else:
                     estado_servicio = 'desconocido'
-        return render_template('admin/admin_cambiar_wifi_cliente.html', cliente=cliente, cliente_no_encontrado=cliente_no_encontrado, estado_servicio=estado_servicio)
+            else:
+                estado_servicio = servicios[0].get('estado', '').lower()
+        elif cliente and 'estado' in cliente:
+            estado_servicio = cliente.get('estado', '').lower()
+        else:
+            estado_servicio = 'desconocido'
+        
+        # Agregar servicios al cliente para el template
+        if cliente:
+            cliente['servicios'] = servicios
+        return render_template('admin/admin_cambiar_wifi_cliente.html', 
+                             cliente=cliente, 
+                             cliente_no_encontrado=cliente_no_encontrado, 
+                             estado_servicio=estado_servicio,
+                             ip_seleccionada=ip_seleccionada)
     # POST solo AJAX
     if not request.is_json:
         return jsonify({'success': False, 'message': 'Solo se permite el flujo AJAX.'})
     data = request.get_json()
     cedula = data.get('cedula')
     accion = data.get('accion')
+    ip_seleccionada = data.get('ip')
+    
     cliente = buscar_cliente_por_cedula(cedula)
     if not cliente:
         return jsonify({'success': False, 'message': 'Cliente no encontrado'})
-    id_cliente = cliente.get('id')
-    # Validar estado del servicio Wisphub
+    
+    # Determinar qué IP usar
+    ip_a_usar = None
     servicios = cliente.get('servicios', [])
-    if servicios and isinstance(servicios, list) and len(servicios) > 0:
-        estado_servicio = servicios[0].get('estado', '').lower()
-    elif 'estado' in cliente:
-        estado_servicio = cliente.get('estado', '').lower()
+    
+    if ip_seleccionada:
+        # Usar la IP seleccionada
+        ip_a_usar = ip_seleccionada
+    elif servicios and isinstance(servicios, list) and len(servicios) > 0:
+        # Usar la primera IP de los servicios
+        ip_a_usar = servicios[0].get('ip')
     else:
-        estado_servicio = 'desconocido'
+        # Usar la IP directa del cliente
+        ip_a_usar = cliente.get('ip')
+    
+    if not ip_a_usar:
+        return jsonify({'success': False, 'message': 'No se encontró la IP del cliente'})
+    
+    # Validar estado del servicio específico
+    estado_servicio = 'desconocido'
+    if servicios and isinstance(servicios, list):
+        for servicio in servicios:
+            if servicio.get('ip') == ip_a_usar:
+                estado_servicio = servicio.get('estado', '').lower()
+                break
+    
     if estado_servicio == 'suspendido':
         return jsonify({'success': False, 'message': 'El servicio del cliente está suspendido. No se pueden realizar cambios hasta que se reactive.'})
-    ip_cliente = cliente.get('ip')
-    if not ip_cliente:
-        return jsonify({'success': False, 'message': 'No se encontró la IP del cliente'})
-    if not obtener_estado_online_device(ip_cliente):
+    
+    if not obtener_estado_online_device(ip_a_usar):
         return jsonify({'success': False, 'message': 'El dispositivo está desconectado. Debe estar online para realizar cambios.'})
-    device_id = obtener_device_id_por_ip(ip_cliente)
+    
+    device_id = obtener_device_id_por_ip(ip_a_usar)
     if not device_id:
         return jsonify({'success': False, 'message': 'No se encontró el dispositivo del cliente'})
     if accion == 'ssid':
@@ -725,9 +908,9 @@ def cambiar_wifi_cliente():
         if not nuevo_ssid:
             return jsonify({'success': False, 'message': 'Debe ingresar el nuevo nombre de red'})
         if cambiar_parametro_genieacs(device_id, 'InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.SSID', nuevo_ssid):
-            actualizar_parametros_wisphub(cedula, nuevo_ssid=nuevo_ssid)
+            actualizar_parametros_wisphub(cedula, nuevo_ssid=nuevo_ssid, ip_especifica=ip_a_usar)
             registrar_cambio(session['admin_id'], cedula, 'SSID', nuevo_ssid)
-            return jsonify({'success': True})
+            return jsonify({'success': True, 'message': 'Nombre de red cambiado exitosamente. La ONU se reiniciará automáticamente para aplicar los cambios. Por favor espere unos minutos.'})
         else:
             return jsonify({'success': False, 'message': 'Error al cambiar el nombre de la red'})
     elif accion == 'password':
@@ -735,9 +918,9 @@ def cambiar_wifi_cliente():
         if not nueva_password:
             return jsonify({'success': False, 'message': 'Debe ingresar la nueva contraseña'})
         if cambiar_parametro_genieacs(device_id, 'InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.KeyPassphrase', nueva_password):
-            actualizar_parametros_wisphub(cedula, nueva_clave=nueva_password)
+            actualizar_parametros_wisphub(cedula, nueva_clave=nueva_password, ip_especifica=ip_a_usar)
             registrar_cambio(session['admin_id'], cedula, 'Password', 'Nueva')
-            return jsonify({'success': True})
+            return jsonify({'success': True, 'message': 'Contraseña cambiada exitosamente. La ONU se reiniciará automáticamente para aplicar los cambios. Por favor espere unos minutos.'})
         else:
             return jsonify({'success': False, 'message': 'Error al cambiar la contraseña'})
     return jsonify({'success': False, 'message': 'Acción no válida.'})

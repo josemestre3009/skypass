@@ -8,12 +8,12 @@ function resetTimeout() {
     clearTimeout(timeoutId);
     warningShown = false;
     
-    console.log('[SESSION] Timeout reset - nuevo timeout iniciado');
+    //.log('[SESSION] Timeout reset - nuevo timeout iniciado');
     
     // Mostrar aviso a los 50 segundos
     timeoutId = setTimeout(() => {
         if (!warningShown) {
-            console.log('[SESSION] Mostrando aviso de timeout');
+            //console.log('[SESSION] Mostrando aviso de timeout');
             showTimeoutWarning();
             warningShown = true;
         }
@@ -21,7 +21,7 @@ function resetTimeout() {
 }
 
 function showTimeoutWarning() {
-    console.log('[SESSION] Ejecutando showTimeoutWarning');
+    //console.log('[SESSION] Ejecutando showTimeoutWarning');
     Swal.fire({
         title: 'Sesión por expirar',
         text: 'Llevas 60 segundos sin actividad. Tu sesión se cerrará automáticamente.',
@@ -36,13 +36,13 @@ function showTimeoutWarning() {
         allowOutsideClick: false,
         allowEscapeKey: false
     }).then((result) => {
-        console.log('[SESSION] Resultado del modal:', result);
+        //console.log('[SESSION] Resultado del modal:', result);
         if (result.isConfirmed) {
             // Renovar sesión
-            console.log('[SESSION] Renovando sesión...');
+            //console.log('[SESSION] Renovando sesión...');
             fetch('/admin/renovar-sesion', {method: 'POST'})
                 .then(response => {
-                    console.log('[SESSION] Respuesta renovar sesión:', response.status);
+                    //console.log('[SESSION] Respuesta renovar sesión:', response.status);
                     if (response.ok) {
                         resetTimeout();
                         Swal.fire({
@@ -57,16 +57,16 @@ function showTimeoutWarning() {
                     }
                 })
                 .catch(error => {
-                    console.error('[SESSION] Error renovando sesión:', error);
+                    //console.error('[SESSION] Error renovando sesión:', error);
                     window.location.href = '/admin/login';
                 });
         } else if (result.dismiss === Swal.DismissReason.cancel) {
             // Cerrar sesión
-            console.log('[SESSION] Cerrando sesión manualmente...');
+            //console.log('[SESSION] Cerrando sesión manualmente...');
             fetch('/admin/logout', {method: 'POST'})
                 .then(res => res.json())
                 .then(data => {
-                    console.log('[SESSION] Respuesta logout:', data);
+                    //console.log('[SESSION] Respuesta logout:', data);
                     if (data.success) {
                         window.location.href = data.redirect || '/admin/login';
                     } else {
@@ -74,16 +74,16 @@ function showTimeoutWarning() {
                     }
                 })
                 .catch(error => {
-                    console.error('[SESSION] Error en logout:', error);
+                    //console.error('[SESSION] Error en logout:', error);
                     window.location.href = '/admin/login';
                 });
         } else {
             // Timeout - cerrar sesión automáticamente
-            console.log('[SESSION] Timeout automático - cerrando sesión...');
+            //console.log('[SESSION] Timeout automático - cerrando sesión...');
             fetch('/admin/logout', {method: 'POST'})
                 .then(res => res.json())
                 .then(data => {
-                    console.log('[SESSION] Respuesta logout automático:', data);
+                    //console.log('[SESSION] Respuesta logout automático:', data);
                     if (data.success) {
                         window.location.href = data.redirect || '/admin/login';
                     } else {
@@ -91,7 +91,7 @@ function showTimeoutWarning() {
                     }
                 })
                 .catch(error => {
-                    console.error('[SESSION] Error en logout automático:', error);
+                    //console.error('[SESSION] Error en logout automático:', error);
                     window.location.href = '/admin/login';
                 });
         }
@@ -100,7 +100,7 @@ function showTimeoutWarning() {
 
 // Detectar actividad del usuario
 function detectarActividad() {
-    console.log('[SESSION] Actividad detectada');
+    //  console.log('[SESSION] Actividad detectada');
     resetTimeout();
 }
 

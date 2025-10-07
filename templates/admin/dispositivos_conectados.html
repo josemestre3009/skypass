@@ -68,6 +68,53 @@
                     </div>
                     <button class="btn btn-primary" id="btn-refrescar"><i class="bi bi-arrow-clockwise"></i> Refrescar</button>
                 </div>
+                <!-- Resumen de conteos -->
+                <div class="row g-3 mb-3" id="summary-cards">
+                    <div class="col-12 col-md-3">
+                        <div class="card border-0 shadow-sm h-100">
+                            <div class="card-body d-flex align-items-center justify-content-between">
+                                <div>
+                                    <div class="text-muted small">Conectados</div>
+                                    <div class="fw-bold fs-4" id="count-conectados">0</div>
+                                </div>
+                                <i class="bi bi-wifi text-success fs-3"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-3">
+                        <div class="card border-0 shadow-sm h-100">
+                            <div class="card-body d-flex align-items-center justify-content-between">
+                                <div>
+                                    <div class="text-muted small">Desconectados</div>
+                                    <div class="fw-bold fs-4" id="count-desconectados">0</div>
+                                </div>
+                                <i class="bi bi-wifi-off text-danger fs-3"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-3">
+                        <div class="card border-0 shadow-sm h-100">
+                            <div class="card-body d-flex align-items-center justify-content-between">
+                                <div>
+                                    <div class="text-muted small">Inactivos</div>
+                                    <div class="fw-bold fs-4" id="count-inactivos">0</div>
+                                </div>
+                                <i class="bi bi-exclamation-triangle text-warning fs-3"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-3">
+                        <div class="card border-0 shadow-sm h-100">
+                            <div class="card-body d-flex align-items-center justify-content-between">
+                                <div>
+                                    <div class="text-muted small">Total dispositivos</div>
+                                    <div class="fw-bold fs-4" id="count-total">0</div>
+                                </div>
+                                <i class="bi bi-hdd-network text-primary fs-3"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 <div class="table-responsive">
                     <table class="table table-striped align-middle mb-0" id="tabla-dispositivos">
                         <thead class="table-light">
@@ -177,7 +224,9 @@
                 return bVal.localeCompare(aVal);
             }
         });
-        
+        // Calcular resumen de conteos
+        actualizarResumen(datos);
+
         // Calcular paginación
         const totalPages = Math.ceil(datos.length / itemsPerPage);
         const startIndex = (currentPage - 1) * itemsPerPage;
@@ -297,6 +346,35 @@
             // Inactivo: último informe hace más de 24 horas
             return '<span class="badge bg-warning"><i class="bi bi-exclamation-triangle"></i> Inactivo</span>';
         }
+    }
+
+    function obtenerEstadoLabel(ultimoInforme) {
+        if (!ultimoInforme) return 'sin_datos';
+        const ahora = new Date();
+        const ultimoInformeDate = new Date(ultimoInforme);
+        const diferenciaHoras = (ahora - ultimoInformeDate) / (1000 * 60 * 60);
+        if (diferenciaHoras <= 1) return 'conectado';
+        if (diferenciaHoras <= 24) return 'desconectado';
+        return 'inactivo';
+    }
+
+    function actualizarResumen(datos) {
+        const total = datos.length;
+        let conectados = 0, desconectados = 0, inactivos = 0;
+        datos.forEach(d => {
+            const est = obtenerEstadoLabel(d.ultimo_informe);
+            if (est === 'conectado') conectados++;
+            else if (est === 'desconectado') desconectados++;
+            else if (est === 'inactivo') inactivos++;
+        });
+        const elTotal = document.getElementById('count-total');
+        const elCon = document.getElementById('count-conectados');
+        const elDes = document.getElementById('count-desconectados');
+        const elIna = document.getElementById('count-inactivos');
+        if (elTotal) elTotal.textContent = total;
+        if (elCon) elCon.textContent = conectados;
+        if (elDes) elDes.textContent = desconectados;
+        if (elIna) elIna.textContent = inactivos;
     }
     
     function sortTable(column) {
