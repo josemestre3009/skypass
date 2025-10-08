@@ -415,7 +415,7 @@ def cambiar_clave():
         if accion == 'cambiar':
             ok = cambiar_parametro_genieacs(device_id, 'InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.KeyPassphrase', nueva_clave)
             if ok:
-                actualizar_parametros_wisphub(cliente['cedula'], nueva_clave=nueva_clave)
+                actualizar_parametros_wisphub(cliente['cedula'], nueva_clave=nueva_clave, ip_especifica=ip)
                 registrar_cambio_usuario(cliente['cedula'], 'Password', 'Nueva')
                 return jsonify({'success': True, 'message': 'Contraseña cambiada exitosamente. La ONU se reiniciará automáticamente para aplicar los cambios. Por favor espere unos minutos.'})
             else:
@@ -496,7 +496,7 @@ def cambiar_nombre_red():
         if accion == 'cambiar':
             ok = cambiar_parametro_genieacs(device_id, 'InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.SSID', nuevo_nombre)
             if ok:
-                actualizar_parametros_wisphub(cliente['cedula'], nuevo_ssid=nuevo_nombre)
+                actualizar_parametros_wisphub(cliente['cedula'], nuevo_ssid=nuevo_nombre, ip_especifica=ip)
                 registrar_cambio_usuario(cliente['cedula'], 'SSID', nuevo_nombre)
                 return jsonify({'success': True, 'message': 'Nombre de red cambiado exitosamente. La ONU se reiniciará automáticamente para aplicar los cambios. Por favor espere unos minutos.'})
             else:
@@ -733,7 +733,7 @@ def normalizar_numero(telefono):
     print(f"[DEPURACIÓN] Número NO válido para WhatsApp Colombia: {numero}")
     return None
 
-def actualizar_parametros_wisphub(cedula, nueva_clave=None, nuevo_ssid=None):
+def actualizar_parametros_wisphub(cedula, nueva_clave=None, nuevo_ssid=None, ip_especifica=None):
     headers = {
         'Authorization': f'Api-Key {API_KEY}',
         'Content-Type': 'application/json'
@@ -743,21 +743,70 @@ def actualizar_parametros_wisphub(cedula, nueva_clave=None, nuevo_ssid=None):
     if not cliente:
         print('[Wisphub] Cliente no encontrado para actualizar parámetros')
         return False
-    id_cliente = cliente.get('id_servicio') or cliente.get('id')
+    
+    # Si se especifica una IP, buscar el cliente específico con esa IP
+    if ip_especifica:
+        print(f'[Wisphub] Buscando cliente específico con IP: {ip_especifica}')
+        try:
+            response = requests.get(BASE_URL, headers=headers, params={'cedula': cedula}, timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+                clientes = data.get('results', [])
+                for c in clientes:
+                    if c.get('cedula') == cedula:
+                        servicios = c.get('servicios', [])
+                        if servicios:
+                            for s in servicios:
+                                if s.get('ip') == ip_especifica:
+                                    print(f'[Wisphub] Encontrado servicio específico con IP: {ip_especifica}')
+                                    id_cliente = c.get('id_servicio') or c.get('id')
+                                    break
+                            else:
+                                continue
+                            break
+                        elif c.get('ip') == ip_especifica:
+                            print(f'[Wisphub] Encontrado cliente directo con IP: {ip_especifica}')
+                            id_cliente = c.get('id_servicio') or c.get('id')
+                            break
+                else:
+                    print(f'[Wisphub] No se encontró cliente específico con IP: {ip_especifica}')
+                    id_cliente = cliente.get('id_servicio') or cliente.get('id')
+        except Exception as e:
+            print(f'[Wisphub] Error buscando cliente específico: {e}')
+            id_cliente = cliente.get('id_servicio') or cliente.get('id')
+    else:
+        id_cliente = cliente.get('id_servicio') or cliente.get('id')
+    
     data = {}
     if nueva_clave:
         data['password_ssid_router_wifi'] = nueva_clave
+        print(f'[Wisphub] Actualizando contraseña WiFi para cliente {cedula}')
     if nuevo_ssid:
         data['ssid_router_wifi'] = nuevo_ssid
+        print(f'[Wisphub] Actualizando SSID WiFi para cliente {cedula}')
     if not data:
+        print('[Wisphub] No hay datos para actualizar')
         return False
+    
     url = f'https://api.wisphub.net/api/clientes/{id_cliente}/'
     try:
-        response = requests.patch(url, headers=headers, json=data, timeout=5)
-        print('[Wisphub] Respuesta actualización:', response.status_code, response.text)
-        return response.status_code in (200, 204)
+        print(f'[Wisphub] Enviando datos: {data} a {url}')
+        response = requests.patch(url, headers=headers, json=data, timeout=10)
+        print(f'[Wisphub] Respuesta actualización: {response.status_code} - {response.text}')
+        if response.status_code in (200, 204):
+            print('[Wisphub] Parámetros actualizados exitosamente en Wisphub')
+            return True
+        else:
+            print(f'[Wisphub] Error en respuesta: {response.status_code}')
+            return False
+    except requests.exceptions.Timeout:
+        print('[Wisphub] Timeout al actualizar parámetros')
+        return False
+    except requests.exceptions.ConnectionError:
+        print('[Wisphub] Error de conexión al actualizar parámetros')
+        return False
     except Exception as e:
-        print('[Wisphub] Error actualizando parámetros:', e)
+        print(f'[Wisphub] Error actualizando parámetros: {e}')
         return False
 
 def get_db_connection():
