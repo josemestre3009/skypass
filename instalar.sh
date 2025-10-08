@@ -1,5 +1,7 @@
 #!/bin/bash
 
+#curl -fsSL https://raw.githubusercontent.com/josemestre3009/skypass/main/instalar.sh | bash
+
 # Colores para output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -123,6 +125,11 @@ echo ""
 
 show_progress "Instalando Gunicorn..."
 pip install gunicorn > /dev/null 2>&1
+
+# Inicializar base de datos
+show_progress "Inicializando base de datos..."
+python3 init_db.py > /dev/null 2>&1
+
 show_success "Python configurado correctamente"
 
 # 5. CONFIGURAR NODE.JS
@@ -241,6 +248,12 @@ echo ""
 show_title " ACCESO A LA APLICACIÓN"
 echo -e "${WHITE}SkyPass Web:${NC} http://localhost:8000"
 echo -e "${WHITE}Bot API:${NC} http://localhost:3002"
+echo ""
+echo -e "${YELLOW}Credenciales de administrador por defecto:${NC}"
+echo -e "${WHITE}Usuario:${NC} admin"
+echo -e "${WHITE}Email:${NC} admin@skypass.local"
+echo -e "${WHITE}Contraseña:${NC} admin1234"
+echo -e "${RED}⚠️  IMPORTANTE: Cambia estas credenciales después del primer acceso${NC}"
 echo ""
 
 # 11. MOSTRAR COMANDOS ÚTILES
