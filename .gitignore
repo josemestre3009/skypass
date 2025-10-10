@@ -8,6 +8,7 @@ venv/
 
 # Ignorar dependencias y archivos generados
 node_modules/
+base-baileys-memory/node_modules/
 *.log
 
 # Ignorar archivos de IDE o editores de texto (si es necesario)
