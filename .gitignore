@@ -1,6 +1,6 @@
 # Ignorar archivos de configuración local
 .env
-
+.env.save
 
 # Ignorar directorios de Python y entorno virtual
 __pycache__/
@@ -21,6 +21,9 @@ base-baileys-memory/bot.qr.png
 base-baileys-memory/bot_sessions/
 base-baileys-memory/*.log
 
-
+# Base de datos
 skypass.db
-.env.save
+
+# Archivos temporales y logs
+mk.txt
+base-baileys-memory/core.class.log
