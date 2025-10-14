@@ -14,7 +14,7 @@ load_dotenv()
 
 # Configuración de APIs
 API_KEY = os.getenv('API_KEY_WISPHUB')
-BASE_URL = 'https://api.wisphub.net/api/clientes'
+BASE_URL = os.getenv('BASE_URL_WISPHUB')
 GENIEACS_API = os.getenv("GENIEACS_API_URL")
 ip_server = os.getenv("IP_SERVER")
 qr_server = os.getenv("QR_SERVER")

@@ -183,8 +183,7 @@
             const f = filtro.toLowerCase();
             datos = datos.filter(d =>
                 (d.device_id && d.device_id.toLowerCase().includes(f)) ||
-                (d.ip && d.ip.toLowerCase().includes(f)) ||
-                (d.ultimo_informe && d.ultimo_informe.toLowerCase().includes(f))
+                (d.ip && d.ip.toLowerCase().includes(f))
             );
         }
         

@@ -24,7 +24,7 @@ app.register_blueprint(soporte_bp)
 
 # Configuración desde .env
 API_KEY = os.getenv('API_KEY_WISPHUB')
-BASE_URL = 'https://api.wisphub.net/api/clientes'
+BASE_URL = 'https://api.wisphub.io/api/clientes'
 GENIEACS_API = os.getenv("GENIEACS_API_URL")
 ip_server = os.getenv("IP_SERVER")
 
