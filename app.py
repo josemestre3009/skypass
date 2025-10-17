@@ -606,6 +606,9 @@ def cambiar_nombre_red_interfaz_sin_reinicio(device_id, interfaz, nuevo_nombre):
             return True
         else:
             print(f"[GenieACS] ❌ Error cambiando SSID en interfaz {interfaz}")
+            print(f"[GenieACS] ❌ Device ID: {device_id}")
+            print(f"[GenieACS] ❌ Parámetro: {parametro_ssid}")
+            print(f"[GenieACS] ❌ Valor: {nuevo_nombre}")
             return False
             
     except Exception as e:
@@ -1443,9 +1446,9 @@ def cambiar_parametro_genieacs_sin_reinicio(device_id, parametro, valor):
     
     try:
         # Usar el formato correcto según la documentación de GenieACS
-        url = f"{GENIEACS_API}/devices/{device_id}/tasks"
+        url = f"{GENIEACS_API}/devices/{device_id}/tasks?connection_request"
         
-        # Formato correcto para setParameterValues
+        # Formato correcto para setParameterValues según documentación GenieACS
         payload = {
             "name": "setParameterValues",
             "parameterValues": [[parametro, valor]]
@@ -1455,7 +1458,7 @@ def cambiar_parametro_genieacs_sin_reinicio(device_id, parametro, valor):
         print(f"[GenieACS]   - URL: {url}")
         print(f"[GenieACS]   - Payload: {payload}")
         
-        response = requests.post(url, json=payload, timeout=10)
+        response = requests.post(url, json=payload, timeout=30)
         
         print(f"[GenieACS] 📡 Respuesta: {response.status_code} - {response.text}")
         

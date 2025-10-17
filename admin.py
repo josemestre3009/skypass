@@ -1356,8 +1356,8 @@ def api_buscar_clientes():
                         if c.get('ip') == q or c.get('ip_address') == q:
                             clientes.append({
                                 'ip': c.get('ip') or c.get('ip_address'),
-                                'nombre': c.get('nombre', ''),
-                                'cedula': c.get('cedula', ''),
+                                    'nombre': c.get('nombre', ''),
+                                    'cedula': c.get('cedula', ''),
                                 'telefono': c.get('telefono', '') or c.get('celular', '')
                             })
                             break
@@ -1390,9 +1390,9 @@ def api_buscar_clientes():
                             clientes.append({
                                 'ip': c.get('ip') or c.get('ip_address'),
                                 'nombre': nombre,
-                                'cedula': c.get('cedula', ''),
+                                    'cedula': c.get('cedula', ''),
                                 'telefono': c.get('telefono', '') or c.get('celular', '')
-                            })
+                                })
             
             print(f"[DEBUG] Resultado final: {len(clientes)} clientes encontrados")
             return jsonify({'success': True, 'clientes': clientes})
@@ -1738,9 +1738,9 @@ def cambiar_parametro_genieacs_sin_reinicio(device_id, parametro, valor):
     
     try:
         # Usar el formato correcto según la documentación de GenieACS
-        url = f"{GENIEACS_API}/devices/{device_id}/tasks"
+        url = f"{GENIEACS_API}/devices/{device_id}/tasks?connection_request"
         
-        # Formato correcto para setParameterValues
+        # Formato correcto para setParameterValues según documentación GenieACS
         payload = {
             "name": "setParameterValues",
             "parameterValues": [[parametro, valor]]
@@ -1750,7 +1750,7 @@ def cambiar_parametro_genieacs_sin_reinicio(device_id, parametro, valor):
         print(f"[GenieACS]   - URL: {url}")
         print(f"[GenieACS]   - Payload: {payload}")
         
-        response = requests.post(url, json=payload, timeout=10)
+        response = requests.post(url, json=payload, timeout=30)
         
         print(f"[GenieACS] 📡 Respuesta: {response.status_code} - {response.text}")
         
