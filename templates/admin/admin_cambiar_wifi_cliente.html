@@ -158,51 +158,100 @@
     </script>
     {% endif %}
     <script>
+        /* eslint-disable */
+        // Valores inyectados desde Jinja como JSON/boolean
+        const serviciosData = {{ cliente.servicios | tojson | safe if cliente.servicios else '[]' }};
+        const hasMultiple = {{ (cliente.servicios and (cliente.servicios|length > 1) and (not ip_seleccionada)) | tojson if cliente else 'false' }};
+        const clienteCedula = {{ cliente.cedula | tojson | safe if cliente else '""' }};
+        
+       /* eslint-enable */
+
         // Verificar si hay múltiples servicios al cargar la página
         document.addEventListener('DOMContentLoaded', function() {
             console.log('DOM cargado, verificando servicios...');
             
-            {% if cliente and cliente.servicios and cliente.servicios|length > 1 and not ip_seleccionada %}
-                console.log('Mostrando popup de selección...');
-                // Hay múltiples servicios y no se ha seleccionado uno, mostrar popup
-                const serviciosData = {{ cliente.servicios | tojson | safe }};
-                let opciones = '';
+            // Verificar si hay formularios de cambio WiFi (indica que hay cliente)
+            const formSsid = document.getElementById('form-cambiar-ssid');
+            const formPassword = document.getElementById('form-cambiar-password');
+            
+            if (formSsid || formPassword) {
+                console.log('Formularios de cambio WiFi encontrados, mostrando aviso de conectando con ONU...');
                 
-                serviciosData.forEach((servicio, index) => {
-                    const ip = servicio.ip || '';
-                    const direccion = servicio.direccion || '';
-                    
-                    // Solo mostrar IP y dirección en el popup
-                    let texto = `IP: ${ip}`;
-                    if (direccion) {
-                        texto += ` | Dirección: ${direccion}`;
-                    }
-                    
-                    opciones += `<option value="${ip}">${texto}</option>`;
-                });
-                
+                // Mostrar aviso de conectando con ONU
                 Swal.fire({
-                    title: 'Selecciona el servicio',
-                    html: `<select id="select-servicio" class="form-select">${opciones}</select>`,
-                    confirmButtonText: 'Continuar',
-                    cancelButtonText: 'Cancelar',
-                    showCancelButton: true,
-                    preConfirm: () => {
-                        return document.getElementById('select-servicio').value;
-                    }
-                }).then(result => {
-                    if (result.isConfirmed) {
-                        console.log('Servicio seleccionado:', result.value);
-                        // Redirigir directamente
-                        window.location.href = `/admin/cambiar_wifi_cliente?cedula={{ cliente.cedula }}&ip=${encodeURIComponent(result.value)}`;
-                    } else {
-                        // Si cancela, volver al dashboard
-                        window.location.href = '/admin/dashboard';
-                    }
+                    title: 'Conectando con la ONU',
+                    html: '<div class="d-flex align-items-center justify-content-center"><div class="spinner-border text-primary me-3" role="status"></div><span>Validando dispositivo y detectando interfaces WiFi...</span></div>',
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
+                    showConfirmButton: false,
+                    timer: 4000,
+                    timerProgressBar: true
                 });
-            {% else %}
-                console.log('No hay múltiples servicios o no se encontró cliente');
-            {% endif %}
+                
+                // Después de 4 segundos, mostrar conexión establecida
+                setTimeout(() => {
+                    Swal.fire({
+                        title: 'Conexión establecida',
+                        html: '<div class="d-flex align-items-center justify-content-center"><i class="bi bi-check-circle-fill text-success me-3" style="font-size: 2rem;"></i><span>Interfaces WiFi detectadas</span></div>',
+                        allowOutsideClick: false,
+                        allowEscapeKey: false,
+                        showConfirmButton: false,
+                        timer: 2000,
+                        timerProgressBar: true
+                    });
+                    
+                    // Después de mostrar conexión establecida, procesar según el caso
+                    setTimeout(() => {
+                        Swal.close();
+                        
+                        if (hasMultiple) {
+                            console.log('Mostrando popup de selección...');
+                            // Hay múltiples servicios, mostrar selección
+                            let opciones = '';
+                            
+                            serviciosData.forEach((servicio) => {
+                                const ip = servicio.ip || '';
+                                const direccion = servicio.direccion || '';
+                                let texto = `IP: ${ip}`;
+                                if (direccion) {
+                                    texto += ` | Dirección: ${direccion}`;
+                                }
+                                opciones += `<option value="${ip}">${texto}</option>`;
+                            });
+                            
+                            Swal.fire({
+                                title: 'Selecciona el servicio',
+                                html: `<select id="select-servicio" class="form-select">${opciones}</select>`,
+                                confirmButtonText: 'Continuar',
+                                cancelButtonText: 'Cancelar',
+                                showCancelButton: true,
+                                preConfirm: () => {
+                                    return document.getElementById('select-servicio').value;
+                                }
+                            }).then(result => {
+                                if (result.isConfirmed) {
+                                    // Mostrar aviso de conectando nuevamente
+                                    Swal.fire({
+                                        title: 'Conectando con la ONU',
+                                        html: '<div class="d-flex align-items-center justify-content-center"><div class="spinner-border text-primary me-3" role="status"></div><span>Verificando interfaces WiFi...</span></div>',
+                                        allowOutsideClick: false,
+                                        allowEscapeKey: false,
+                                        showConfirmButton: false,
+                                        timer: 2000,
+                                        timerProgressBar: true
+                                    }).then(() => {
+                                        window.location.href = `/admin/cambiar_wifi_cliente?cedula=${clienteCedula}&ip=${encodeURIComponent(result.value)}`;
+                                    });
+                                } else {
+                                    window.location.href = '/admin/dashboard';
+                                }
+                            });
+                        }
+                    }, 2000);
+                }, 4000);
+            } else {
+                console.log('No se encontraron formularios de cambio WiFi');
+            }
         });
         
         function togglePassword() {
@@ -215,49 +264,48 @@
         if (formSsid) {
             formSsid.addEventListener('submit', async function(e) {
                 e.preventDefault();
+                
+                // Mostrar "Aplicando nombre de red"
                 Swal.fire({
-                    title: 'Procesando solicitud',
-                    html: '<div id="swal-mensaje">Actualizando nombre de red...</div><div class="progress mt-3" style="height: 8px;"><div id="swal-barra" class="progress-bar bg-primary" role="progressbar" style="width: 0%"></div></div>',
+                    title: 'Aplicando nombre de red',
+                    html: '<div class="d-flex align-items-center justify-content-center"><div class="spinner-border text-primary me-3" role="status"></div><span>Configurando nombre WiFi...</span></div>',
                     allowOutsideClick: false,
                     allowEscapeKey: false,
                     showConfirmButton: false,
-                    didOpen: () => { Swal.showLoading(); }
+                    timer: 3000,
+                    timerProgressBar: true
                 });
-                const barra = document.getElementById('swal-barra');
-                let barraInterval = null;
-                if (barra) {
-                    let progreso = 0;
-                    barra.style.width = '0%';
-                    barraInterval = setInterval(() => {
-                        progreso += 2;
-                        barra.style.width = progreso + '%';
-                        if (progreso >= 100) clearInterval(barraInterval);
-                    }, 100);
-                }
-                let formData = new FormData(formSsid);
-                let data = {};
-                formData.forEach((value, key) => { data[key] = value; });
-                let resp = await fetch(window.location.pathname, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                });
-                let res = await resp.json();
-                if (!res.success) {
-                    if (barraInterval) clearInterval(barraInterval);
-                    Swal.fire({ icon: 'error', title: 'Error', text: res.message || 'Error al cambiar el nombre de la red.' });
-                    return;
-                }
-                if (barra) barra.style.width = '100%';
-                await new Promise(r => setTimeout(r, 1000));
-                Swal.fire({
-                    icon: 'success',
-                    title: '¡Nombre de red actualizado!',
-                    text: res.message || 'La ONU se reiniciará automáticamente para aplicar los cambios. Por favor espere unos minutos.',
-                    showConfirmButton: true,
-                    confirmButtonText: 'Entendido'
-                });
-                setTimeout(() => { window.location.reload(); }, 1800);
+                
+                // Después de 3 segundos, procesar directamente
+                setTimeout(async () => {
+                    
+                    // Procesar la solicitud
+                    let formData = new FormData(formSsid);
+                    let data = {};
+                    formData.forEach((value, key) => { data[key] = value; });
+                    
+                    let resp = await fetch(window.location.pathname, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    });
+                    let res = await resp.json();
+                    
+                    if (!res.success) {
+                        Swal.fire({ icon: 'error', title: 'Error', text: res.message || 'Error al cambiar el nombre de la red.' });
+                        return;
+                    }
+                    
+                    // Mostrar resultado exitoso
+                    Swal.fire({
+                        icon: 'success',
+                        title: '¡Nombre de red actualizado!',
+                        text: res.message || 'La ONU se reiniciará automáticamente para aplicar los cambios. Por favor espere unos minutos.',
+                        showConfirmButton: true,
+                        confirmButtonText: 'Entendido'
+                    });
+                    setTimeout(() => { window.location.reload(); }, 1800);
+                }, 2000);
             });
         }
         // AJAX para cambiar contraseña
@@ -265,49 +313,48 @@
         if (formPass) {
             formPass.addEventListener('submit', async function(e) {
                 e.preventDefault();
+                
+                // Mostrar "Aplicando contraseña"
                 Swal.fire({
-                    title: 'Procesando solicitud',
-                    html: '<div id="swal-mensaje">Actualizando contraseña...</div><div class="progress mt-3" style="height: 8px;"><div id="swal-barra" class="progress-bar bg-primary" role="progressbar" style="width: 0%"></div></div>',
+                    title: 'Aplicando contraseña',
+                    html: '<div class="d-flex align-items-center justify-content-center"><div class="spinner-border text-primary me-3" role="status"></div><span>Configurando contraseña WiFi...</span></div>',
                     allowOutsideClick: false,
                     allowEscapeKey: false,
                     showConfirmButton: false,
-                    didOpen: () => { Swal.showLoading(); }
+                    timer: 3000,
+                    timerProgressBar: true
                 });
-                const barra = document.getElementById('swal-barra');
-                let barraInterval = null;
-                if (barra) {
-                    let progreso = 0;
-                    barra.style.width = '0%';
-                    barraInterval = setInterval(() => {
-                        progreso += 2;
-                        barra.style.width = progreso + '%';
-                        if (progreso >= 100) clearInterval(barraInterval);
-                    }, 100);
-                }
-                let formData = new FormData(formPass);
-                let data = {};
-                formData.forEach((value, key) => { data[key] = value; });
-                let resp = await fetch(window.location.pathname, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                });
-                let res = await resp.json();
-                if (!res.success) {
-                    if (barraInterval) clearInterval(barraInterval);
-                    Swal.fire({ icon: 'error', title: 'Error', text: res.message || 'Error al cambiar la contraseña.' });
-                    return;
-                }
-                if (barra) barra.style.width = '100%';
-                await new Promise(r => setTimeout(r, 1000));
-                Swal.fire({
-                    icon: 'success',
-                    title: '¡Contraseña cambiada exitosamente!',
-                    text: res.message || 'La ONU se reiniciará automáticamente para aplicar los cambios. Por favor espere unos minutos.',
-                    showConfirmButton: true,
-                    confirmButtonText: 'Entendido'
-                });
-                setTimeout(() => { window.location.reload(); }, 1800);
+                
+                // Después de 3 segundos, procesar directamente
+                setTimeout(async () => {
+                    
+                    // Procesar la solicitud
+                    let formData = new FormData(formPass);
+                    let data = {};
+                    formData.forEach((value, key) => { data[key] = value; });
+                    
+                    let resp = await fetch(window.location.pathname, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    });
+                    let res = await resp.json();
+                    
+                    if (!res.success) {
+                        Swal.fire({ icon: 'error', title: 'Error', text: res.message || 'Error al cambiar la contraseña.' });
+                        return;
+                    }
+                    
+                    // Mostrar resultado exitoso
+                    Swal.fire({
+                        icon: 'success',
+                        title: '¡Contraseña cambiada exitosamente!',
+                        text: res.message || 'La ONU se reiniciará automáticamente para aplicar los cambios. Por favor espere unos minutos.',
+                        showConfirmButton: true,
+                        confirmButtonText: 'Entendido'
+                    });
+                    setTimeout(() => { window.location.reload(); }, 1800);
+                }, 2000);
             });
         }
         // AJAX para cerrar sesión

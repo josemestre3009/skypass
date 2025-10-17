@@ -51,22 +51,37 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
     document.addEventListener('DOMContentLoaded', function() {
+        // Validar dispositivo en segundo plano al cargar la página
+        validarDispositivoEnSegundoPlano();
+        
         const form = document.getElementById('form-cambiar-nombre');
         if (form) {
             form.addEventListener('submit', async function(e) {
                 e.preventDefault();
-                // 1. Mostrar modal de carga con SweetAlert2
+                
+                // Verificar que el dispositivo esté validado
+                if (!window.deviceValidado) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Validando dispositivo...',
+                        text: 'Por favor espera mientras validamos tu dispositivo.',
+                        showConfirmButton: false,
+                        timer: 2000
+                    });
+                    return;
+                }
+                
+                // Mostrar modal de carga
                 Swal.fire({
                     title: 'Procesando tu solicitud',
-                    html: '<div id="swal-mensaje">Enviando mensaje de WhatsApp...</div><div class="progress mt-3" style="height: 8px;"><div id="swal-barra" class="progress-bar bg-primary" role="progressbar" style="width: 0%"></div></div><div style="color:#888; font-size:1rem; margin-top:0.5rem;">No cierres ni recargues esta página</div>',
+                    html: '<div id="swal-mensaje">Enviando mensaje de WhatsApp...</div><div class="progress mt-3" style="height: 8px;"><div id="swal-barra" class="progress-bar bg-primary" role="progressbar" style="width: 0%"></div></div>',
                     allowOutsideClick: false,
                     allowEscapeKey: false,
                     showConfirmButton: false,
-                    didOpen: () => {
-                        Swal.showLoading();
-                    }
+                    didOpen: () => { Swal.showLoading(); }
                 });
-                // Barra de progreso animada
+                
+                // Barra de progreso
                 const barra = document.getElementById('swal-barra');
                 let barraInterval = null;
                 if (barra) {
@@ -78,39 +93,46 @@
                         if (progreso >= 100) clearInterval(barraInterval);
                     }, 100);
                 }
-                // 2. Enviar WhatsApp por AJAX
+                
+                // Enviar WhatsApp
                 let formData = new FormData(form);
                 let data = {};
                 formData.forEach((value, key) => { data[key] = value; });
+                
                 let mensajeDiv = document.getElementById('swal-mensaje');
                 if (mensajeDiv) mensajeDiv.innerHTML = 'Enviando mensaje de WhatsApp...';
+                
                 let resp1 = await fetch(window.location.pathname + '?accion=whatsapp', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)
                 });
                 let res1 = await resp1.json();
+                
                 if (!res1.success) {
                     if (barraInterval) clearInterval(barraInterval);
                     Swal.fire({ icon: 'error', title: 'Error', text: 'Error al enviar WhatsApp: ' + (res1.message || '') });
                     return;
                 }
-                // 3. Esperar 1 segundo
+                
+                // Cambiar nombre de red
                 await new Promise(r => setTimeout(r, 1000));
-                // 4. Cambiar mensaje y hacer cambio de nombre por AJAX
-                if (mensajeDiv) mensajeDiv.innerHTML = 'Actualizando el nombre de tu red...';
+                if (mensajeDiv) mensajeDiv.innerHTML = 'Aplicando nombre a redes WiFi...';
+                
                 let resp2 = await fetch(window.location.pathname + '?accion=cambiar', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)
                 });
                 let res2 = await resp2.json();
+                
                 if (!res2.success) {
                     if (barraInterval) clearInterval(barraInterval);
                     Swal.fire({ icon: 'error', title: 'Error', text: 'Error al cambiar el nombre de la red: ' + (res2.message || '') });
                     return;
                 }
-                // 5. Completar barra y mostrar éxito
+                
+                // Éxito
                 if (barra) barra.style.width = '100%';
                 await new Promise(r => setTimeout(r, 1000));
                 Swal.fire({
@@ -122,8 +144,71 @@
                 setTimeout(() => { window.location.href = '/dashboard'; }, 1800);
             });
         }
+        
+        // Función para validar dispositivo en segundo plano
+        async function validarDispositivoEnSegundoPlano() {
+            try {
+                const response = await fetch(window.location.pathname + '?accion=validar_dispositivo', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    window.deviceValidado = true;
+                    mostrarEstadoDispositivo(result);
+                } else {
+                    mostrarErrorDispositivo(result.message);
+                }
+            } catch (error) {
+                console.error('Error validando dispositivo:', error);
+                mostrarErrorDispositivo('Error de conexión');
+            }
+        }
+        
+        // Mostrar estado del dispositivo (sin mostrar información técnica)
+        function mostrarEstadoDispositivo(data) {
+            // Solo validar internamente, no mostrar información técnica al usuario
+            console.log('Dispositivo validado:', data);
+            
+            // Mostrar información de redes disponibles si hay 2 interfaces
+            if (data.interfaces_count === 2) {
+                mostrarRedesDisponibles(data.interfaces_info);
+            }
+        }
+        
+        // Mostrar redes disponibles cuando hay 2 interfaces
+        function mostrarRedesDisponibles(interfaces_info) {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = 'alert alert-info';
+            
+            let redesInfo = '<strong>📡 Redes WiFi Detectadas:</strong><br>';
+            for (const [interfaz, info] of Object.entries(interfaces_info)) {
+                const icono = info.frecuencia === '2.4GHz' ? '📶' : '🚀';
+                const ssidActual = info.ssid_actual || 'Desconocido';
+                redesInfo += `${icono} <strong>${info.frecuencia}</strong> - Nombre actual: "${ssidActual}"<br>`;
+            }
+            redesInfo += '<small>El nuevo nombre se aplicará a ambas redes automáticamente.</small>';
+            
+            alertDiv.innerHTML = redesInfo;
+            
+            const form = document.getElementById('form-cambiar-nombre');
+            form.parentNode.insertBefore(alertDiv, form);
+        }
+        
+        // Mostrar error del dispositivo
+        function mostrarErrorDispositivo(message) {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = 'alert alert-danger';
+            alertDiv.innerHTML = `<strong>⚠️ Error:</strong> ${message}`;
+            
+            const form = document.getElementById('form-cambiar-nombre');
+            form.parentNode.insertBefore(alertDiv, form);
+        }
     });
+    </script>
 
+    <script>
     let tiempoInactividad = 4 * 60 * 1000; // 4 minutos
     let tiempoExpiracion = 5 * 60 * 1000; // 5 minutos
     let alertaMostrada = false;

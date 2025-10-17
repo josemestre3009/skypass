@@ -47,6 +47,20 @@
 
         <div class="card p-4">
             <div class="titulo">🔒 Cambiar Contraseña de la Red Wifi</div>
+            
+            {% if error %}
+                <div class="alert alert-danger" role="alert">
+                    <strong>⚠️ Error:</strong> {{ error }}
+                </div>
+            {% elif device_info %}
+                <div class="alert alert-success" role="alert">
+                    <strong>✅ Dispositivo Detectado:</strong><br>
+                    📡 <strong>Device ID:</strong> {{ device_info.device_id }}<br>
+                    🔌 <strong>Interfaces WiFi Activas:</strong> {{ device_info.interfaces_activas|join(', ') }}<br>
+                    📊 <strong>Total de Interfaces:</strong> {{ device_info.interfaces_count }}
+                </div>
+            {% endif %}
+            
             <form id="form-cambiar-clave" autocomplete="off">
                 <div class="mb-3">
                     <label for="nueva_clave" class="form-label">Nueva Contraseña</label>
@@ -83,22 +97,37 @@
 
     <script>
     document.addEventListener('DOMContentLoaded', function() {
+        // Validar dispositivo en segundo plano al cargar la página
+        validarDispositivoEnSegundoPlano();
+        
         const form = document.getElementById('form-cambiar-clave');
         if (form) {
             form.addEventListener('submit', async function(e) {
                 e.preventDefault();
-                // 1. Mostrar modal de carga con SweetAlert2
+                
+                // Verificar que el dispositivo esté validado
+                if (!window.deviceValidado) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Validando dispositivo...',
+                        text: 'Por favor espera mientras validamos tu dispositivo.',
+                        showConfirmButton: false,
+                        timer: 2000
+                    });
+                    return;
+                }
+                
+                // Mostrar modal de carga
                 Swal.fire({
                     title: 'Procesando tu solicitud',
-                    html: '<div id="swal-mensaje">Enviando mensaje de WhatsApp...</div><div class="progress mt-3" style="height: 8px;"><div id="swal-barra" class="progress-bar bg-primary" role="progressbar" style="width: 0%"></div></div><div style="color:#888; font-size:1rem; margin-top:0.5rem;">No cierres ni recargues esta página</div>',
+                    html: '<div id="swal-mensaje">Enviando mensaje de WhatsApp...</div><div class="progress mt-3" style="height: 8px;"><div id="swal-barra" class="progress-bar bg-primary" role="progressbar" style="width: 0%"></div></div>',
                     allowOutsideClick: false,
                     allowEscapeKey: false,
                     showConfirmButton: false,
-                    didOpen: () => {
-                        Swal.showLoading();
-                    }
+                    didOpen: () => { Swal.showLoading(); }
                 });
-                // Barra de progreso animada
+                
+                // Barra de progreso
                 const barra = document.getElementById('swal-barra');
                 let barraInterval = null;
                 if (barra) {
@@ -110,39 +139,46 @@
                         if (progreso >= 100) clearInterval(barraInterval);
                     }, 100);
                 }
-                // 2. Enviar WhatsApp por AJAX
+                
+                // Enviar WhatsApp
                 let formData = new FormData(form);
                 let data = {};
                 formData.forEach((value, key) => { data[key] = value; });
+                
                 let mensajeDiv = document.getElementById('swal-mensaje');
                 if (mensajeDiv) mensajeDiv.innerHTML = 'Enviando mensaje de WhatsApp...';
+                
                 let resp1 = await fetch(window.location.pathname + '?accion=whatsapp', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)
                 });
                 let res1 = await resp1.json();
+                
                 if (!res1.success) {
                     if (barraInterval) clearInterval(barraInterval);
                     Swal.fire({ icon: 'error', title: 'Error', text: 'Error al enviar WhatsApp: ' + (res1.message || '') });
                     return;
                 }
-                // 3. Esperar 1 segundo
+                
+                // Cambiar contraseña
                 await new Promise(r => setTimeout(r, 1000));
-                // 4. Cambiar mensaje y hacer cambio de clave por AJAX
-                if (mensajeDiv) mensajeDiv.innerHTML = 'Actualizando tu contraseña...';
+                if (mensajeDiv) mensajeDiv.innerHTML = 'Aplicando contraseña...';
+                
                 let resp2 = await fetch(window.location.pathname + '?accion=cambiar', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)
                 });
                 let res2 = await resp2.json();
+                
                 if (!res2.success) {
                     if (barraInterval) clearInterval(barraInterval);
                     Swal.fire({ icon: 'error', title: 'Error', text: 'Error al cambiar la contraseña: ' + (res2.message || '') });
                     return;
                 }
-                // 5. Completar barra y mostrar éxito
+                
+                // Éxito
                 if (barra) barra.style.width = '100%';
                 await new Promise(r => setTimeout(r, 1000));
                 Swal.fire({
@@ -153,6 +189,43 @@
                 });
                 setTimeout(() => { window.location.href = '/dashboard'; }, 1800);
             });
+        }
+        
+        // Función para validar dispositivo en segundo plano
+        async function validarDispositivoEnSegundoPlano() {
+            try {
+                const response = await fetch(window.location.pathname + '?accion=validar_dispositivo', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    window.deviceValidado = true;
+                    mostrarEstadoDispositivo(result);
+                } else {
+                    mostrarErrorDispositivo(result.message);
+                }
+            } catch (error) {
+                console.error('Error validando dispositivo:', error);
+                mostrarErrorDispositivo('Error de conexión');
+            }
+        }
+        
+        // Mostrar estado del dispositivo (sin mostrar información técnica)
+        function mostrarEstadoDispositivo(data) {
+            // Solo validar internamente, no mostrar información técnica al usuario
+            console.log('Dispositivo validado:', data);
+        }
+        
+        // Mostrar error del dispositivo
+        function mostrarErrorDispositivo(message) {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = 'alert alert-danger';
+            alertDiv.innerHTML = `<strong>⚠️ Error:</strong> ${message}`;
+            
+            const form = document.getElementById('form-cambiar-clave');
+            form.parentNode.insertBefore(alertDiv, form);
         }
     });
     </script>

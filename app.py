@@ -156,11 +156,8 @@ def index():
             session['nombre'] = cliente.get('nombre', '')
             session['cedula'] = cedula
             # Enviar WhatsApp automáticamente
-            try:
-                enviar_whatsapp(whatsapp, f'Tu código de verificación es: {codigo}')
-            except Exception as e:
-                print(f"[DEPURACIÓN] Error al enviar WhatsApp: {e}")
-                return jsonify({'success': False, 'code': 'error_envio', 'message': 'No se pudo enviar el código por WhatsApp. ' + str(e)})
+            if not enviar_whatsapp(whatsapp, f'Tu código de verificación es: {codigo}'):
+                return jsonify({'success': False, 'code': 'error_envio', 'message': 'No se pudo enviar el código por WhatsApp.  '})
             return jsonify({'success': True, 'ultimos4': ultimos4})
     return render_template("users/user_login.html")
 
@@ -330,10 +327,19 @@ def enviar_whatsapp(telefono, mensaje):
     try:
         url = f"http://{ip_server}:3002/send"
         data = {"telefono": telefono, "mensaje": mensaje}
-        response = requests.post(url, json=data, timeout=5)
-        print("WhatsApp enviado:", response.text)
+        print(f"[WhatsApp] Enviando mensaje a {telefono}...")
+        response = requests.post(url, json=data, timeout=15)
+        print(f"[WhatsApp] ✅ Enviado exitosamente: {response.text}")
+        return True
+    except requests.exceptions.Timeout:
+        print(f"[WhatsApp] ⏰ TIMEOUT - El servidor tardó más de 15 segundos")
+        return False
+    except requests.exceptions.ConnectionError:
+        print(f"[WhatsApp] 🔌 ERROR DE CONEXIÓN - No se pudo conectar al servidor")
+        return False
     except Exception as e:
-        print("Error enviando WhatsApp:", e)
+        print(f"[WhatsApp] 💥 ERROR: {e}")
+        return False
 
 
 
@@ -342,169 +348,207 @@ def enviar_whatsapp(telefono, mensaje):
 def cambiar_clave():
     limpiar_historial_antiguo()
     cliente = obtener_cliente_actual()
+    
+    # GET: Cargar página inmediatamente
+    if request.method == "GET":
+        return render_template("users/user_cambiar_clave.html", cliente=cliente)
+    
+    # POST: Procesar cambio de contraseña
     accion = request.args.get('accion')
-    if request.method == "POST":
-        # Control de límite de cambios para ambos flujos
-        limite_cambios = obtener_limite_cliente(session.get('ip'))
-        cambios_realizados = contar_cambios_usuario_mes(cliente['cedula'])
-        if cambios_realizados >= limite_cambios:
-            msg = f"Has alcanzado el límite de {limite_cambios} cambios permitidos este mes."
-            return jsonify({'success': False, 'message': msg})
-        # Solo aceptar datos JSON (AJAX)
-        if not request.is_json:
-            return jsonify({'success': False, 'message': 'Solo se permite el flujo AJAX.'})
-        # Validar estado del servicio Wisphub
-        headers = {
-            'Authorization': f'Api-Key {API_KEY}',
-            'Content-Type': 'application/json'
-        }
-        estado_servicio = None
-        try:
-            response = requests.get(BASE_URL, headers=headers, params={'cedula': cliente['cedula']}, timeout=7)
-            if response.status_code == 200:
-                data = response.json()
-                clientes = data.get('results', [])
-                for c in clientes:
-                    if c.get('cedula') == cliente['cedula']:
-                        servicios = c.get('servicios', [])
-                        if servicios and isinstance(servicios, list) and len(servicios) > 0:
-                            estado_servicio = servicios[0].get('estado', '').lower()
-                        elif 'estado' in c:
-                            estado_servicio = c.get('estado', '').lower()
-                        else:
-                            estado_servicio = 'desconocido'
-        except Exception as e:
-            estado_servicio = None
-        if estado_servicio != 'activo':
-            return jsonify({'success': False, 'message': 'El servicio debe estar ACTIVO para poder realizar cambios.'})
-        data = request.get_json()
-        nueva_clave = data.get("nueva_clave")
-        confirmar_clave = data.get("confirmar_clave")
-        # Validaciones comunes
-        if not nueva_clave or not confirmar_clave:
-            msg = "Por favor ingrese y confirme la nueva clave"
-            return jsonify({'success': False, 'message': msg})
-        if nueva_clave != confirmar_clave:
-            msg = "Las contraseñas no coinciden"
-            return jsonify({'success': False, 'message': msg})
-        if len(nueva_clave) < 8:
-            msg = "La contraseña debe tener al menos 8 caracteres"
-            return jsonify({'success': False, 'message': msg})
+    
+    if accion == 'validar_dispositivo':
+        # Validar dispositivo en segundo plano
         ip = session.get('ip')
         if not ip:
-            msg = "No se encontró la IP del cliente"
-            return jsonify({'success': False, 'message': msg})
-        if not obtener_estado_online_device(ip):
-            msg = "El dispositivo está desconectado. Debe estar online para realizar cambios."
-            return jsonify({'success': False, 'message': msg})
-        device_id = obtener_device_id_por_ip(ip)
-        if not device_id:
-            msg = "No se encontró el dispositivo del cliente"
-            return jsonify({'success': False, 'message': msg})
-        # Lógica AJAX: solo enviar WhatsApp
-        if accion == 'whatsapp':
-            whatsapp = normalizar_numero(cliente['celular'])
-            if not whatsapp:
-                return jsonify({'success': False, 'message': 'El número de teléfono no es válido para WhatsApp.'})
-            try:
-                enviar_whatsapp(whatsapp, f"¡Hola! tu contraseña Wifi será cambiada en unos segundos. Nueva Contraseña: {nueva_clave}")
-                return jsonify({'success': True})
-            except Exception as e:
-                return jsonify({'success': False, 'message': str(e)})
-        # Lógica AJAX: solo cambiar la clave
-        if accion == 'cambiar':
-            ok = cambiar_parametro_genieacs(device_id, 'InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.KeyPassphrase', nueva_clave)
-            if ok:
-                actualizar_parametros_wisphub(cliente['cedula'], nueva_clave=nueva_clave, ip_especifica=ip)
-                registrar_cambio_usuario(cliente['cedula'], 'Password', 'Nueva')
-                return jsonify({'success': True, 'message': 'Contraseña cambiada exitosamente. La ONU se reiniciará automáticamente para aplicar los cambios. Por favor espere unos minutos.'})
-            else:
-                return jsonify({'success': False, 'message': 'Error al cambiar la clave en el dispositivo.'})
-        # Si no es una acción válida
-        return jsonify({'success': False, 'message': 'Acción no válida.'})
-    # Solo renderiza la plantilla en GET
-    return render_template("users/user_cambiar_clave.html", cliente=cliente)
+            return jsonify({'success': False, 'message': 'No se encontró la IP del cliente'})
+        
+        try:
+            # Verificar dispositivo
+            dispositivo_online, device_id = obtener_estado_online_device(ip)
+            
+            if not dispositivo_online:
+                if not verificar_dispositivo_online_alternativo(ip):
+                    return jsonify({'success': False, 'message': 'El dispositivo está desconectado'})
+                device_id = obtener_device_id_por_ip(ip)
+                if not device_id:
+                    return jsonify({'success': False, 'message': 'No se encontró el dispositivo'})
+            
+            # Detectar interfaces
+            interfaces_activas = detectar_interfaces_wifi_activas(device_id)
+            
+            if not interfaces_activas:
+                return jsonify({'success': False, 'message': 'No se encontraron interfaces WiFi activas'})
+            
+            # Guardar en sesión
+            session['device_info'] = {
+                'device_id': device_id,
+                'interfaces_activas': interfaces_activas,
+                'detected_at': datetime.now().isoformat()
+            }
+            
+            return jsonify({
+                'success': True, 
+                'device_id': device_id,
+                'interfaces_activas': interfaces_activas,
+                'interfaces_count': len(interfaces_activas)
+            })
+            
+        except Exception as e:
+            return jsonify({'success': False, 'message': f'Error validando dispositivo: {e}'})
+    
+    # Validaciones para cambio de contraseña
+    if not request.is_json:
+        return jsonify({'success': False, 'message': 'Solo se permite el flujo AJAX.'})
+    
+    # CONTROL DE LÍMITE DE CAMBIOS POR MES
+    limite_cambios = obtener_limite_cliente(session.get('ip'))
+    cambios_realizados = contar_cambios_usuario_mes(cliente['cedula'])
+    if cambios_realizados >= limite_cambios:
+        msg = f"Has alcanzado el límite de {limite_cambios} cambios permitidos este mes."
+        return jsonify({'success': False, 'message': msg})
+    
+    data = request.get_json()
+    nueva_clave = data.get("nueva_clave")
+    confirmar_clave = data.get("confirmar_clave")
+    
+    # Validaciones básicas
+    if not nueva_clave or not confirmar_clave:
+        return jsonify({'success': False, 'message': 'Por favor ingrese y confirme la nueva clave'})
+    if nueva_clave != confirmar_clave:
+        return jsonify({'success': False, 'message': 'Las contraseñas no coinciden'})
+    if len(nueva_clave) < 8:
+        return jsonify({'success': False, 'message': 'La contraseña debe tener al menos 8 caracteres'})
+    
+    # Obtener información del dispositivo
+    device_info = session.get('device_info', {})
+    device_id = device_info.get('device_id')
+    interfaces_activas = device_info.get('interfaces_activas', [])
+    
+    if not device_id:
+        return jsonify({'success': False, 'message': 'No se encontró información del dispositivo. Recarga la página.'})
+    
+    # Enviar WhatsApp
+    if accion == 'whatsapp':
+        whatsapp = normalizar_numero(cliente['celular'])
+        if not whatsapp:
+            return jsonify({'success': False, 'message': 'El número de teléfono no es válido para WhatsApp.'})
+        if not enviar_whatsapp(whatsapp, f"¡Hola! tu contraseña Wifi será cambiada en unos segundos. Nueva Contraseña: {nueva_clave}"):
+            return jsonify({'success': False, 'message': 'No se pudo enviar el WhatsApp.'})
+        return jsonify({'success': True})
+    
+    # Cambiar contraseña
+    if accion == 'cambiar':
+        ok, mensaje = cambiar_contraseña_wifi_interfaces_ya_detectadas(device_id, interfaces_activas, nueva_clave)
+        if ok:
+            actualizar_parametros_wisphub(cliente['cedula'], nueva_clave=nueva_clave, ip_especifica=session.get('ip'))
+            registrar_cambio_usuario(cliente['cedula'], 'Password', 'Nueva')
+            return jsonify({'success': True, 'message': f'{mensaje}. La ONU se reiniciará automáticamente para aplicar los cambios.'})
+        else:
+            return jsonify({'success': False, 'message': f'Error al cambiar la clave: {mensaje}'})
+    
+    return jsonify({'success': False, 'message': 'Acción no válida.'})
 
 @app.route("/cambiar_nombre_red", methods=["GET", "POST"])
 @cliente_requerido
 def cambiar_nombre_red():
     limpiar_historial_antiguo()
     cliente = obtener_cliente_actual()
+    
+    # GET: Cargar página inmediatamente
+    if request.method == "GET":
+        return render_template("users/user_cambiar_nombre_red.html", cliente=cliente)
+    
+    # POST: Procesar cambio de nombre de red
     accion = request.args.get('accion')
-    if request.method == "POST":
-        # Control de límite de cambios para ambos flujos
-        limite_cambios = obtener_limite_cliente(session.get('ip'))
-        cambios_realizados = contar_cambios_usuario_mes(cliente['cedula'])
-        if cambios_realizados >= limite_cambios:
-            msg = f"Has alcanzado el límite de {limite_cambios} cambios permitidos este mes."
-            return jsonify({'success': False, 'message': msg})
-        # Solo aceptar datos JSON (AJAX)
-        if not request.is_json:
-            return jsonify({'success': False, 'message': 'Solo se permite el flujo AJAX.'})
-        # Validar estado del servicio Wisphub
-        headers = {
-            'Authorization': f'Api-Key {API_KEY}',
-            'Content-Type': 'application/json'
-        }
-        estado_servicio = None
-        try:
-            response = requests.get(BASE_URL, headers=headers, params={'cedula': cliente['cedula']}, timeout=7)
-            if response.status_code == 200:
-                data = response.json()
-                clientes = data.get('results', [])
-                for c in clientes:
-                    if c.get('cedula') == cliente['cedula']:
-                        servicios = c.get('servicios', [])
-                        if servicios and isinstance(servicios, list) and len(servicios) > 0:
-                            estado_servicio = servicios[0].get('estado', '').lower()
-                        elif 'estado' in c:
-                            estado_servicio = c.get('estado', '').lower()
-                        else:
-                            estado_servicio = 'desconocido'
-        except Exception as e:
-            estado_servicio = None
-        if estado_servicio != 'activo':
-            return jsonify({'success': False, 'message': 'El servicio debe estar ACTIVO para poder realizar cambios.'})
-        data = request.get_json()
-        nuevo_nombre = data.get("nuevo_nombre")
-        # Validaciones comunes
-        if not nuevo_nombre:
-            msg = "Por favor ingrese un nuevo nombre"
-            return jsonify({'success': False, 'message': msg})
+    
+    if accion == 'validar_dispositivo':
+        # Validar dispositivo en segundo plano
         ip = session.get('ip')
         if not ip:
-            msg = "No se encontró la IP del cliente"
-            return jsonify({'success': False, 'message': msg})
-        if not obtener_estado_online_device(ip):
-            msg = "El dispositivo está desconectado. Debe estar online para realizar cambios."
-            return jsonify({'success': False, 'message': msg})
-        device_id = obtener_device_id_por_ip(ip)
-        if not device_id:
-            msg = "No se encontró el dispositivo del cliente"
-            return jsonify({'success': False, 'message': msg})
-        # Lógica AJAX: solo enviar WhatsApp
-        if accion == 'whatsapp':
-            whatsapp = normalizar_numero(cliente['celular'])
-            if not whatsapp:
-                return jsonify({'success': False, 'message': 'El número de teléfono no es válido para WhatsApp.'})
-            try:
-                enviar_whatsapp(whatsapp, f"¡Hola! tu Nombre de la Red Wifi será cambiada en unos segundos. Nuevo Nombre: {nuevo_nombre}")
-                return jsonify({'success': True})
-            except Exception as e:
-                return jsonify({'success': False, 'message': str(e)})
-        # Lógica AJAX: solo cambiar el nombre
-        if accion == 'cambiar':
-            ok = cambiar_parametro_genieacs(device_id, 'InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.SSID', nuevo_nombre)
-            if ok:
-                actualizar_parametros_wisphub(cliente['cedula'], nuevo_ssid=nuevo_nombre, ip_especifica=ip)
-                registrar_cambio_usuario(cliente['cedula'], 'SSID', nuevo_nombre)
-                return jsonify({'success': True, 'message': 'Nombre de red cambiado exitosamente. La ONU se reiniciará automáticamente para aplicar los cambios. Por favor espere unos minutos.'})
-            else:
-                return jsonify({'success': False, 'message': 'Error al cambiar el nombre de la red en el dispositivo.'})
-        # Si no es una acción válida
-        return jsonify({'success': False, 'message': 'Acción no válida.'})
-    # Solo renderiza la plantilla en GET
-    return render_template("users/user_cambiar_nombre_red.html", cliente=cliente)
+            return jsonify({'success': False, 'message': 'No se encontró la IP del cliente'})
+        
+        try:
+            # Verificar dispositivo
+            dispositivo_online, device_id = obtener_estado_online_device(ip)
+            
+            if not dispositivo_online:
+                if not verificar_dispositivo_online_alternativo(ip):
+                    return jsonify({'success': False, 'message': 'El dispositivo está desconectado'})
+                device_id = obtener_device_id_por_ip(ip)
+                if not device_id:
+                    return jsonify({'success': False, 'message': 'No se encontró el dispositivo'})
+            
+            # Detectar interfaces y frecuencias
+            interfaces_activas, interfaces_info = detectar_interfaces_y_frecuencias(device_id)
+            
+            if not interfaces_activas:
+                return jsonify({'success': False, 'message': 'No se encontraron interfaces WiFi activas'})
+            
+            # Guardar en sesión
+            session['device_info_red'] = {
+                'device_id': device_id,
+                'interfaces_activas': interfaces_activas,
+                'interfaces_info': interfaces_info,
+                'detected_at': datetime.now().isoformat()
+            }
+            
+            return jsonify({
+                'success': True, 
+                'device_id': device_id,
+                'interfaces_activas': interfaces_activas,
+                'interfaces_info': interfaces_info,
+                'interfaces_count': len(interfaces_activas)
+            })
+            
+        except Exception as e:
+            return jsonify({'success': False, 'message': f'Error validando dispositivo: {e}'})
+    
+    # Validaciones para cambio de nombre de red
+    if not request.is_json:
+        return jsonify({'success': False, 'message': 'Solo se permite el flujo AJAX.'})
+    
+    # CONTROL DE LÍMITE DE CAMBIOS POR MES
+    limite_cambios = obtener_limite_cliente(session.get('ip'))
+    cambios_realizados = contar_cambios_usuario_mes(cliente['cedula'])
+    if cambios_realizados >= limite_cambios:
+        msg = f"Has alcanzado el límite de {limite_cambios} cambios permitidos este mes."
+        return jsonify({'success': False, 'message': msg})
+    
+    data = request.get_json()
+    nuevo_nombre = data.get("nuevo_nombre")
+    
+    # Validaciones básicas
+    if not nuevo_nombre:
+        return jsonify({'success': False, 'message': 'Por favor ingrese un nuevo nombre'})
+    
+    # Obtener información del dispositivo
+    device_info = session.get('device_info_red', {})
+    device_id = device_info.get('device_id')
+    interfaces_info = device_info.get('interfaces_info', {})
+    
+    if not device_id:
+        return jsonify({'success': False, 'message': 'No se encontró información del dispositivo. Recarga la página.'})
+    
+    # Enviar WhatsApp
+    if accion == 'whatsapp':
+        whatsapp = normalizar_numero(cliente['celular'])
+        if not whatsapp:
+            return jsonify({'success': False, 'message': 'El número de teléfono no es válido para WhatsApp.'})
+        if not enviar_whatsapp(whatsapp, f"¡Hola! tu Nombre de la Red Wifi será cambiada en unos segundos. Nuevo Nombre: {nuevo_nombre}"):
+            return jsonify({'success': False, 'message': 'No se pudo enviar el WhatsApp.'})
+        return jsonify({'success': True})
+    
+    # Cambiar nombre de red
+    if accion == 'cambiar':
+        ok, mensaje = cambiar_nombre_red_wifi_inteligente(device_id, interfaces_info, nuevo_nombre)
+        if ok:
+            actualizar_parametros_wisphub(cliente['cedula'], nuevo_ssid=nuevo_nombre, ip_especifica=session.get('ip'))
+            registrar_cambio_usuario(cliente['cedula'], 'SSID', nuevo_nombre)
+            return jsonify({'success': True, 'message': f'{mensaje}. La ONU se reiniciará automáticamente para aplicar los cambios.'})
+        else:
+            return jsonify({'success': False, 'message': f'Error al cambiar el nombre de la red: {mensaje}'})
+    
+    return jsonify({'success': False, 'message': 'Acción no válida.'})
 
 @app.route("/cerrar_sesion", methods=["POST"])
 def cerrar_sesion():
@@ -544,6 +588,169 @@ def obtener_device_id_por_ip(ip_buscada):
         print(f"Error al buscar dispositivo en GenieACS: {e}")
     print(f"[GENIEACS] No se encontró ningún device_id para la IP: {ip_buscada}")
     return None
+
+# Funciones eliminadas - ahora se usan desde genieacs_utils.py
+
+def cambiar_nombre_red_interfaz_sin_reinicio(device_id, interfaz, nuevo_nombre):
+    """Cambia el nombre de red WiFi de una interfaz específica SIN reiniciar la ONU"""
+    try:
+        parametro_ssid = f"InternetGatewayDevice.LANDevice.1.WLANConfiguration.{interfaz}.SSID"
+        print(f"[GenieACS] 📡 Cambiando SSID interfaz {interfaz} SIN reinicio")
+        print(f"[GenieACS]   - Parámetro: {parametro_ssid}")
+        print(f"[GenieACS]   - Nuevo nombre: {nuevo_nombre}")
+        
+        resultado = cambiar_parametro_genieacs_sin_reinicio(device_id, parametro_ssid, nuevo_nombre)
+        
+        if resultado:
+            print(f"[GenieACS] ✅ SSID cambiado exitosamente en interfaz {interfaz}")
+            return True
+        else:
+            print(f"[GenieACS] ❌ Error cambiando SSID en interfaz {interfaz}")
+            return False
+            
+    except Exception as e:
+        print(f"[GenieACS] ❌ Error cambiando SSID interfaz {interfaz}: {e}")
+        return False
+
+def cambiar_nombre_red_wifi_inteligente(device_id, interfaces_info, nuevo_nombre):
+    """
+    Cambia el nombre de la red WiFi de manera inteligente:
+    - Si hay 2 interfaces: aplica sufijos -2.4GHz y -5GHz
+    - Si hay 1 interface: aplica el nombre original
+    - Reinicia la ONU solo UNA VEZ al final
+    """
+    try:
+        interfaces_cambiadas = []
+        interfaces_fallidas = []
+        
+        print(f"[WiFi] 🎯 Cambiando nombre de red WiFi inteligentemente")
+        print(f"[WiFi]   - Nombre base: {nuevo_nombre}")
+        print(f"[WiFi]   - Interfaces detectadas: {len(interfaces_info)}")
+        
+        # Determinar si necesitamos sufijos de frecuencia
+        necesita_sufijos = len(interfaces_info) == 2
+        
+        for interfaz, info in interfaces_info.items():
+            frecuencia = info.get('frecuencia', 'Desconocida')
+            ssid_actual = info.get('ssid_actual', 'Desconocido')
+            
+            # Construir el nombre final
+            if necesita_sufijos:
+                if frecuencia == "2.4GHz":
+                    nombre_final = f"{nuevo_nombre}-2.4GHz"
+                elif frecuencia == "5GHz":
+                    nombre_final = f"{nuevo_nombre}-5GHz"
+                else:
+                    nombre_final = nuevo_nombre  # Fallback
+            else:
+                nombre_final = nuevo_nombre
+            
+            print(f"[WiFi] 🔧 Interfaz {interfaz} ({frecuencia})")
+            print(f"[WiFi]   - SSID actual: {ssid_actual}")
+            print(f"[WiFi]   - SSID nuevo: {nombre_final}")
+            
+            # Cambiar el SSID SIN REINICIAR (usar función sin reinicio)
+            resultado = cambiar_nombre_red_interfaz_sin_reinicio(device_id, interfaz, nombre_final)
+            
+            if resultado:
+                interfaces_cambiadas.append({
+                    'interfaz': interfaz,
+                    'frecuencia': frecuencia,
+                    'ssid_anterior': ssid_actual,
+                    'ssid_nuevo': nombre_final
+                })
+                print(f"[WiFi] ✅ SSID cambiado exitosamente en interfaz {interfaz}")
+            else:
+                interfaces_fallidas.append({
+                    'interfaz': interfaz,
+                    'frecuencia': frecuencia,
+                    'error': 'Error en cambio de parámetro'
+                })
+                print(f"[WiFi] ❌ Error cambiando SSID en interfaz {interfaz}")
+        
+        # REINICIAR LA ONU SOLO UNA VEZ AL FINAL si hubo cambios exitosos
+        if interfaces_cambiadas:
+            print(f"[WiFi] 🔄 Reiniciando ONU para aplicar cambios de nombres de red...")
+            reinicio_ok = reiniciar_onu_genieacs(device_id)
+            if reinicio_ok:
+                print(f"[WiFi] ✅ ONU reiniciada exitosamente")
+            else:
+                print(f"[WiFi] ⚠️  Error reiniciando ONU, pero los cambios se aplicarán en el próximo reinicio")
+        
+        # Construir mensaje de resultado
+        if interfaces_cambiadas:
+            if len(interfaces_cambiadas) == 2:
+                mensaje = f"✅ Nombre de red WiFi cambiado exitosamente:\n"
+                mensaje += f"• 2.4GHz: {interfaces_cambiadas[0]['ssid_nuevo']}\n"
+                mensaje += f"• 5GHz: {interfaces_cambiadas[1]['ssid_nuevo']}"
+            else:
+                interfaz_cambiada = interfaces_cambiadas[0]
+                mensaje = f"✅ Nombre de red WiFi cambiado exitosamente:\n"
+                mensaje += f"• {interfaz_cambiada['frecuencia']}: {interfaz_cambiada['ssid_nuevo']}"
+            
+            if interfaces_fallidas:
+                mensaje += f"\n\n⚠️ Algunas interfaces fallaron:\n"
+                for fallida in interfaces_fallidas:
+                    mensaje += f"• {fallida['frecuencia']}: {fallida['error']}\n"
+            
+            return True, mensaje
+        else:
+            return False, "❌ No se pudo cambiar el nombre de ninguna red WiFi"
+            
+    except Exception as e:
+        print(f"[WiFi] ❌ Error en cambio inteligente de nombre: {e}")
+        return False, f"❌ Error interno: {str(e)}"
+
+def cambiar_contraseña_wifi_interfaces_ya_detectadas(device_id, interfaces_activas, nueva_password):
+    print(f"[GenieACS] 🔐 PROCESO RÁPIDO DE CAMBIO DE CONTRASEÑA WIFI")
+    print(f"[GenieACS]   - Device ID: {device_id}")
+    print(f"[GenieACS]   - Interfaces activas: {interfaces_activas}")
+    print(f"[GenieACS]   - Nueva contraseña: {'*' * len(nueva_password)} (longitud: {len(nueva_password)})")
+    
+    if not interfaces_activas:
+        mensaje = "No se encontraron interfaces WiFi activas"
+        print(f"[GenieACS] ❌ ERROR: {mensaje}")
+        return False, mensaje
+    
+    print(f"[GenieACS] 📝 APLICANDO CONTRASEÑA A INTERFACES ACTIVAS: {interfaces_activas}")
+    
+    # Aplicar contraseña a cada interfaz activa (SIN REINICIAR)
+    interfaces_cambiadas = []
+    interfaces_fallidas = []
+    
+    for i, interfaz in enumerate(interfaces_activas, 1):
+        print(f"[GenieACS] 🔧 INTERFAZ {i}/{len(interfaces_activas)}: {interfaz}")
+        
+        ok = cambiar_contraseña_wifi_interfaz_sin_reinicio(device_id, interfaz, nueva_password)
+        if ok:
+            interfaces_cambiadas.append(interfaz)
+            print(f"[GenieACS] ✅ Interfaz {interfaz} cambiada exitosamente")
+        else:
+            interfaces_fallidas.append(interfaz)
+            print(f"[GenieACS] ❌ Error en interfaz {interfaz}")
+    
+    print(f"[GenieACS] 📊 RESULTADO FINAL:")
+    print(f"[GenieACS]   - Interfaces cambiadas exitosamente: {interfaces_cambiadas}")
+    print(f"[GenieACS]   - Interfaces con error: {interfaces_fallidas}")
+    
+    if interfaces_cambiadas:
+        # REINICIAR SOLO UNA VEZ AL FINAL
+        print(f"[GenieACS] 🔄 REINICIANDO ONU UNA SOLA VEZ AL FINAL...")
+        try:
+            reiniciar_onu_genieacs(device_id)
+            print(f"[GenieACS] ✅ ONU reiniciada exitosamente")
+        except Exception as e:
+            print(f"[GenieACS] ⚠️  Error al reiniciar ONU: {e}")
+        
+        mensaje = f"Contraseña WiFi aplicada exitosamente a {len(interfaces_cambiadas)} interfaz(es) activa(s): {interfaces_cambiadas}"
+        if interfaces_fallidas:
+            mensaje += f". Error en {len(interfaces_fallidas)} interfaz(es): {interfaces_fallidas}"
+        return True, mensaje
+    else:
+        mensaje = f"Error al cambiar contraseña en todas las interfaces activas: {interfaces_activas}"
+        print(f"[GenieACS] ❌ ERROR FINAL: {mensaje}")
+        return False, mensaje
+
 
 def cambiar_parametro_genieacs(device_id, parametro, valor):
     try:
@@ -634,7 +841,7 @@ def obtener_cambios_por_mes_global():
             return int(data['valor'])
     except Exception as e:
         print(f"Error obteniendo max_cambios_mes: {e}")
-    return 3  # Valor por defecto si no hay config
+    return 2  # Valor por defecto si no hay config
 
 def contar_cambios_usuario_mes(cedula):
     ahora = datetime.now()
@@ -820,11 +1027,9 @@ def reenviar_codigo():
     codigo = session.get('codigo_verificacion')
     if not telefono or not codigo:
         return jsonify({'success': False, 'message': 'No hay sesión activa.'})
-    try:
-        enviar_whatsapp(telefono, f'Tu código de verificación es: {codigo}')
-        return jsonify({'success': True})
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
+    if not enviar_whatsapp(telefono, f'Tu código de verificación es: {codigo}'):
+        return jsonify({'success': False, 'message': 'No se pudo enviar el código.  '})
+    return jsonify({'success': True})
 
 @app.after_request
 def add_header(response):
@@ -833,40 +1038,162 @@ def add_header(response):
     response.headers['Expires'] = '-1'
     return response
 
+def diagnosticar_genieacs_config():
+    """Diagnóstica la configuración de GenieACS"""
+    print(f"[GenieACS] 🔧 DIAGNÓSTICO DE CONFIGURACIÓN:")
+    print(f"[GenieACS]   - GENIEACS_API: {GENIEACS_API}")
+    print(f"[GenieACS]   - IP_SERVER: {ip_server}")
+    print(f"[GenieACS]   - QR_SERVER: {os.getenv('QR_SERVER', 'No configurado')}")
+    
+    try:
+        print(f"[GenieACS] 📡 Probando conexión con GenieACS...")
+        response = requests.get(f"{GENIEACS_API}/devices", timeout=5)
+        print(f"[GenieACS]   - Status Code: {response.status_code}")
+        if response.status_code == 200:
+            devices = response.json()
+            print(f"[GenieACS] ✅ Conexión exitosa - {len(devices)} dispositivos encontrados")
+            return True
+        else:
+            print(f"[GenieACS] ❌ Error de conexión: {response.status_code}")
+            return False
+    except Exception as e:
+        print(f"[GenieACS] 💥 Error de conexión: {e}")
+        return False
+
+def verificar_dispositivo_online_alternativo(ip_buscada):
+    """Verificación alternativa más permisiva para dispositivos online"""
+    print(f"[GenieACS] 🔄 VERIFICACIÓN ALTERNATIVA DE DISPOSITIVO ONLINE:")
+    print(f"[GenieACS]   - IP buscada: {ip_buscada}")
+    
+    try:
+        # Intentar hacer ping al dispositivo
+        import subprocess
+        import platform
+        
+        # Comando ping según el sistema operativo
+        if platform.system().lower() == "windows":
+            cmd = ["ping", "-n", "1", "-w", "3000", ip_buscada]
+        else:
+            cmd = ["ping", "-c", "1", "-W", "3", ip_buscada]
+        
+        print(f"[GenieACS] 📡 Haciendo ping a {ip_buscada}...")
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+        
+        if result.returncode == 0:
+            print(f"[GenieACS] ✅ PING EXITOSO - Dispositivo responde")
+            return True
+        else:
+            print(f"[GenieACS] ❌ PING FALLIDO - Dispositivo no responde")
+            print(f"[GenieACS]   - Código de salida: {result.returncode}")
+            print(f"[GenieACS]   - Salida: {result.stdout}")
+            print(f"[GenieACS]   - Error: {result.stderr}")
+            return False
+            
+    except subprocess.TimeoutExpired:
+        print(f"[GenieACS] ⏰ TIMEOUT en ping")
+        return False
+    except Exception as e:
+        print(f"[GenieACS] 💥 ERROR en ping: {e}")
+        return False
+
 def obtener_estado_online_device(ip_buscada, minutos_online=5):
-    """Devuelve True si el dispositivo con esa IP está online en GenieACS (último informe reciente)."""
+    """Devuelve (True, device_id) si el dispositivo está online, (False, None) si no."""
+    print(f"[GenieACS] 🔍 VERIFICANDO ESTADO ONLINE DEL DISPOSITIVO:")
+    print(f"[GenieACS]   - IP buscada: {ip_buscada}")
+    print(f"[GenieACS]   - Minutos online requeridos: {minutos_online}")
+    print(f"[GenieACS]   - GenieACS API: {GENIEACS_API}")
+    
     try:
         import re
         from datetime import datetime, timezone, timedelta
+        
+        print(f"[GenieACS] 📡 Solicitando lista de dispositivos...")
         response = requests.get(f"{GENIEACS_API}/devices", timeout=7)
+        print(f"[GenieACS]   - Status Code: {response.status_code}")
+        
         response.raise_for_status()
         dispositivos = response.json()
-        for device in dispositivos:
+        print(f"[GenieACS]   - Total dispositivos encontrados: {len(dispositivos)}")
+        
+        for i, device in enumerate(dispositivos):
+            print(f"[GenieACS] 🔍 DISPOSITIVO {i+1}:")
+            print(f"[GenieACS]   - Device ID: {device.get('_id', 'N/A')}")
+            
+            # Obtener URL de conexión
             url = device.get("InternetGatewayDevice", {}) \
                 .get("ManagementServer", {}) \
                 .get("ConnectionRequestURL", {}) \
                 .get("_value", '')
+            
+            print(f"[GenieACS]   - ConnectionRequestURL: {url}")
+            
             ip_actual = ''
             if url:
                 match = re.search(r"https?://([\d.]+):", url)
                 if match:
                     ip_actual = match.group(1)
+                    print(f"[GenieACS]   - IP extraída: {ip_actual}")
+                else:
+                    print(f"[GenieACS]   - No se pudo extraer IP de la URL")
+            else:
+                print(f"[GenieACS]   - No hay URL de conexión")
+            
             if ip_actual == ip_buscada:
+                print(f"[GenieACS] ✅ ¡IP COINCIDENTE ENCONTRADA!")
+                print(f"[GenieACS]   - IP buscada: {ip_buscada}")
+                print(f"[GenieACS]   - IP encontrada: {ip_actual}")
+                
                 # Revisar _lastInform
                 last_inform = device.get('_lastInform')
+                print(f"[GenieACS]   - _lastInform: {last_inform}")
+                
                 if last_inform:
                     try:
                         dt = datetime.fromisoformat(last_inform.replace('Z', '+00:00'))
                         ahora = datetime.now(timezone.utc)
-                        if (ahora - dt) <= timedelta(minutes=minutos_online):
-                            return True
-                    except Exception:
-                        pass
-                return False
-        return False
+                        diferencia = ahora - dt
+                        minutos_transcurridos = diferencia.total_seconds() / 60
+                        
+                        print(f"[GenieACS]   - Último informe: {dt}")
+                        print(f"[GenieACS]   - Ahora: {ahora}")
+                        print(f"[GenieACS]   - Minutos transcurridos: {minutos_transcurridos:.2f}")
+                        print(f"[GenieACS]   - Límite requerido: {minutos_online}")
+                        
+                        if diferencia <= timedelta(minutes=minutos_online):
+                            print(f"[GenieACS] ✅ DISPOSITIVO ONLINE - Dentro del límite de tiempo")
+                            return True, device.get('_id')
+                        else:
+                            print(f"[GenieACS] ❌ DISPOSITIVO OFFLINE - Fuera del límite de tiempo")
+                            return False, None
+                    except Exception as parse_error:
+                        print(f"[GenieACS] ❌ Error al parsear fecha: {parse_error}")
+                        return False, None
+                else:
+                    print(f"[GenieACS] ❌ DISPOSITIVO OFFLINE - No hay _lastInform")
+                    return False, None
+            else:
+                print(f"[GenieACS]   - IP no coincide (buscada: {ip_buscada}, actual: {ip_actual})")
+        
+        print(f"[GenieACS] ❌ DISPOSITIVO NO ENCONTRADO")
+        print(f"[GenieACS]   - No se encontró ningún dispositivo con IP: {ip_buscada}")
+        print(f"[GenieACS]   - IPs encontradas en GenieACS:")
+        for device in dispositivos:
+            url = device.get("InternetGatewayDevice", {}) \
+                .get("ManagementServer", {}) \
+                .get("ConnectionRequestURL", {}) \
+                .get("_value", '')
+            if url:
+                match = re.search(r"https?://([\d.]+):", url)
+                if match:
+                    print(f"[GenieACS]     * {match.group(1)}")
+        
+        return False, None
     except Exception as e:
-        print(f"Error al validar online GenieACS: {e}")
-        return False
+        print(f"[GenieACS] 💥 ERROR al validar online GenieACS: {e}")
+        print(f"[GenieACS]   - Tipo de error: {type(e).__name__}")
+        import traceback
+        print(f"[GenieACS]   - Traceback: {traceback.format_exc()}")
+        return False, None
 
 @app.route('/verificar_sesion', methods=['POST'])
 def verificar_sesion():
@@ -878,6 +1205,291 @@ def verificar_sesion():
 def renovar_sesion():
     session.modified = True  # Renueva la sesión
     return '', 204
+
+# --- FUNCIONES DE GENIEACS ---
+def obtener_interfaces_wifi_activas_directo(device_id):
+    """Obtiene interfaces WiFi activas usando el formato correcto de GenieACS"""
+    print(f"[GenieACS] 🔍 OBTENIENDO INTERFACES WIFI ACTIVAS:")
+    print(f"[GenieACS]   - Device ID: {device_id}")
+    print(f"[GenieACS]   - API: {GENIEACS_API}")
+    
+    interfaces_activas = []
+    
+    try:
+        # Usar el formato correcto según la documentación de GenieACS
+        query = f'{{"_id":"{device_id}"}}'
+        
+        # Construir projection para todas las interfaces WiFi
+        projection_params = []
+        for i in range(1, 11):  # Interfaces 1-10
+            projection_params.append(f"InternetGatewayDevice.LANDevice.1.WLANConfiguration.{i}.Status._value")
+        
+        projection_str = ",".join(projection_params)
+        
+        url = f"{GENIEACS_API}/devices/"
+        params = {
+            'query': query,
+            'projection': projection_str
+        }
+        
+        print(f"[GenieACS] 📡 Solicitando interfaces WiFi...")
+        print(f"[GenieACS]   - URL: {url}")
+        print(f"[GenieACS]   - Query: {query}")
+        print(f"[GenieACS]   - Projection: {projection_str}")
+        
+        response = requests.get(url, params=params, timeout=10)
+        
+        if response.status_code == 200:
+            devices_data = response.json()
+            print(f"[GenieACS] ✅ Respuesta recibida: {len(devices_data)} dispositivos")
+            
+            if devices_data and len(devices_data) > 0:
+                device_data = devices_data[0]  # Tomar el primer (y único) dispositivo
+                
+                # Extraer interfaces activas
+                if 'InternetGatewayDevice' in device_data:
+                    lan_device = device_data['InternetGatewayDevice'].get('LANDevice', {}).get('1', {})
+                    wlan_config = lan_device.get('WLANConfiguration', {})
+                    
+                    if wlan_config:
+                        print(f"[GenieACS] 🔍 WLANConfiguration encontrado")
+                        
+                        for interface_num in range(1, 11):  # Máximo 10 interfaces
+                            interface_key = str(interface_num)
+                            
+                            if interface_key in wlan_config:
+                                interface_data = wlan_config[interface_key]
+                                status_data = interface_data.get('Status', {})
+                                
+                                if '_value' in status_data:
+                                    status_value = status_data['_value']
+                                    print(f"[GenieACS] 🔍 Interfaz {interface_num}: {status_value}")
+                                    
+                                    if status_value == 'Up':
+                                        interfaces_activas.append(interface_num)
+                                        print(f"[GenieACS] ✅ Interfaz {interface_num} está ACTIVA")
+                                    else:
+                                        print(f"[GenieACS] ❌ Interfaz {interface_num} está INACTIVA ({status_value})")
+                                else:
+                                    print(f"[GenieACS] ⚠️  Interfaz {interface_num} sin _value en Status")
+                            else:
+                                print(f"[GenieACS] ⚠️  Interfaz {interface_num} no existe")
+                    else:
+                        print(f"[GenieACS] ❌ WLANConfiguration no encontrado")
+                else:
+                    print(f"[GenieACS] ❌ InternetGatewayDevice no encontrado")
+                
+                print(f"[GenieACS] 🎯 INTERFACES ACTIVAS ENCONTRADAS: {interfaces_activas}")
+                return interfaces_activas
+            else:
+                print(f"[GenieACS] ❌ No se encontró el dispositivo")
+                return []
+        else:
+            print(f"[GenieACS] ❌ Error HTTP: {response.status_code}")
+            return []
+        
+    except Exception as e:
+        print(f"[GenieACS] 💥 ERROR: {e}")
+        import traceback
+        traceback.print_exc()
+        return []
+
+def detectar_interfaces_wifi_activas(device_id):
+    """Detecta qué interfaces WiFi están activas solicitando directamente a la ONU"""
+    print(f"[GenieACS] 🚀 DETECTANDO INTERFACES WIFI ACTIVAS:")
+    print(f"[GenieACS]   - Device ID: {device_id}")
+    
+    # Obtener interfaces activas directamente
+    interfaces_activas = obtener_interfaces_wifi_activas_directo(device_id)
+    
+    if interfaces_activas:
+        print(f"[GenieACS] ✅ Se encontraron {len(interfaces_activas)} interfaces activas: {interfaces_activas}")
+    else:
+        print(f"[GenieACS] ✅ No se encontraron interfaces activas")
+    
+    return interfaces_activas
+
+def obtener_canal_y_ssid_interfaz(device_id, interfaz):
+    """Obtiene el canal y SSID de una interfaz específica usando el formato correcto"""
+    print(f"[GenieACS] 🔍 OBTENIENDO CANAL Y SSID:")
+    print(f"[GenieACS]   - Device ID: {device_id}")
+    print(f"[GenieACS]   - Interfaz: {interfaz}")
+    
+    try:
+        # Usar el formato correcto según la documentación de GenieACS
+        query = f'{{"_id":"{device_id}"}}'
+        
+        # Construir projection para Channel, ChannelsInUse y SSID
+        projection_params = [
+            f"InternetGatewayDevice.LANDevice.1.WLANConfiguration.{interfaz}.Channel._value",
+            f"InternetGatewayDevice.LANDevice.1.WLANConfiguration.{interfaz}.ChannelsInUse._value",
+            f"InternetGatewayDevice.LANDevice.1.WLANConfiguration.{interfaz}.SSID._value"
+        ]
+        projection_str = ",".join(projection_params)
+        
+        url = f"{GENIEACS_API}/devices/"
+        params = {
+            'query': query,
+            'projection': projection_str
+        }
+        
+        print(f"[GenieACS] 📡 Solicitando canal y SSID...")
+        print(f"[GenieACS]   - URL: {url}")
+        print(f"[GenieACS]   - Query: {query}")
+        print(f"[GenieACS]   - Projection: {projection_str}")
+        
+        response = requests.get(url, params=params, timeout=10)
+        
+        if response.status_code == 200:
+            devices_data = response.json()
+            print(f"[GenieACS] ✅ Respuesta recibida: {len(devices_data)} dispositivos")
+            
+            if devices_data and len(devices_data) > 0:
+                device_data = devices_data[0]  # Tomar el primer (y único) dispositivo
+                
+                # Extraer canal y SSID
+                canal = None
+                ssid_actual = None
+                
+                if 'InternetGatewayDevice' in device_data:
+                    lan_device = device_data['InternetGatewayDevice'].get('LANDevice', {}).get('1', {})
+                    wlan_config = lan_device.get('WLANConfiguration', {}).get(str(interfaz), {})
+                    
+                    # Obtener canal
+                    channel_data = wlan_config.get('Channel', {})
+                    if '_value' in channel_data:
+                        canal = channel_data['_value']
+                        print(f"[GenieACS] 📡 Canal obtenido: {canal}")
+                    
+                    # Si canal es 0, usar ChannelsInUse
+                    if canal == 0:
+                        channels_in_use_data = wlan_config.get('ChannelsInUse', {})
+                        if '_value' in channels_in_use_data:
+                            canal = channels_in_use_data['_value']
+                            print(f"[GenieACS] 📡 Canal actualizado desde ChannelsInUse: {canal}")
+                    
+                    # Obtener SSID
+                    ssid_data = wlan_config.get('SSID', {})
+                    if '_value' in ssid_data:
+                        ssid_actual = ssid_data['_value']
+                        print(f"[GenieACS] 📡 SSID obtenido: {ssid_actual}")
+                
+                print(f"[GenieACS] ✅ Canal: {canal}, SSID: {ssid_actual}")
+                return canal, ssid_actual
+            else:
+                print(f"[GenieACS] ❌ No se encontró el dispositivo")
+                return None, None
+        else:
+            print(f"[GenieACS] ❌ Error obteniendo canal y SSID: {response.status_code}")
+            return None, None
+            
+    except Exception as e:
+        print(f"[GenieACS] 💥 ERROR obteniendo canal y SSID: {e}")
+        return None, None
+
+def identificar_frecuencia_por_canal(canal):
+    """Identifica la frecuencia basada en el canal"""
+    if canal is None:
+        return "Desconocida"
+    
+    try:
+        canal_int = int(canal)
+        if 1 <= canal_int <= 14:
+            return "2.4GHz"
+        elif 36 <= canal_int <= 165:
+            return "5GHz"
+        else:
+            return "Desconocida"
+    except:
+        return "Desconocida"
+
+def detectar_interfaces_y_frecuencias(device_id):
+    """Detecta interfaces activas y sus frecuencias"""
+    print(f"[GenieACS] 🔍 DETECTANDO INTERFACES Y FRECUENCIAS")
+    
+    # Obtener interfaces activas
+    interfaces_activas = detectar_interfaces_wifi_activas(device_id)
+    
+    if not interfaces_activas:
+        return [], {}
+    
+    interfaces_info = {}
+    
+    for interfaz in interfaces_activas:
+        print(f"[GenieACS] 📡 Analizando interfaz {interfaz}")
+        
+        # Obtener canal y SSID en una sola petición
+        canal, ssid_actual = obtener_canal_y_ssid_interfaz(device_id, interfaz)
+        
+        # Identificar frecuencia
+        frecuencia = identificar_frecuencia_por_canal(canal)
+        
+        interfaces_info[interfaz] = {
+            'canal': canal,
+            'frecuencia': frecuencia,
+            'ssid_actual': ssid_actual
+        }
+        
+        print(f"[GenieACS]   - Interfaz {interfaz}: Canal {canal} → {frecuencia}, SSID: {ssid_actual}")
+    
+    return interfaces_activas, interfaces_info
+
+def cambiar_parametro_genieacs_sin_reinicio(device_id, parametro, valor):
+    """Cambia un parámetro en GenieACS sin reiniciar automáticamente usando el formato correcto"""
+    print(f"[GenieACS] 🔧 CAMBIANDO PARÁMETRO SIN REINICIO:")
+    print(f"[GenieACS]   - Device ID: {device_id}")
+    print(f"[GenieACS]   - Parámetro: {parametro}")
+    print(f"[GenieACS]   - Valor: {valor}")
+    
+    try:
+        # Usar el formato correcto según la documentación de GenieACS
+        url = f"{GENIEACS_API}/devices/{device_id}/tasks"
+        
+        # Formato correcto para setParameterValues
+        payload = {
+            "name": "setParameterValues",
+            "parameterValues": [[parametro, valor]]
+        }
+        
+        print(f"[GenieACS] 📡 Enviando comando...")
+        print(f"[GenieACS]   - URL: {url}")
+        print(f"[GenieACS]   - Payload: {payload}")
+        
+        response = requests.post(url, json=payload, timeout=10)
+        
+        print(f"[GenieACS] 📡 Respuesta: {response.status_code} - {response.text}")
+        
+        if response.status_code in [200, 201, 202]:
+            print(f"[GenieACS] ✅ Parámetro cambiado exitosamente")
+            return True
+        else:
+            print(f"[GenieACS] ❌ Error cambiando parámetro: {response.status_code}")
+            return False
+            
+    except Exception as e:
+        print(f"[GenieACS] 💥 ERROR cambiando parámetro: {e}")
+        return False
+
+def cambiar_contraseña_wifi_interfaz_sin_reinicio(device_id, interfaz, nueva_password):
+    """Cambia la contraseña WiFi de una interfaz específica SIN reiniciar la ONU"""
+    try:
+        parametro_password = f"InternetGatewayDevice.LANDevice.1.WLANConfiguration.{interfaz}.KeyPassphrase"
+        print(f"[GenieACS] 📡 Cambiando password interfaz {interfaz} SIN reinicio")
+        print(f"[GenieACS]   - Parámetro: {parametro_password}")
+        print(f"[GenieACS]   - Nueva contraseña: {nueva_password}")
+        
+        resultado = cambiar_parametro_genieacs_sin_reinicio(device_id, parametro_password, nueva_password)
+        
+        if resultado:
+            print(f"[GenieACS] ✅ Password cambiado exitosamente en interfaz {interfaz}")
+            return True
+        else:
+            print(f"[GenieACS] ❌ Error cambiando password en interfaz {interfaz}")
+            return False
+            
+    except Exception as e:
+        print(f"[GenieACS] ❌ Error cambiando password interfaz {interfaz}: {e}")
+        return False
 
 if __name__ == "__main__":
     app.run(debug=True)

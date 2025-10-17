@@ -195,6 +195,113 @@ def obtener_device_id_por_ip(ip_buscada):
     print(f"[GENIEACS] No se encontró ningún device_id para la IP: {ip_buscada}")
     return None
 
+def obtener_parametro_genieacs(device_id, parametro):
+    """Obtiene un parámetro de GenieACS"""
+    try:
+        from urllib.parse import quote
+        url = f"{GENIEACS_API}/devices/{quote(device_id, safe='')}/tasks?connection_request"
+        data = {
+            "name": "getParameterValues",
+            "parameterNames": [parametro]
+        }
+        print(f"[GenieACS] 🔍 SOLICITANDO PARÁMETRO:")
+        print(f"[GenieACS]   - Device ID: {device_id}")
+        print(f"[GenieACS]   - Parámetro: {parametro}")
+        print(f"[GenieACS]   - URL: {url}")
+        print(f"[GenieACS]   - Data: {data}")
+        
+        response = requests.post(url, json=data, timeout=15)
+        
+        print(f"[GenieACS] 📡 RESPUESTA RECIBIDA:")
+        print(f"[GenieACS]   - Status Code: {response.status_code}")
+        print(f"[GenieACS]   - Headers: {dict(response.headers)}")
+        print(f"[GenieACS]   - Response Text: {response.text[:500]}...")
+        
+        if response.status_code == 200:
+            try:
+                json_response = response.json()
+                print(f"[GenieACS] ✅ PARÁMETRO OBTENIDO EXITOSAMENTE:")
+                print(f"[GenieACS]   - Response JSON: {json_response}")
+                return json_response
+            except Exception as json_error:
+                print(f"[GenieACS] ❌ ERROR AL PARSEAR JSON: {json_error}")
+                return None
+        else:
+            print(f"[GenieACS] ❌ ERROR HTTP: {response.status_code} - {response.text}")
+            return None
+    except requests.exceptions.Timeout:
+        print(f"[GenieACS] ⏰ TIMEOUT al obtener parámetro {parametro}")
+        return None
+    except requests.exceptions.ConnectionError as conn_error:
+        print(f"[GenieACS] 🔌 ERROR DE CONEXIÓN: {conn_error}")
+        return None
+    except Exception as e:
+        print(f"[GenieACS] 💥 ERROR INESPERADO obteniendo parámetro: {e}")
+        print(f"[GenieACS]   - Tipo de error: {type(e).__name__}")
+        import traceback
+        print(f"[GenieACS]   - Traceback: {traceback.format_exc()}")
+        return None
+
+# Función eliminada - ahora se usa desde genieacs_utils.py
+
+# Función eliminada - ahora se usa desde genieacs_utils.py
+
+# Funciones eliminadas - ahora se usan desde genieacs_utils.py
+
+def cambiar_contraseña_wifi_interfaces_activas(device_id, nueva_password):
+    """Cambia la contraseña WiFi solo en las interfaces que están activas"""
+    print(f"[GenieACS] 🔐 INICIANDO CAMBIO DE CONTRASEÑA WIFI")
+    print(f"[GenieACS]   - Device ID: {device_id}")
+    print(f"[GenieACS]   - Nueva contraseña: {'*' * len(nueva_password)} (longitud: {len(nueva_password)})")
+    
+    # 1. Detectar interfaces WiFi activas
+    print(f"[GenieACS] 📡 PASO 1: Detectando interfaces WiFi activas...")
+    interfaces_activas = detectar_interfaces_wifi_activas(device_id)
+    
+    if not interfaces_activas:
+        mensaje = "No se encontraron interfaces WiFi activas en la ONU"
+        print(f"[GenieACS] ❌ ERROR: {mensaje}")
+        print(f"[GenieACS]   - Posibles soluciones:")
+        print(f"[GenieACS]     * Verificar que la ONU esté online")
+        print(f"[GenieACS]     * Verificar que el device_id sea correcto")
+        print(f"[GenieACS]     * Verificar que GenieACS esté funcionando")
+        return False, mensaje
+    
+    print(f"[GenieACS] ✅ PASO 1 COMPLETADO: Se encontraron {len(interfaces_activas)} interfaces activas")
+    print(f"[GenieACS] 📝 PASO 2: Aplicando contraseña a interfaces activas: {interfaces_activas}")
+    
+    # 2. Aplicar contraseña a cada interfaz activa
+    interfaces_cambiadas = []
+    interfaces_fallidas = []
+    
+    for i, interfaz in enumerate(interfaces_activas, 1):
+        parametro_password = f"InternetGatewayDevice.LANDevice.1.WLANConfiguration.{interfaz}.KeyPassphrase"
+        print(f"[GenieACS] 🔧 INTERFAZ {i}/{len(interfaces_activas)}: {interfaz}")
+        print(f"[GenieACS]   - Parámetro: {parametro_password}")
+        
+        if cambiar_parametro_genieacs(device_id, parametro_password, nueva_password):
+            interfaces_cambiadas.append(interfaz)
+            print(f"[GenieACS] ✅ Contraseña cambiada exitosamente en interfaz {interfaz}")
+        else:
+            interfaces_fallidas.append(interfaz)
+            print(f"[GenieACS] ❌ Error al cambiar contraseña en interfaz {interfaz}")
+    
+    # 3. Generar mensaje de resultado
+    print(f"[GenieACS] 📊 PASO 3: Generando resumen de resultados...")
+    print(f"[GenieACS]   - Interfaces cambiadas exitosamente: {interfaces_cambiadas}")
+    print(f"[GenieACS]   - Interfaces con error: {interfaces_fallidas}")
+    
+    if interfaces_cambiadas:
+        mensaje = f"Contraseña WiFi aplicada exitosamente a {len(interfaces_cambiadas)} interfaz(es) activa(s): {interfaces_cambiadas}"
+        if interfaces_fallidas:
+            mensaje += f". Error en {len(interfaces_fallidas)} interfaz(es): {interfaces_fallidas}"
+        print(f"[GenieACS] 🎉 ÉXITO: {mensaje}")
+        return True, mensaje
+    else:
+        mensaje = f"Error al cambiar contraseña en todas las interfaces activas: {interfaces_activas}"
+        print(f"[GenieACS] 💥 FALLO TOTAL: {mensaje}")
+        return False, mensaje
+
 def cambiar_parametro_genieacs(device_id, parametro, valor):
     """Cambia un parámetro en GenieACS"""
     try:
@@ -235,6 +342,8 @@ def cambiar_parametro_genieacs(device_id, parametro, valor):
     except Exception as e:
         print(f"[GenieACS] Error al cambiar parámetro {parametro}: {e}")
         return False
+
+# Función eliminada - ahora se usa desde genieacs_utils.py
 
 def reiniciar_onu_genieacs(device_id):
     """Reinicia la ONU para aplicar cambios WiFi"""
@@ -366,37 +475,139 @@ def actualizar_parametros_wisphub(cedula, nueva_clave=None, nuevo_ssid=None, ip_
         print(f'[Wisphub] Error actualizando parámetros: {e}')
         return False
 
+def verificar_dispositivo_online_alternativo(ip_buscada):
+    """Verificación alternativa más permisiva para dispositivos online"""
+    print(f"[GenieACS] 🔄 VERIFICACIÓN ALTERNATIVA DE DISPOSITIVO ONLINE:")
+    print(f"[GenieACS]   - IP buscada: {ip_buscada}")
+    
+    try:
+        # Intentar hacer ping al dispositivo
+        import subprocess
+        import platform
+        
+        # Comando ping según el sistema operativo
+        if platform.system().lower() == "windows":
+            cmd = ["ping", "-n", "1", "-w", "3000", ip_buscada]
+        else:
+            cmd = ["ping", "-c", "1", "-W", "3", ip_buscada]
+        
+        print(f"[GenieACS] 📡 Haciendo ping a {ip_buscada}...")
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+        
+        if result.returncode == 0:
+            print(f"[GenieACS] ✅ PING EXITOSO - Dispositivo responde")
+            return True
+        else:
+            print(f"[GenieACS] ❌ PING FALLIDO - Dispositivo no responde")
+            print(f"[GenieACS]   - Código de salida: {result.returncode}")
+            print(f"[GenieACS]   - Salida: {result.stdout}")
+            print(f"[GenieACS]   - Error: {result.stderr}")
+            return False
+            
+    except subprocess.TimeoutExpired:
+        print(f"[GenieACS] ⏰ TIMEOUT en ping")
+        return False
+    except Exception as e:
+        print(f"[GenieACS] 💥 ERROR en ping: {e}")
+        return False
+
 def obtener_estado_online_device(ip_buscada, minutos_online=5):
     """Devuelve True si el dispositivo con esa IP está online en GenieACS (último informe reciente)."""
+    print(f"[GenieACS] 🔍 VERIFICANDO ESTADO ONLINE DEL DISPOSITIVO:")
+    print(f"[GenieACS]   - IP buscada: {ip_buscada}")
+    print(f"[GenieACS]   - Minutos online requeridos: {minutos_online}")
+    print(f"[GenieACS]   - GenieACS API: {GENIEACS_API}")
+    
     try:
+        import re
+        from datetime import datetime, timezone, timedelta
+        
+        print(f"[GenieACS] 📡 Solicitando lista de dispositivos...")
         response = requests.get(f"{GENIEACS_API}/devices", timeout=7)
+        print(f"[GenieACS]   - Status Code: {response.status_code}")
+        
         response.raise_for_status()
         dispositivos = response.json()
-        for device in dispositivos:
+        print(f"[GenieACS]   - Total dispositivos encontrados: {len(dispositivos)}")
+        
+        for i, device in enumerate(dispositivos):
+            print(f"[GenieACS] 🔍 DISPOSITIVO {i+1}:")
+            print(f"[GenieACS]   - Device ID: {device.get('_id', 'N/A')}")
+            
+            # Obtener URL de conexión
             url = device.get("InternetGatewayDevice", {}) \
                 .get("ManagementServer", {}) \
                 .get("ConnectionRequestURL", {}) \
                 .get("_value", '')
+            
+            print(f"[GenieACS]   - ConnectionRequestURL: {url}")
+            
             ip_actual = ''
             if url:
                 match = re.search(r"https?://([\d.]+):", url)
                 if match:
                     ip_actual = match.group(1)
+                    print(f"[GenieACS]   - IP extraída: {ip_actual}")
+                else:
+                    print(f"[GenieACS]   - No se pudo extraer IP de la URL")
+            else:
+                print(f"[GenieACS]   - No hay URL de conexión")
+            
             if ip_actual == ip_buscada:
+                print(f"[GenieACS] ✅ ¡IP COINCIDENTE ENCONTRADA!")
+                print(f"[GenieACS]   - IP buscada: {ip_buscada}")
+                print(f"[GenieACS]   - IP encontrada: {ip_actual}")
+                
                 # Revisar _lastInform
                 last_inform = device.get('_lastInform')
+                print(f"[GenieACS]   - _lastInform: {last_inform}")
+                
                 if last_inform:
                     try:
                         dt = datetime.fromisoformat(last_inform.replace('Z', '+00:00'))
                         ahora = datetime.now(timezone.utc)
-                        if (ahora - dt) <= timedelta(minutes=minutos_online):
-                            return True
-                    except Exception:
-                        pass
-                return False
+                        diferencia = ahora - dt
+                        minutos_transcurridos = diferencia.total_seconds() / 60
+                        
+                        print(f"[GenieACS]   - Último informe: {dt}")
+                        print(f"[GenieACS]   - Ahora: {ahora}")
+                        print(f"[GenieACS]   - Minutos transcurridos: {minutos_transcurridos:.2f}")
+                        print(f"[GenieACS]   - Límite requerido: {minutos_online}")
+                        
+                        if diferencia <= timedelta(minutes=minutos_online):
+                            print(f"[GenieACS] ✅ DISPOSITIVO ONLINE - Dentro del límite de tiempo")
+                            return True, device.get('_id')
+                        else:
+                            print(f"[GenieACS] ❌ DISPOSITIVO OFFLINE - Fuera del límite de tiempo")
+                            return False, None
+                    except Exception as parse_error:
+                        print(f"[GenieACS] ❌ Error al parsear fecha: {parse_error}")
+                        return False, None
+                else:
+                    print(f"[GenieACS] ❌ DISPOSITIVO OFFLINE - No hay _lastInform")
+                    return False, None
+            else:
+                print(f"[GenieACS]   - IP no coincide (buscada: {ip_buscada}, actual: {ip_actual})")
+        
+        print(f"[GenieACS] ❌ DISPOSITIVO NO ENCONTRADO")
+        print(f"[GenieACS]   - No se encontró ningún dispositivo con IP: {ip_buscada}")
+        print(f"[GenieACS]   - IPs encontradas en GenieACS:")
+        for device in dispositivos:
+            url = device.get("InternetGatewayDevice", {}) \
+                .get("ManagementServer", {}) \
+                .get("ConnectionRequestURL", {}) \
+                .get("_value", '')
+            if url:
+                match = re.search(r"https?://([\d.]+):", url)
+                if match:
+                    print(f"[GenieACS]     * {match.group(1)}")
+        
         return False
     except Exception as e:
-        print(f"Error al validar online GenieACS: {e}")
+        print(f"[GenieACS] 💥 ERROR al validar online GenieACS: {e}")
+        print(f"[GenieACS]   - Tipo de error: {type(e).__name__}")
+        import traceback
+        print(f"[GenieACS]   - Traceback: {traceback.format_exc()}")
         return False
 
 # Rutas
@@ -584,11 +795,11 @@ def configuracion():
         conn = get_db_connection()
         cur = conn.execute("SELECT valor FROM admin_settings WHERE clave = 'max_cambios_mes'")
         data = cur.fetchone()
-        cambios_por_mes = int(data['valor']) if data else 3
+        cambios_por_mes = int(data['valor']) if data else 2
         conn.close()
     except Exception as e:
         print(f"Error al obtener max_cambios_mes: {e}")
-        cambios_por_mes = 3
+        cambios_por_mes = 2
     return render_template('admin/admin_configuracion.html', cambios_por_mes=cambios_por_mes)
 
 @admin_bp.route('/cambiar_config', methods=['POST'])
@@ -852,6 +1063,37 @@ def cambiar_wifi_cliente():
         # Agregar servicios al cliente para el template
         if cliente:
             cliente['servicios'] = servicios
+            
+            # Si hay un cliente válido y no hay múltiples servicios, hacer validaciones en segundo plano
+            if len(servicios) == 1 or (ip_seleccionada and len(servicios) > 1):
+                ip_a_usar = ip_seleccionada if ip_seleccionada else servicios[0].get('ip')
+                if ip_a_usar:
+                    print(f"[DEBUG] Validando dispositivo para IP: {ip_a_usar}")
+                    
+                    # Verificar estado online del dispositivo
+                    device_id = obtener_device_id_por_ip(ip_a_usar)
+                    if device_id:
+                        print(f"[DEBUG] Device ID encontrado: {device_id}")
+                        
+                        # Detectar interfaces WiFi activas
+                        interfaces_activas = detectar_interfaces_wifi_activas(device_id)
+                        print(f"[DEBUG] Interfaces activas detectadas: {interfaces_activas}")
+                        
+                        # Detectar interfaces y frecuencias para SSID
+                        _, interfaces_info = detectar_interfaces_y_frecuencias(device_id)
+                        print(f"[DEBUG] Interfaces info detectada: {interfaces_info}")
+                        
+                        # Guardar información en la sesión
+                        session[f'admin_device_info_{cedula}_{ip_a_usar}'] = {
+                            'device_id': device_id,
+                            'interfaces_activas': interfaces_activas,
+                            'interfaces_info': interfaces_info,
+                            'timestamp': time.time()
+                        }
+                        print(f"[DEBUG] Información guardada en sesión para {cedula}-{ip_a_usar}")
+                    else:
+                        print(f"[DEBUG] No se pudo obtener Device ID para IP: {ip_a_usar}")
+        
         return render_template('admin/admin_cambiar_wifi_cliente.html', 
                              cliente=cliente, 
                              cliente_no_encontrado=cliente_no_encontrado, 
@@ -897,32 +1139,135 @@ def cambiar_wifi_cliente():
     if estado_servicio == 'suspendido':
         return jsonify({'success': False, 'message': 'El servicio del cliente está suspendido. No se pueden realizar cambios hasta que se reactive.'})
     
-    if not obtener_estado_online_device(ip_a_usar):
-        return jsonify({'success': False, 'message': 'El dispositivo está desconectado. Debe estar online para realizar cambios.'})
+    # Verificar si tenemos información en la sesión (validaciones ya hechas)
+    session_key = f'admin_device_info_{cedula}_{ip_a_usar}'
+    device_info = session.get(session_key)
     
+    if device_info:
+        # Verificar que la información no sea muy antigua (más de 10 minutos)
+        if time.time() - device_info.get('timestamp', 0) > 600:  # 10 minutos
+            print(f"[DEBUG] Información de sesión expirada, eliminando...")
+            session.pop(session_key, None)
+            device_info = None
+    
+    if device_info:
+        print(f"[DEBUG] Usando información de sesión para {cedula}-{ip_a_usar}")
+        device_id = device_info['device_id']
+        interfaces_activas = device_info['interfaces_activas']
+        interfaces_info = device_info['interfaces_info']
+    else:
+        print(f"[DEBUG] No hay información en sesión, validando dispositivo...")
+        
+        # Verificar estado online del dispositivo
+        dispositivo_online, device_id = obtener_estado_online_device(ip_a_usar)
+        if not dispositivo_online:
+            print(f"[GenieACS] ⚠️  Verificación principal falló, intentando verificación alternativa...")
+            if not verificar_dispositivo_online_alternativo(ip_a_usar):
+                return jsonify({'success': False, 'message': 'El dispositivo está desconectado. Debe estar online para realizar cambios.'})
+            else:
+                print(f"[GenieACS] ✅ Verificación alternativa exitosa - Continuando con el proceso")
     device_id = obtener_device_id_por_ip(ip_a_usar)
+        
     if not device_id:
         return jsonify({'success': False, 'message': 'No se encontró el dispositivo del cliente'})
+        
+        # Detectar interfaces
+        interfaces_activas = detectar_interfaces_wifi_activas(device_id)
+        _, interfaces_info = detectar_interfaces_y_frecuencias(device_id)
     if accion == 'ssid':
         nuevo_ssid = data.get('nuevo_ssid')
         if not nuevo_ssid:
             return jsonify({'success': False, 'message': 'Debe ingresar el nuevo nombre de red'})
-        if cambiar_parametro_genieacs(device_id, 'InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.SSID', nuevo_ssid):
+        
+        # Usar interfaces_info de la sesión o detectar si no están disponibles
+        if not interfaces_info:
+            return jsonify({'success': False, 'message': 'No se encontraron interfaces WiFi activas en la ONU'})
+        
+        # Cambiar SSID de manera inteligente
+        interfaces_cambiadas = []
+        necesita_sufijos = len(interfaces_info) == 2
+        
+        for interfaz, info in interfaces_info.items():
+            frecuencia = info.get('frecuencia', 'Desconocida')
+            
+            # Construir el nombre final
+            if necesita_sufijos:
+                if frecuencia == "2.4GHz":
+                    nombre_final = f"{nuevo_ssid}-2.4GHz"
+                elif frecuencia == "5GHz":
+                    nombre_final = f"{nuevo_ssid}-5GHz"
+                else:
+                    nombre_final = nuevo_ssid  # Fallback
+            else:
+                nombre_final = nuevo_ssid
+            
+            parametro_ssid = f"InternetGatewayDevice.LANDevice.1.WLANConfiguration.{interfaz}.SSID"
+            if cambiar_parametro_genieacs_sin_reinicio(device_id, parametro_ssid, nombre_final):
+                interfaces_cambiadas.append({
+                    'interfaz': interfaz,
+                    'frecuencia': frecuencia,
+                    'nombre_final': nombre_final
+                })
+        
+        if interfaces_cambiadas:
+            # Reiniciar ONU una sola vez al final
+            reiniciar_onu_genieacs(device_id)
             actualizar_parametros_wisphub(cedula, nuevo_ssid=nuevo_ssid, ip_especifica=ip_a_usar)
             registrar_cambio(session['admin_id'], cedula, 'SSID', nuevo_ssid)
-            return jsonify({'success': True, 'message': 'Nombre de red cambiado exitosamente. La ONU se reiniciará automáticamente para aplicar los cambios. Por favor espere unos minutos.'})
+            
+            # Construir mensaje detallado
+            if len(interfaces_cambiadas) == 2:
+                mensaje = f"✅ Nombre de red WiFi cambiado exitosamente:\n"
+                mensaje += f"• 2.4GHz: {interfaces_cambiadas[0]['nombre_final']}\n"
+                mensaje += f"• 5GHz: {interfaces_cambiadas[1]['nombre_final']}"
+            else:
+                interfaz_cambiada = interfaces_cambiadas[0]
+                mensaje = f"✅ Nombre de red WiFi cambiado exitosamente:\n"
+                mensaje += f"• {interfaz_cambiada['frecuencia']}: {interfaz_cambiada['nombre_final']}"
+            
+            mensaje += f"\n\nLa ONU se reiniciará automáticamente para aplicar los cambios. Por favor espere unos minutos."
+            return jsonify({'success': True, 'message': mensaje})
         else:
             return jsonify({'success': False, 'message': 'Error al cambiar el nombre de la red'})
     elif accion == 'password':
         nueva_password = data.get('nueva_password')
         if not nueva_password:
             return jsonify({'success': False, 'message': 'Debe ingresar la nueva contraseña'})
-        if cambiar_parametro_genieacs(device_id, 'InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.KeyPassphrase', nueva_password):
+        
+        print(f"[GenieACS] 🚀 INICIANDO PROCESO DE CAMBIO DE CONTRASEÑA WIFI (ADMIN)")
+        print(f"[GenieACS]   - Cédula del cliente: {cedula}")
+        print(f"[GenieACS]   - IP a usar: {ip_a_usar}")
+        print(f"[GenieACS]   - Device ID encontrado: {device_id}")
+        
+        # Diagnóstico inicial
+        print(f"[GenieACS] 🔧 DIAGNÓSTICO DE CONFIGURACIÓN (ADMIN):")
+        print(f"[GenieACS]   - GENIEACS_API: {GENIEACS_API}")
+        print(f"[GenieACS]   - IP_SERVER: {ip_server}")
+        print(f"[GenieACS]   - QR_SERVER: {qr_server}")
+        
+        # Usar interfaces_activas de la sesión o detectar si no están disponibles
+        if not interfaces_activas:
+            return jsonify({'success': False, 'message': 'No se encontraron interfaces WiFi activas en la ONU'})
+        
+        # Cambiar contraseña en todas las interfaces activas
+        interfaces_cambiadas = []
+        for interfaz in interfaces_activas:
+            parametro_password = f"InternetGatewayDevice.LANDevice.1.WLANConfiguration.{interfaz}.KeyPassphrase"
+            if cambiar_parametro_genieacs_sin_reinicio(device_id, parametro_password, nueva_password):
+                interfaces_cambiadas.append(interfaz)
+        
+        if interfaces_cambiadas:
+            # Reiniciar ONU una sola vez al final
+            reiniciar_onu_genieacs(device_id)
+            ok, mensaje = True, f"Contraseña WiFi aplicada exitosamente a {len(interfaces_cambiadas)} interfaz(es) activa(s): {interfaces_cambiadas}"
+        else:
+            ok, mensaje = False, f"Error al cambiar contraseña en todas las interfaces activas: {interfaces_activas}"
+        if ok:
             actualizar_parametros_wisphub(cedula, nueva_clave=nueva_password, ip_especifica=ip_a_usar)
             registrar_cambio(session['admin_id'], cedula, 'Password', 'Nueva')
-            return jsonify({'success': True, 'message': 'Contraseña cambiada exitosamente. La ONU se reiniciará automáticamente para aplicar los cambios. Por favor espere unos minutos.'})
+            return jsonify({'success': True, 'message': f'{mensaje}. La ONU se reiniciará automáticamente para aplicar los cambios. Por favor espere unos minutos.'})
         else:
-            return jsonify({'success': False, 'message': 'Error al cambiar la contraseña'})
+            return jsonify({'success': False, 'message': f'Error al cambiar la contraseña: {mensaje}'})
     return jsonify({'success': False, 'message': 'Acción no válida.'})
 
 @admin_bp.route('/logout', methods=['POST'])
@@ -988,91 +1333,75 @@ def renovar_sesion_admin():
 @admin_bp.route('/api/buscar_clientes')
 def api_buscar_clientes():
     q = request.args.get('q', '').strip()
+    tipo_busqueda = request.args.get('tipo', 'nombre').strip()  # nombre, cedula, ip
+    print("*** FUNCION API_BUSCAR_CLIENTES INICIADA ***")
+    print(f"[DEBUG] Búsqueda recibida: '{q}' - Tipo: '{tipo_busqueda}'")
+    
     headers = {
         'Authorization': f'Api-Key {API_KEY}',
         'Content-Type': 'application/json'
     }
     clientes = []
-    seen = set()
     try:
         if q:
-            if q.isdigit():
-                campos = ['cedula']
-            else:
-                campos = ['nombre', 'usuario']
-            for campo in campos:
-                params = {'page_size': 50, f'{campo}__contains': q}
-                resp = requests.get(BASE_URL, headers=headers, params=params, timeout=6)
-                if resp.status_code != 200:
-                    continue
-                data = resp.json()
-                for c in data.get('results', []):
-                    servicios = c.get('servicios', [])
-                    if servicios:
-                        for s in servicios:
-                            key = (c.get('cedula', ''), s.get('ip', ''))
-                            if key not in seen:
-                                seen.add(key)
-                                clientes.append({
-                                    'id_servicio': s.get('id_servicio', ''),
-                                    'nombre': c.get('nombre', ''),
-                                    'cedula': c.get('cedula', ''),
-                                    'telefono': c.get('telefono', ''),
-                                    'ip': s.get('ip', ''),
-                                    'ssid_router_wifi': s.get('ssid_router_wifi', ''),
-                                    'password_ssid_router_wifi': s.get('password_ssid_router_wifi', '')
-                                })
-                    else:
-                        key = (c.get('cedula', ''), c.get('ip') or c.get('ip_address', ''))
-                        if key not in seen:
-                            seen.add(key)
+            print(f"[DEBUG] Query válida, buscando por tipo: {tipo_busqueda}")
+            
+            if tipo_busqueda == 'ip':
+                # Búsqueda exacta por IP
+                print(f"[DEBUG] Búsqueda por IP exacta: {q}")
+                resp = requests.get(BASE_URL, headers=headers, params={'ip': q}, timeout=6)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    for c in data.get('results', []):
+                        if c.get('ip') == q or c.get('ip_address') == q:
                             clientes.append({
-                                'id_servicio': c.get('id_servicio', ''),
+                                'ip': c.get('ip') or c.get('ip_address'),
                                 'nombre': c.get('nombre', ''),
                                 'cedula': c.get('cedula', ''),
-                                'telefono': c.get('telefono', ''),
-                                'ip': c.get('ip') or c.get('ip_address', ''),
-                                'ssid_router_wifi': c.get('ssid_router_wifi', ''),
-                                'password_ssid_router_wifi': c.get('password_ssid_router_wifi', '')
+                                'telefono': c.get('telefono', '') or c.get('celular', '')
                             })
+                            break
+            elif tipo_busqueda == 'cedula':
+                # Búsqueda parcial por cédula
+                print(f"[DEBUG] Búsqueda por cédula parcial: {q}")
+                resp = requests.get(BASE_URL, headers=headers, timeout=6)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    q_lower = q.lower()
+                    for c in data.get('results', []):
+                        cedula = c.get('cedula', '')
+                        if cedula and q_lower in cedula.lower():
+                            clientes.append({
+                                'ip': c.get('ip') or c.get('ip_address'),
+                                'nombre': c.get('nombre', ''),
+                                'cedula': cedula,
+                                'telefono': c.get('telefono', '') or c.get('celular', '')
+                            })
+            else:  # tipo_busqueda == 'nombre'
+                # Búsqueda parcial por nombre
+                print(f"[DEBUG] Búsqueda por nombre parcial: {q}")
+                resp = requests.get(BASE_URL, headers=headers, timeout=6)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    q_lower = q.lower()
+                    for c in data.get('results', []):
+                        nombre = c.get('nombre', '')
+                        if nombre and q_lower in nombre.lower():
+                            clientes.append({
+                                'ip': c.get('ip') or c.get('ip_address'),
+                                'nombre': nombre,
+                                'cedula': c.get('cedula', ''),
+                                'telefono': c.get('telefono', '') or c.get('celular', '')
+                            })
+            
+            print(f"[DEBUG] Resultado final: {len(clientes)} clientes encontrados")
+            return jsonify({'success': True, 'clientes': clientes})
         else:
-            params = {'page_size': 100}
-            resp = requests.get(BASE_URL, headers=headers, params=params, timeout=6)
-            if resp.status_code == 200:
-                data = resp.json()
-                for c in data.get('results', []):
-                    servicios = c.get('servicios', [])
-                    if servicios:
-                        for s in servicios:
-                            key = (c.get('cedula', ''), s.get('ip', ''))
-                            if key not in seen:
-                                seen.add(key)
-                                clientes.append({
-                                    'id_servicio': s.get('id_servicio', ''),
-                                    'nombre': c.get('nombre', ''),
-                                    'cedula': c.get('cedula', ''),
-                                    'telefono': c.get('telefono', ''),
-                                    'ip': s.get('ip', ''),
-                                    'ssid_router_wifi': s.get('ssid_router_wifi', ''),
-                                    'password_ssid_router_wifi': s.get('password_ssid_router_wifi', '')
-                                })
-                    else:
-                        key = (c.get('cedula', ''), c.get('ip') or c.get('ip_address', ''))
-                        if key not in seen:
-                            seen.add(key)
-                            clientes.append({
-                                'id_servicio': c.get('id_servicio', ''),
-                                'nombre': c.get('nombre', ''),
-                                'cedula': c.get('cedula', ''),
-                                'telefono': c.get('telefono', ''),
-                                'ip': c.get('ip') or c.get('ip_address', ''),
-                                'ssid_router_wifi': c.get('ssid_router_wifi', ''),
-                                'password_ssid_router_wifi': c.get('password_ssid_router_wifi', '')
-                            })
-        return jsonify({'success': True, 'clientes': clientes[:100]})
+            print("[DEBUG] Query vacía, retornando vacío")
+            return jsonify({'success': True, 'clientes': []})
     except Exception as e:
-        print('[Wisphub] Error en búsqueda rápida:', e)
-        return jsonify({'success': False, 'clientes': [], 'error': str(e)})
+        print(f'[DEBUG] Error en api_buscar_clientes: {e}')
+        return jsonify({'success': False, 'clientes': []})
 
 @admin_bp.route('/buscar-cliente')
 @admin_requerido
@@ -1172,31 +1501,266 @@ def eliminar_device():
     except Exception as e:
         return jsonify({'success': False, 'message': f'Error al eliminar dispositivo: {str(e)}'})
 
-@admin_bp.route('/buscar_clientes')
-@admin_requerido
-def buscar_clientes():
-    query = request.args.get('query', '').strip()
-    if not query or len(query) < 2:
-        return jsonify({'success': True, 'clientes': []})
+# --- FUNCIONES DE GENIEACS ---
+def obtener_interfaces_wifi_activas_directo(device_id):
+    """Obtiene interfaces WiFi activas usando el formato correcto de GenieACS"""
+    print(f"[GenieACS] 🔍 OBTENIENDO INTERFACES WIFI ACTIVAS:")
+    print(f"[GenieACS]   - Device ID: {device_id}")
+    print(f"[GenieACS]   - API: {GENIEACS_API}")
+    
+    interfaces_activas = []
+    
     try:
-        from app import BASE_URL, API_KEY
-        import requests
-        headers = {
-            'Authorization': f'Api-Key {API_KEY}',
-            'Content-Type': 'application/json'
+        # Usar el formato correcto según la documentación de GenieACS
+        query = f'{{"_id":"{device_id}"}}'
+        
+        # Construir projection para todas las interfaces WiFi
+        projection_params = []
+        for i in range(1, 11):  # Interfaces 1-10
+            projection_params.append(f"InternetGatewayDevice.LANDevice.1.WLANConfiguration.{i}.Status._value")
+        
+        projection_str = ",".join(projection_params)
+        
+        url = f"{GENIEACS_API}/devices/"
+        params = {
+            'query': query,
+            'projection': projection_str
         }
-        # Buscar por nombre o IP
-        params = {'search': query}
-        resp = requests.get(BASE_URL, headers=headers, params=params, timeout=7)
-        clientes = []
-        if resp.status_code == 200:
-            data = resp.json()
-            for c in data.get('results', []):
-                ip = c.get('ip') or c.get('ip_address')
-                nombre = c.get('nombre', '')
-                if ip:
-                    clientes.append({'ip': ip, 'nombre': nombre})
-        return jsonify({'success': True, 'clientes': clientes})
+        
+        print(f"[GenieACS] 📡 Solicitando interfaces WiFi...")
+        print(f"[GenieACS]   - URL: {url}")
+        print(f"[GenieACS]   - Query: {query}")
+        print(f"[GenieACS]   - Projection: {projection_str}")
+        
+        response = requests.get(url, params=params, timeout=10)
+        
+        if response.status_code == 200:
+            devices_data = response.json()
+            print(f"[GenieACS] ✅ Respuesta recibida: {len(devices_data)} dispositivos")
+            
+            if devices_data and len(devices_data) > 0:
+                device_data = devices_data[0]  # Tomar el primer (y único) dispositivo
+                
+                # Extraer interfaces activas
+                if 'InternetGatewayDevice' in device_data:
+                    lan_device = device_data['InternetGatewayDevice'].get('LANDevice', {}).get('1', {})
+                    wlan_config = lan_device.get('WLANConfiguration', {})
+                    
+                    if wlan_config:
+                        print(f"[GenieACS] 🔍 WLANConfiguration encontrado")
+                        
+                        for interface_num in range(1, 11):  # Máximo 10 interfaces
+                            interface_key = str(interface_num)
+                            
+                            if interface_key in wlan_config:
+                                interface_data = wlan_config[interface_key]
+                                status_data = interface_data.get('Status', {})
+                                
+                                if '_value' in status_data:
+                                    status_value = status_data['_value']
+                                    print(f"[GenieACS] 🔍 Interfaz {interface_num}: {status_value}")
+                                    
+                                    if status_value == 'Up':
+                                        interfaces_activas.append(interface_num)
+                                        print(f"[GenieACS] ✅ Interfaz {interface_num} está ACTIVA")
+                                    else:
+                                        print(f"[GenieACS] ❌ Interfaz {interface_num} está INACTIVA ({status_value})")
+                                else:
+                                    print(f"[GenieACS] ⚠️  Interfaz {interface_num} sin _value en Status")
+                            else:
+                                print(f"[GenieACS] ⚠️  Interfaz {interface_num} no existe")
+                    else:
+                        print(f"[GenieACS] ❌ WLANConfiguration no encontrado")
+                else:
+                    print(f"[GenieACS] ❌ InternetGatewayDevice no encontrado")
+                
+                print(f"[GenieACS] 🎯 INTERFACES ACTIVAS ENCONTRADAS: {interfaces_activas}")
+                return interfaces_activas
+            else:
+                print(f"[GenieACS] ❌ No se encontró el dispositivo")
+                return []
+        else:
+            print(f"[GenieACS] ❌ Error HTTP: {response.status_code}")
+            return []
+        
     except Exception as e:
-        print('[LOG] Error en buscar_clientes:', e)
-        return jsonify({'success': False, 'clientes': []}) 
+        print(f"[GenieACS] 💥 ERROR: {e}")
+        import traceback
+        traceback.print_exc()
+        return []
+
+def detectar_interfaces_wifi_activas(device_id):
+    """Detecta qué interfaces WiFi están activas solicitando directamente a la ONU"""
+    print(f"[GenieACS] 🚀 DETECTANDO INTERFACES WIFI ACTIVAS:")
+    print(f"[GenieACS]   - Device ID: {device_id}")
+    
+    # Obtener interfaces activas directamente
+    interfaces_activas = obtener_interfaces_wifi_activas_directo(device_id)
+    
+    if interfaces_activas:
+        print(f"[GenieACS] ✅ Se encontraron {len(interfaces_activas)} interfaces activas: {interfaces_activas}")
+    else:
+        print(f"[GenieACS] ✅ No se encontraron interfaces activas")
+    
+    return interfaces_activas
+
+def obtener_canal_y_ssid_interfaz(device_id, interfaz):
+    """Obtiene el canal y SSID de una interfaz específica usando el formato correcto"""
+    print(f"[GenieACS] 🔍 OBTENIENDO CANAL Y SSID:")
+    print(f"[GenieACS]   - Device ID: {device_id}")
+    print(f"[GenieACS]   - Interfaz: {interfaz}")
+    
+    try:
+        # Usar el formato correcto según la documentación de GenieACS
+        query = f'{{"_id":"{device_id}"}}'
+        
+        # Construir projection para Channel, ChannelsInUse y SSID
+        projection_params = [
+            f"InternetGatewayDevice.LANDevice.1.WLANConfiguration.{interfaz}.Channel._value",
+            f"InternetGatewayDevice.LANDevice.1.WLANConfiguration.{interfaz}.ChannelsInUse._value",
+            f"InternetGatewayDevice.LANDevice.1.WLANConfiguration.{interfaz}.SSID._value"
+        ]
+        projection_str = ",".join(projection_params)
+        
+        url = f"{GENIEACS_API}/devices/"
+        params = {
+            'query': query,
+            'projection': projection_str
+        }
+        
+        print(f"[GenieACS] 📡 Solicitando canal y SSID...")
+        print(f"[GenieACS]   - URL: {url}")
+        print(f"[GenieACS]   - Query: {query}")
+        print(f"[GenieACS]   - Projection: {projection_str}")
+        
+        response = requests.get(url, params=params, timeout=10)
+        
+        if response.status_code == 200:
+            devices_data = response.json()
+            print(f"[GenieACS] ✅ Respuesta recibida: {len(devices_data)} dispositivos")
+            
+            if devices_data and len(devices_data) > 0:
+                device_data = devices_data[0]  # Tomar el primer (y único) dispositivo
+                
+                # Extraer canal y SSID
+                canal = None
+                ssid_actual = None
+                
+                if 'InternetGatewayDevice' in device_data:
+                    lan_device = device_data['InternetGatewayDevice'].get('LANDevice', {}).get('1', {})
+                    wlan_config = lan_device.get('WLANConfiguration', {}).get(str(interfaz), {})
+                    
+                    # Obtener canal
+                    channel_data = wlan_config.get('Channel', {})
+                    if '_value' in channel_data:
+                        canal = channel_data['_value']
+                        print(f"[GenieACS] 📡 Canal obtenido: {canal}")
+                    
+                    # Si canal es 0, usar ChannelsInUse
+                    if canal == 0:
+                        channels_in_use_data = wlan_config.get('ChannelsInUse', {})
+                        if '_value' in channels_in_use_data:
+                            canal = channels_in_use_data['_value']
+                            print(f"[GenieACS] 📡 Canal actualizado desde ChannelsInUse: {canal}")
+                    
+                    # Obtener SSID
+                    ssid_data = wlan_config.get('SSID', {})
+                    if '_value' in ssid_data:
+                        ssid_actual = ssid_data['_value']
+                        print(f"[GenieACS] 📡 SSID obtenido: {ssid_actual}")
+                
+                print(f"[GenieACS] ✅ Canal: {canal}, SSID: {ssid_actual}")
+                return canal, ssid_actual
+            else:
+                print(f"[GenieACS] ❌ No se encontró el dispositivo")
+                return None, None
+        else:
+            print(f"[GenieACS] ❌ Error obteniendo canal y SSID: {response.status_code}")
+            return None, None
+            
+    except Exception as e:
+        print(f"[GenieACS] 💥 ERROR obteniendo canal y SSID: {e}")
+        return None, None
+
+def identificar_frecuencia_por_canal(canal):
+    """Identifica la frecuencia basada en el canal"""
+    if canal is None:
+        return "Desconocida"
+    
+    try:
+        canal_int = int(canal)
+        if 1 <= canal_int <= 14:
+            return "2.4GHz"
+        elif 36 <= canal_int <= 165:
+            return "5GHz"
+        else:
+            return "Desconocida"
+    except:
+        return "Desconocida"
+
+def detectar_interfaces_y_frecuencias(device_id):
+    """Detecta interfaces activas y sus frecuencias"""
+    print(f"[GenieACS] 🔍 DETECTANDO INTERFACES Y FRECUENCIAS")
+    
+    # Obtener interfaces activas
+    interfaces_activas = detectar_interfaces_wifi_activas(device_id)
+    
+    if not interfaces_activas:
+        return [], {}
+    
+    interfaces_info = {}
+    
+    for interfaz in interfaces_activas:
+        print(f"[GenieACS] 📡 Analizando interfaz {interfaz}")
+        
+        # Obtener canal y SSID en una sola petición
+        canal, ssid_actual = obtener_canal_y_ssid_interfaz(device_id, interfaz)
+        
+        # Identificar frecuencia
+        frecuencia = identificar_frecuencia_por_canal(canal)
+        
+        interfaces_info[interfaz] = {
+            'canal': canal,
+            'frecuencia': frecuencia,
+            'ssid_actual': ssid_actual
+        }
+        
+        print(f"[GenieACS]   - Interfaz {interfaz}: Canal {canal} → {frecuencia}, SSID: {ssid_actual}")
+    
+    return interfaces_activas, interfaces_info
+
+def cambiar_parametro_genieacs_sin_reinicio(device_id, parametro, valor):
+    """Cambia un parámetro en GenieACS sin reiniciar automáticamente usando el formato correcto"""
+    print(f"[GenieACS] 🔧 CAMBIANDO PARÁMETRO SIN REINICIO:")
+    print(f"[GenieACS]   - Device ID: {device_id}")
+    print(f"[GenieACS]   - Parámetro: {parametro}")
+    print(f"[GenieACS]   - Valor: {valor}")
+    
+    try:
+        # Usar el formato correcto según la documentación de GenieACS
+        url = f"{GENIEACS_API}/devices/{device_id}/tasks"
+        
+        # Formato correcto para setParameterValues
+        payload = {
+            "name": "setParameterValues",
+            "parameterValues": [[parametro, valor]]
+        }
+        
+        print(f"[GenieACS] 📡 Enviando comando...")
+        print(f"[GenieACS]   - URL: {url}")
+        print(f"[GenieACS]   - Payload: {payload}")
+        
+        response = requests.post(url, json=payload, timeout=10)
+        
+        print(f"[GenieACS] 📡 Respuesta: {response.status_code} - {response.text}")
+        
+        if response.status_code in [200, 201, 202]:
+            print(f"[GenieACS] ✅ Parámetro cambiado exitosamente")
+            return True
+        else:
+            print(f"[GenieACS] ❌ Error cambiando parámetro: {response.status_code}")
+            return False
+            
+    except Exception as e:
+        print(f"[GenieACS] 💥 ERROR cambiando parámetro: {e}")
+        return False

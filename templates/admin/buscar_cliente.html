@@ -81,8 +81,17 @@
             <span>Buscar Cliente</span>
         </div>
         <div class="card card-busqueda">
-            <div class="mb-3">
-                <input type="text" id="input-busqueda" class="form-control" placeholder="Buscar por nombre o cédula...">
+            <div class="row mb-3">
+                <div class="col-md-8">
+                    <input type="text" id="input-busqueda" class="form-control" placeholder="Escribe aquí para buscar...">
+                </div>
+                <div class="col-md-4">
+                    <select id="select-tipo-busqueda" class="form-select">
+                        <option value="nombre">Buscar por Nombre</option>
+                        <option value="cedula">Buscar por Cédula</option>
+                        <option value="ip">Buscar por IP</option>
+                    </select>
+                </div>
             </div>
             <div class="table-responsive mb-3">
                 <table class="table table-striped align-middle mb-0" id="tabla-clientes">
@@ -95,7 +104,7 @@
                         </tr>
                     </thead>
                     <tbody id="tbody-clientes">
-                        <tr><td colspan="4" class="text-secondary text-center">Escribe para buscar...</td></tr>
+                        <tr><td colspan="4" class="text-secondary text-center">Escribe nombre, cédula o IP para buscar...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -143,15 +152,16 @@
     }
     function cargarClientes(q = '') {
         const tbody = document.getElementById('tbody-clientes');
+        const tipoBusqueda = document.getElementById('select-tipo-busqueda').value;
         lastQuery = q;
         if (!q) {
             clientesData = [];
-            tbody.innerHTML = '<tr><td colspan="4" class="text-secondary text-center">Escribe para buscar...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="4" class="text-secondary text-center">Escribe aquí para buscar...</td></tr>';
             document.getElementById('resumen-cliente').classList.add('d-none');
             return;
         }
         tbody.innerHTML = '<tr><td colspan="4" class="text-secondary text-center">Buscando...</td></tr>';
-        fetch(`/admin/api/buscar_clientes?q=${encodeURIComponent(q)}`)
+        fetch(`/admin/api/buscar_clientes?q=${encodeURIComponent(q)}&tipo=${encodeURIComponent(tipoBusqueda)}`)
             .then(r => r.json())
             .then(data => {
                 if (q !== lastQuery) return;
@@ -171,6 +181,13 @@
             cargarClientes(valor);
         }, 300);
     });
+    
+    document.getElementById('select-tipo-busqueda').addEventListener('change', function() {
+        const valor = document.getElementById('input-busqueda').value.trim();
+        if (valor) {
+            cargarClientes(valor);
+        }
+    });
     function mostrarResumenCliente(cliente) {
         let modal = document.getElementById('modal-resumen-cliente');
         if (!modal) {
@@ -180,13 +197,11 @@
                 <div id="modal-bg" style="position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.25);z-index:2000;display:flex;align-items:center;justify-content:center;">
                     <div style="background:#fff;padding:2rem 2.5rem;border-radius:1.2rem;box-shadow:0 8px 32px 0 rgba(31,38,135,0.18);max-width:400px;width:100%;position:relative;">
                         <button onclick="document.getElementById('modal-resumen-cliente').remove()" style="position:absolute;top:10px;right:10px;border:none;background:transparent;font-size:1.5rem;color:#888;cursor:pointer;">&times;</button>
-                        <h5 class="mb-3" style="color:#2563eb;"><i class="bi bi-person-circle me-2"></i>Resumen del Cliente</h5>
-                        <div><strong>Nombre:</strong> ${cliente.nombre || ''}</div>
-                        <div><strong>Cédula:</strong> ${cliente.cedula || ''}</div>
-                        <div><strong>Celular:</strong> ${cliente.telefono || ''}</div>
-                        <div><strong>IP:</strong> ${cliente.ip || ''}</div>
-                        <div><strong>Nombre del WiFi:</strong> ${cliente.ssid_router_wifi || ''}</div>
-                        <div><strong>Contraseña del WiFi:</strong> ${cliente.password_ssid_router_wifi || ''}</div>
+                        <h5 class="mb-3" style="color:#2563eb;"><i class="bi bi-person-circle me-2"></i>Información del Cliente</h5>
+                        <div class="mb-2"><strong>Nombre:</strong> ${cliente.nombre || 'No disponible'}</div>
+                        <div class="mb-2"><strong>Cédula:</strong> ${cliente.cedula || 'No disponible'}</div>
+                        <div class="mb-2"><strong>Teléfono:</strong> ${cliente.telefono || 'No disponible'}</div>
+                        <div class="mb-3"><strong>IP:</strong> ${cliente.ip || 'No disponible'}</div>
                     </div>
                 </div>
             `;
