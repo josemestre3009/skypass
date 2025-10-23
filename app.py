@@ -798,24 +798,51 @@ def cambiar_parametro_genieacs(device_id, parametro, valor):
 def reiniciar_onu_genieacs(device_id):
     """Reinicia la ONU para aplicar cambios WiFi"""
     try:
-        from urllib.parse import quote
-        url = f"{GENIEACS_API}/devices/{quote(device_id, safe='')}/tasks?connection_request"
+        from urllib.parse import quote, unquote
+        
+        # Probar diferentes formatos de device_id para URLs POST
+        formats_to_try = [
+            ("Original", device_id),
+            ("Doble codificado", device_id.replace('%', '%25')),
+            ("Decodificado", device_id.replace('%2D', '-').replace('%2B', '+')),
+            ("Codificado simple", device_id.replace('-', '%2D').replace('+', '%2B')),
+            ("Quote completo", quote(device_id, safe='')),
+            ("Quote decodificado", quote(device_id.replace('%2D', '-').replace('%2B', '+'), safe=''))
+        ]
         
         # Reiniciar ONU completa
         data_reboot = {
             "name": "reboot",
             "parameterValues": []
         }
-        print(f"[GenieACS] Reiniciando ONU completa en device {device_id}")
-        response = requests.post(url, json=data_reboot, timeout=15)
-        print(f"[GenieACS] Respuesta reinicio ONU: {response.status_code} - {response.text}")
         
-        if response.status_code in [200, 201, 202]:
-            print(f"[GenieACS] ONU reiniciada exitosamente")
-            return True
-        else:
-            print(f"[GenieACS] Error al reiniciar ONU: {response.status_code}")
-            return False
+        print(f"[GenieACS] 🔄 Reiniciando ONU - Probando diferentes formatos...")
+        
+        for format_name, test_device_id in formats_to_try:
+            print(f"[GenieACS] 🔄 Intento reinicio {format_name}: {test_device_id}")
+            
+            url = f"{GENIEACS_API}/devices/{test_device_id}/tasks?connection_request"
+            
+            try:
+                response = requests.post(url, json=data_reboot, timeout=15)
+                print(f"[GenieACS] 📡 Respuesta reinicio {format_name}: {response.status_code} - {response.text[:100]}...")
+                
+                if response.status_code in [200, 201, 202]:
+                    print(f"[GenieACS] ✅ ONU reiniciada exitosamente con formato: {format_name}")
+                    return True
+                elif response.status_code == 404:
+                    print(f"[GenieACS] ❌ Formato reinicio {format_name} falló con 404 - Probando siguiente...")
+                    continue
+                else:
+                    print(f"[GenieACS] ❌ Formato reinicio {format_name} falló con {response.status_code}")
+                    continue
+                    
+            except Exception as e:
+                print(f"[GenieACS] ❌ Error en formato reinicio {format_name}: {e}")
+                continue
+        
+        print(f"[GenieACS] 💥 TODOS LOS FORMATOS DE REINICIO FALLARON")
+        return False
             
     except Exception as e:
         print(f"[GenieACS] Error al reiniciar ONU: {e}")
@@ -1210,6 +1237,60 @@ def renovar_sesion():
     return '', 204
 
 # --- FUNCIONES DE GENIEACS ---
+def diagnosticar_consulta_genieacs(device_id):
+    """Diagnostica problemas con consultas a GenieACS"""
+    print(f"[DIAGNÓSTICO] 🔍 ANALIZANDO CONSULTAS GENIEACS:")
+    print(f"[DIAGNÓSTICO]   - Device ID original: {device_id}")
+    
+    try:
+        # Probar diferentes formatos de device_id
+        formats_to_test = [
+            ("Original", device_id),
+            ("Doble codificado", device_id.replace('%', '%25')),
+            ("Decodificado", device_id.replace('%2D', '-').replace('%2B', '+')),
+            ("Codificado simple", device_id.replace('-', '%2D').replace('+', '%2B'))
+        ]
+        
+        for format_name, test_device_id in formats_to_test:
+            print(f"[DIAGNÓSTICO] 🧪 Probando formato: {format_name}")
+            print(f"[DIAGNÓSTICO]   - Device ID: {test_device_id}")
+            
+            query = f'{{"_id":"{test_device_id}"}}'
+            url = f"{GENIEACS_API}/devices/"
+            params = {'query': query}
+            
+            print(f"[DIAGNÓSTICO]   - Query: {query}")
+            print(f"[DIAGNÓSTICO]   - URL completa: {url}?query={query}")
+            
+            try:
+                response = requests.get(url, params=params, timeout=10)
+                print(f"[DIAGNÓSTICO]   - Respuesta: {response.status_code}")
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    print(f"[DIAGNÓSTICO]   - Dispositivos encontrados: {len(data)}")
+                    
+                    if len(data) > 0:
+                        print(f"[DIAGNÓSTICO] ✅ FORMATO EXITOSO: {format_name}")
+                        print(f"[DIAGNÓSTICO]   - Device ID que funciona: {test_device_id}")
+                        return test_device_id
+                    else:
+                        print(f"[DIAGNÓSTICO] ❌ Sin resultados")
+                else:
+                    print(f"[DIAGNÓSTICO] ❌ Error HTTP: {response.status_code}")
+                    
+            except Exception as e:
+                print(f"[DIAGNÓSTICO] ❌ Error en consulta: {e}")
+            
+            print(f"[DIAGNÓSTICO]   ---")
+        
+        print(f"[DIAGNÓSTICO] 💥 NINGÚN FORMATO FUNCIONÓ")
+        return None
+        
+    except Exception as e:
+        print(f"[DIAGNÓSTICO] 💥 ERROR EN DIAGNÓSTICO: {e}")
+        return None
+
 def obtener_interfaces_wifi_activas_directo(device_id):
     """Obtiene interfaces WiFi activas usando el formato correcto de GenieACS"""
     print(f"[GenieACS] 🔍 OBTENIENDO INTERFACES WIFI ACTIVAS:")
@@ -1219,8 +1300,18 @@ def obtener_interfaces_wifi_activas_directo(device_id):
     interfaces_activas = []
     
     try:
+        # Primero diagnosticar cuál formato funciona
+        print(f"[GenieACS] 🔧 DIAGNOSTICANDO FORMATO CORRECTO...")
+        device_id_correcto = diagnosticar_consulta_genieacs(device_id)
+        
+        if not device_id_correcto:
+            print(f"[GenieACS] ❌ NO SE PUDO ENCONTRAR FORMATO VÁLIDO")
+            return []
+        
+        print(f"[GenieACS] ✅ USANDO FORMATO CORRECTO: {device_id_correcto}")
+        
         # Usar el formato correcto según la documentación de GenieACS
-        query = f'{{"_id":"{device_id}"}}'
+        query = f'{{"_id":"{device_id_correcto}"}}'
         
         # Construir projection para todas las interfaces WiFi
         projection_params = []
@@ -1319,8 +1410,15 @@ def obtener_canal_y_ssid_interfaz(device_id, interfaz):
     print(f"[GenieACS]   - Interfaz: {interfaz}")
     
     try:
+        # Usar el formato correcto detectado previamente
+        device_id_correcto = diagnosticar_consulta_genieacs(device_id)
+        
+        if not device_id_correcto:
+            print(f"[GenieACS] ❌ NO SE PUDO ENCONTRAR FORMATO VÁLIDO")
+            return None, None
+        
         # Usar el formato correcto según la documentación de GenieACS
-        query = f'{{"_id":"{device_id}"}}'
+        query = f'{{"_id":"{device_id_correcto}"}}'
         
         # Construir projection para Channel, ChannelsInUse y SSID
         projection_params = [
@@ -1445,8 +1543,17 @@ def cambiar_parametro_genieacs_sin_reinicio(device_id, parametro, valor):
     print(f"[GenieACS]   - Valor: {valor}")
     
     try:
-        # Usar el formato correcto según la documentación de GenieACS
-        url = f"{GENIEACS_API}/devices/{device_id}/tasks?connection_request"
+        from urllib.parse import quote, unquote
+        
+        # Probar diferentes formatos de device_id para URLs POST
+        formats_to_try = [
+            ("Original", device_id),
+            ("Doble codificado", device_id.replace('%', '%25')),
+            ("Decodificado", device_id.replace('%2D', '-').replace('%2B', '+')),
+            ("Codificado simple", device_id.replace('-', '%2D').replace('+', '%2B')),
+            ("Quote completo", quote(device_id, safe='')),
+            ("Quote decodificado", quote(device_id.replace('%2D', '-').replace('%2B', '+'), safe=''))
+        ]
         
         # Formato correcto para setParameterValues según documentación GenieACS
         payload = {
@@ -1454,20 +1561,33 @@ def cambiar_parametro_genieacs_sin_reinicio(device_id, parametro, valor):
             "parameterValues": [[parametro, valor]]
         }
         
-        print(f"[GenieACS] 📡 Enviando comando...")
-        print(f"[GenieACS]   - URL: {url}")
-        print(f"[GenieACS]   - Payload: {payload}")
+        print(f"[GenieACS] 📡 Probando diferentes formatos de URL para POST...")
         
-        response = requests.post(url, json=payload, timeout=30)
+        for format_name, test_device_id in formats_to_try:
+            print(f"[GenieACS] 🔄 Intento POST {format_name}: {test_device_id}")
+            
+            url = f"{GENIEACS_API}/devices/{test_device_id}/tasks?connection_request"
+            
+            try:
+                response = requests.post(url, json=payload, timeout=30)
+                print(f"[GenieACS] 📡 Respuesta POST {format_name}: {response.status_code} - {response.text[:100]}...")
+                
+                if response.status_code in [200, 201, 202]:
+                    print(f"[GenieACS] ✅ Parámetro cambiado exitosamente con formato: {format_name}")
+                    return True
+                elif response.status_code == 404:
+                    print(f"[GenieACS] ❌ Formato {format_name} falló con 404 - Probando siguiente...")
+                    continue
+                else:
+                    print(f"[GenieACS] ❌ Formato {format_name} falló con {response.status_code}")
+                    continue
+                    
+            except Exception as e:
+                print(f"[GenieACS] ❌ Error en formato {format_name}: {e}")
+                continue
         
-        print(f"[GenieACS] 📡 Respuesta: {response.status_code} - {response.text}")
-        
-        if response.status_code in [200, 201, 202]:
-            print(f"[GenieACS] ✅ Parámetro cambiado exitosamente")
-            return True
-        else:
-            print(f"[GenieACS] ❌ Error cambiando parámetro: {response.status_code}")
-            return False
+        print(f"[GenieACS] 💥 TODOS LOS FORMATOS POST FALLARON")
+        return False
             
     except Exception as e:
         print(f"[GenieACS] 💥 ERROR cambiando parámetro: {e}")
@@ -1476,7 +1596,7 @@ def cambiar_parametro_genieacs_sin_reinicio(device_id, parametro, valor):
 def cambiar_contraseña_wifi_interfaz_sin_reinicio(device_id, interfaz, nueva_password):
     """Cambia la contraseña WiFi de una interfaz específica SIN reiniciar la ONU"""
     try:
-        parametro_password = f"InternetGatewayDevice.LANDevice.1.WLANConfiguration.{interfaz}.KeyPassphrase"
+        parametro_password = f"InternetGatewayDevice.LANDevice.1.WLANConfiguration.{interfaz}.PreSharedKey.1.PreSharedKey"
         print(f"[GenieACS] 📡 Cambiando password interfaz {interfaz} SIN reinicio")
         print(f"[GenieACS]   - Parámetro: {parametro_password}")
         print(f"[GenieACS]   - Nueva contraseña: {nueva_password}")

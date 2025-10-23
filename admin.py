@@ -275,7 +275,7 @@ def cambiar_contraseña_wifi_interfaces_activas(device_id, nueva_password):
     interfaces_fallidas = []
     
     for i, interfaz in enumerate(interfaces_activas, 1):
-        parametro_password = f"InternetGatewayDevice.LANDevice.1.WLANConfiguration.{interfaz}.KeyPassphrase"
+        parametro_password = f"InternetGatewayDevice.LANDevice.1.WLANConfiguration.{interfaz}.PreSharedKey.1.PreSharedKey"
         print(f"[GenieACS] 🔧 INTERFAZ {i}/{len(interfaces_activas)}: {interfaz}")
         print(f"[GenieACS]   - Parámetro: {parametro_password}")
         
@@ -345,30 +345,56 @@ def cambiar_parametro_genieacs(device_id, parametro, valor):
 
 # Función eliminada - ahora se usa desde genieacs_utils.py
 
-def reiniciar_onu_genieacs(device_id):
-    """Reinicia la ONU para aplicar cambios WiFi"""
+def reiniciar_onu_genieacs(device_id: str) -> bool:
+    """
+    Reinicia la ONU vía GenieACS (NBI /tasks).
+    device_id: como aparece en la UI de GenieACS (una sola codificación).
+    """
     try:
+        import requests
         from urllib.parse import quote
-        url = f"{GENIEACS_API}/devices/{quote(device_id, safe='')}/tasks?connection_request"
-        
-        # Reiniciar ONU completa
-        data_reboot = {
-            "name": "reboot",
-            "parameterValues": []
-        }
-        print(f"[GenieACS] Reiniciando ONU completa en device {device_id}")
-        response = requests.post(url, json=data_reboot, timeout=15)
-        print(f"[GenieACS] Respuesta reinicio ONU: {response.status_code} - {response.text}")
-        
-        if response.status_code in [200, 201, 202]:
-            print(f"[GenieACS] ONU reiniciada exitosamente")
-            return True
-        else:
-            print(f"[GenieACS] Error al reiniciar ONU: {response.status_code}")
-            return False
-            
+
+        base = GENIEACS_API.rstrip('/')
+
+        # Para /devices/<id>/tasks el ID debe ir DOBLE codificado.
+        id_2x = quote(device_id, safe='')         # convierte % -> %25, etc.
+        id_1x = device_id                          # por si el servidor acepta 1x en tu instalación
+
+        formatos = [
+            ("doble_codificado", id_2x),           # el correcto para /tasks
+            ("simple (fallback)", id_1x),          # por si acaso
+        ]
+
+        payload = {"name": "reboot"}               # no hace falta parameterValues
+
+        print("[GenieACS] 🔄 Reiniciando ONU - probando formatos...")
+
+        for nombre, did in formatos:
+            url = f"{base}/devices/{did}/tasks?connection_request"
+            try:
+                print(f"[GenieACS] 👉 Intento {nombre}: {url}")
+                resp = requests.post(url, json=payload, timeout=15)
+                print(f"[GenieACS] 📡 Respuesta {nombre}: {resp.status_code} - {resp.text[:120]!r}")
+
+                if resp.status_code in (200, 201, 202):
+                    print(f"[GenieACS] ✅ Reinicio aceptado con formato: {nombre}")
+                    return True
+                elif resp.status_code == 404:
+                    print(f"[GenieACS] ❌ 404 No such device con formato: {nombre}. Probando siguiente...")
+                    continue
+                else:
+                    print(f"[GenieACS] ❌ Falló con {resp.status_code} ({nombre}). Probando siguiente...")
+                    continue
+
+            except Exception as e:
+                print(f"[GenieACS] ⚠️ Error en intento {nombre}: {e}")
+                continue
+
+        print("[GenieACS] 💥 Todos los formatos de reinicio fallaron")
+        return False
+
     except Exception as e:
-        print(f"[GenieACS] Error al reiniciar ONU: {e}")
+        print(f"[GenieACS] 🚫 Error al reiniciar ONU: {e}")
         return False
 
 def eliminar_device_genieacs(device_id):
@@ -1356,8 +1382,8 @@ def api_buscar_clientes():
                         if c.get('ip') == q or c.get('ip_address') == q:
                             clientes.append({
                                 'ip': c.get('ip') or c.get('ip_address'),
-                                    'nombre': c.get('nombre', ''),
-                                    'cedula': c.get('cedula', ''),
+                                'nombre': c.get('nombre', ''),
+                                'cedula': c.get('cedula', ''),
                                 'telefono': c.get('telefono', '') or c.get('celular', '')
                             })
                             break
@@ -1381,17 +1407,17 @@ def api_buscar_clientes():
                 # Búsqueda parcial por nombre
                 print(f"[DEBUG] Búsqueda por nombre parcial: {q}")
                 resp = requests.get(BASE_URL, headers=headers, timeout=6)
-                if resp.status_code == 200:
-                    data = resp.json()
-                    q_lower = q.lower()
-                    for c in data.get('results', []):
-                        nombre = c.get('nombre', '')
-                        if nombre and q_lower in nombre.lower():
-                            clientes.append({
-                                'ip': c.get('ip') or c.get('ip_address'),
-                                'nombre': nombre,
+            if resp.status_code == 200:
+                data = resp.json()
+                q_lower = q.lower()
+                for c in data.get('results', []):
+                    nombre = c.get('nombre', '')
+                    if nombre and q_lower in nombre.lower():
+                                clientes.append({
+                            'ip': c.get('ip') or c.get('ip_address'),
+                            'nombre': nombre,
                                     'cedula': c.get('cedula', ''),
-                                'telefono': c.get('telefono', '') or c.get('celular', '')
+                            'telefono': c.get('telefono', '') or c.get('celular', '')
                                 })
             
             print(f"[DEBUG] Resultado final: {len(clientes)} clientes encontrados")
@@ -1502,6 +1528,60 @@ def eliminar_device():
         return jsonify({'success': False, 'message': f'Error al eliminar dispositivo: {str(e)}'})
 
 # --- FUNCIONES DE GENIEACS ---
+def diagnosticar_consulta_genieacs(device_id):
+    """Diagnostica problemas con consultas a GenieACS"""
+    print(f"[DIAGNÓSTICO] 🔍 ANALIZANDO CONSULTAS GENIEACS:")
+    print(f"[DIAGNÓSTICO]   - Device ID original: {device_id}")
+    
+    try:
+        # Probar diferentes formatos de device_id
+        formats_to_test = [
+            ("Original", device_id),
+            ("Doble codificado", device_id.replace('%', '%25')),
+            ("Decodificado", device_id.replace('%2D', '-').replace('%2B', '+')),
+            ("Codificado simple", device_id.replace('-', '%2D').replace('+', '%2B'))
+        ]
+        
+        for format_name, test_device_id in formats_to_test:
+            print(f"[DIAGNÓSTICO] 🧪 Probando formato: {format_name}")
+            print(f"[DIAGNÓSTICO]   - Device ID: {test_device_id}")
+            
+            query = f'{{"_id":"{test_device_id}"}}'
+            url = f"{GENIEACS_API}/devices/"
+            params = {'query': query}
+            
+            print(f"[DIAGNÓSTICO]   - Query: {query}")
+            print(f"[DIAGNÓSTICO]   - URL completa: {url}?query={query}")
+            
+            try:
+                response = requests.get(url, params=params, timeout=10)
+                print(f"[DIAGNÓSTICO]   - Respuesta: {response.status_code}")
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    print(f"[DIAGNÓSTICO]   - Dispositivos encontrados: {len(data)}")
+                    
+                    if len(data) > 0:
+                        print(f"[DIAGNÓSTICO] ✅ FORMATO EXITOSO: {format_name}")
+                        print(f"[DIAGNÓSTICO]   - Device ID que funciona: {test_device_id}")
+                        return test_device_id
+                    else:
+                        print(f"[DIAGNÓSTICO] ❌ Sin resultados")
+                else:
+                    print(f"[DIAGNÓSTICO] ❌ Error HTTP: {response.status_code}")
+                    
+            except Exception as e:
+                print(f"[DIAGNÓSTICO] ❌ Error en consulta: {e}")
+            
+            print(f"[DIAGNÓSTICO]   ---")
+        
+        print(f"[DIAGNÓSTICO] 💥 NINGÚN FORMATO FUNCIONÓ")
+        return None
+        
+    except Exception as e:
+        print(f"[DIAGNÓSTICO] 💥 ERROR EN DIAGNÓSTICO: {e}")
+        return None
+
 def obtener_interfaces_wifi_activas_directo(device_id):
     """Obtiene interfaces WiFi activas usando el formato correcto de GenieACS"""
     print(f"[GenieACS] 🔍 OBTENIENDO INTERFACES WIFI ACTIVAS:")
@@ -1511,8 +1591,18 @@ def obtener_interfaces_wifi_activas_directo(device_id):
     interfaces_activas = []
     
     try:
+        # Primero diagnosticar cuál formato funciona
+        print(f"[GenieACS] 🔧 DIAGNOSTICANDO FORMATO CORRECTO...")
+        device_id_correcto = diagnosticar_consulta_genieacs(device_id)
+        
+        if not device_id_correcto:
+            print(f"[GenieACS] ❌ NO SE PUDO ENCONTRAR FORMATO VÁLIDO")
+            return []
+        
+        print(f"[GenieACS] ✅ USANDO FORMATO CORRECTO: {device_id_correcto}")
+        
         # Usar el formato correcto según la documentación de GenieACS
-        query = f'{{"_id":"{device_id}"}}'
+        query = f'{{"_id":"{device_id_correcto}"}}'
         
         # Construir projection para todas las interfaces WiFi
         projection_params = []
@@ -1611,8 +1701,15 @@ def obtener_canal_y_ssid_interfaz(device_id, interfaz):
     print(f"[GenieACS]   - Interfaz: {interfaz}")
     
     try:
+        # Usar el formato correcto detectado previamente
+        device_id_correcto = diagnosticar_consulta_genieacs(device_id)
+        
+        if not device_id_correcto:
+            print(f"[GenieACS] ❌ NO SE PUDO ENCONTRAR FORMATO VÁLIDO")
+            return None, None
+        
         # Usar el formato correcto según la documentación de GenieACS
-        query = f'{{"_id":"{device_id}"}}'
+        query = f'{{"_id":"{device_id_correcto}"}}'
         
         # Construir projection para Channel, ChannelsInUse y SSID
         projection_params = [
@@ -1729,6 +1826,81 @@ def detectar_interfaces_y_frecuencias(device_id):
     
     return interfaces_activas, interfaces_info
 
+def diagnosticar_device_id(device_id):
+    """Diagnostica problemas con un device_id específico"""
+    print(f"[DIAGNÓSTICO] 🔍 ANALIZANDO DEVICE_ID: {device_id}")
+    
+    try:
+        # 1. Listar todos los dispositivos disponibles
+        print(f"[DIAGNÓSTICO] 📋 PASO 1: Listando todos los dispositivos...")
+        list_url = f"{GENIEACS_API}/devices"
+        list_response = requests.get(list_url, timeout=10)
+        
+        if list_response.status_code == 200:
+            devices = list_response.json()
+            print(f"[DIAGNÓSTICO]   - Total dispositivos encontrados: {len(devices)}")
+            
+            # Buscar el dispositivo específico
+            device_found = False
+            for i, device in enumerate(devices):
+                device_id_actual = device.get('_id', '')
+                print(f"[DIAGNÓSTICO]   - Dispositivo {i+1}: {device_id_actual}")
+                
+                if device_id_actual == device_id:
+                    print(f"[DIAGNÓSTICO] ✅ DISPOSITIVO ENCONTRADO EN LA LISTA")
+                    device_found = True
+                    
+                    # Mostrar información del dispositivo
+                    print(f"[DIAGNÓSTICO] 📊 INFORMACIÓN DEL DISPOSITIVO:")
+                    print(f"[DIAGNÓSTICO]   - Device ID: {device_id_actual}")
+                    print(f"[DIAGNÓSTICO]   - Último informe: {device.get('_lastInform', 'N/A')}")
+                    
+                    # Obtener IP del dispositivo
+                    url_conexion = device.get("InternetGatewayDevice", {}) \
+                        .get("ManagementServer", {}) \
+                        .get("ConnectionRequestURL", {}) \
+                        .get("_value", '')
+                    if url_conexion:
+                        import re
+                        match = re.search(r'http://([\d\.]+):', url_conexion)
+                        if match:
+                            ip_dispositivo = match.group(1)
+                            print(f"[DIAGNÓSTICO]   - IP del dispositivo: {ip_dispositivo}")
+                    
+                    break
+            
+            if not device_found:
+                print(f"[DIAGNÓSTICO] ❌ DISPOSITIVO NO ENCONTRADO EN LA LISTA")
+                print(f"[DIAGNÓSTICO]   - Device ID buscado: {device_id}")
+                print(f"[DIAGNÓSTICO]   - Posibles causas:")
+                print(f"[DIAGNÓSTICO]     * El dispositivo fue eliminado")
+                print(f"[DIAGNÓSTICO]     * El device_id está mal formado")
+                print(f"[DIAGNÓSTICO]     * El dispositivo está offline hace mucho tiempo")
+                return False
+        else:
+            print(f"[DIAGNÓSTICO] ❌ ERROR LISTANDO DISPOSITIVOS: {list_response.status_code}")
+            return False
+        
+        # 2. Verificar acceso directo al dispositivo
+        print(f"[DIAGNÓSTICO] 🔍 PASO 2: Verificando acceso directo...")
+        direct_url = f"{GENIEACS_API}/devices/{device_id}"
+        direct_response = requests.get(direct_url, timeout=10)
+        
+        print(f"[DIAGNÓSTICO]   - URL directa: {direct_url}")
+        print(f"[DIAGNÓSTICO]   - Respuesta: {direct_response.status_code}")
+        
+        if direct_response.status_code == 200:
+            print(f"[DIAGNÓSTICO] ✅ ACCESO DIRECTO EXITOSO")
+            return True
+        else:
+            print(f"[DIAGNÓSTICO] ❌ ACCESO DIRECTO FALLIDO: {direct_response.status_code}")
+            print(f"[DIAGNÓSTICO]   - Respuesta: {direct_response.text}")
+            return False
+            
+    except Exception as e:
+        print(f"[DIAGNÓSTICO] 💥 ERROR EN DIAGNÓSTICO: {e}")
+        return False
+
 def cambiar_parametro_genieacs_sin_reinicio(device_id, parametro, valor):
     """Cambia un parámetro en GenieACS sin reiniciar automáticamente usando el formato correcto"""
     print(f"[GenieACS] 🔧 CAMBIANDO PARÁMETRO SIN REINICIO:")
@@ -1737,8 +1909,17 @@ def cambiar_parametro_genieacs_sin_reinicio(device_id, parametro, valor):
     print(f"[GenieACS]   - Valor: {valor}")
     
     try:
-        # Usar el formato correcto según la documentación de GenieACS
-        url = f"{GENIEACS_API}/devices/{device_id}/tasks?connection_request"
+        from urllib.parse import quote, unquote
+        
+        # Probar diferentes formatos de device_id para URLs POST
+        formats_to_try = [
+            ("Original", device_id),
+            ("Doble codificado", device_id.replace('%', '%25')),
+            ("Decodificado", device_id.replace('%2D', '-').replace('%2B', '+')),
+            ("Codificado simple", device_id.replace('-', '%2D').replace('+', '%2B')),
+            ("Quote completo", quote(device_id, safe='')),
+            ("Quote decodificado", quote(device_id.replace('%2D', '-').replace('%2B', '+'), safe=''))
+        ]
         
         # Formato correcto para setParameterValues según documentación GenieACS
         payload = {
@@ -1746,20 +1927,33 @@ def cambiar_parametro_genieacs_sin_reinicio(device_id, parametro, valor):
             "parameterValues": [[parametro, valor]]
         }
         
-        print(f"[GenieACS] 📡 Enviando comando...")
-        print(f"[GenieACS]   - URL: {url}")
-        print(f"[GenieACS]   - Payload: {payload}")
+        print(f"[GenieACS] 📡 Probando diferentes formatos de URL para POST...")
         
-        response = requests.post(url, json=payload, timeout=30)
+        for format_name, test_device_id in formats_to_try:
+            print(f"[GenieACS] 🔄 Intento POST {format_name}: {test_device_id}")
+            
+            url = f"{GENIEACS_API}/devices/{test_device_id}/tasks?connection_request"
+            
+            try:
+                response = requests.post(url, json=payload, timeout=30)
+                print(f"[GenieACS] 📡 Respuesta POST {format_name}: {response.status_code} - {response.text[:100]}...")
+                
+                if response.status_code in [200, 201, 202]:
+                    print(f"[GenieACS] ✅ Parámetro cambiado exitosamente con formato: {format_name}")
+                    return True
+                elif response.status_code == 404:
+                    print(f"[GenieACS] ❌ Formato {format_name} falló con 404 - Probando siguiente...")
+                    continue
+                else:
+                    print(f"[GenieACS] ❌ Formato {format_name} falló con {response.status_code}")
+                    continue
+                    
+            except Exception as e:
+                print(f"[GenieACS] ❌ Error en formato {format_name}: {e}")
+                continue
         
-        print(f"[GenieACS] 📡 Respuesta: {response.status_code} - {response.text}")
-        
-        if response.status_code in [200, 201, 202]:
-            print(f"[GenieACS] ✅ Parámetro cambiado exitosamente")
-            return True
-        else:
-            print(f"[GenieACS] ❌ Error cambiando parámetro: {response.status_code}")
-            return False
+        print(f"[GenieACS] 💥 TODOS LOS FORMATOS POST FALLARON")
+        return False
             
     except Exception as e:
         print(f"[GenieACS] 💥 ERROR cambiando parámetro: {e}")
