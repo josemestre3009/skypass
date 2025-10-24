@@ -105,6 +105,40 @@
             form.addEventListener('submit', async function(e) {
                 e.preventDefault();
                 
+                // Validar contraseñas antes de enviar
+                const nuevaClave = document.getElementById('nueva_clave').value;
+                const confirmarClave = document.getElementById('confirmar_clave').value;
+                
+                if (!nuevaClave || !confirmarClave) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Campos requeridos',
+                        text: 'Debes completar ambos campos de contraseña.',
+                        confirmButtonText: 'Entendido'
+                    });
+                    return;
+                }
+                
+                if (nuevaClave.length < 8) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Contraseña muy corta',
+                        text: 'La contraseña debe tener al menos 8 caracteres.',
+                        confirmButtonText: 'Entendido'
+                    });
+                    return;
+                }
+                
+                if (nuevaClave !== confirmarClave) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Contraseñas no coinciden',
+                        text: 'Las contraseñas ingresadas no son iguales.',
+                        confirmButtonText: 'Entendido'
+                    });
+                    return;
+                }
+                
                 // Verificar que el dispositivo esté validado
                 if (!window.deviceValidado) {
                     Swal.fire({
@@ -117,77 +151,145 @@
                     return;
                 }
                 
-                // Mostrar modal de carga
+                // Mostrar proceso de cambio de contraseña con pasos detallados
+                let currentStep = 0;
+                const steps = [
+                    'Validando dispositivo...',
+                    'Enviando código por WhatsApp...',
+                    'Detectando interfaces WiFi...',
+                    'Aplicando contraseña a 2.4GHz...',
+                    'Aplicando contraseña a 5GHz...',
+                    'Reiniciando router...',
+                    'Finalizando proceso...'
+                ];
+                
+                const progressInterval = setInterval(() => {
+                    currentStep++;
+                    if (currentStep < steps.length) {
+                        const progress = (currentStep / steps.length) * 100;
+                        Swal.update({
+                            html: `
+                                <div class="text-center">
+                                    <div class="mb-3">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Cargando...</span>
+                                        </div>
+                                    </div>
+                                    <h5 class="mb-3">Cambiando contraseña WiFi</h5>
+                                    <div class="progress mb-3" style="height: 8px;">
+                                        <div class="progress-bar bg-primary" role="progressbar" style="width: ${progress}%"></div>
+                                    </div>
+                                    <p class="mb-0">${steps[currentStep - 1]}</p>
+                                    <small class="text-muted">Paso ${currentStep} de ${steps.length}</small>
+                                </div>
+                            `
+                        });
+                    }
+                }, 1200);
+                
+                // Mostrar alerta inicial
                 Swal.fire({
-                    title: 'Procesando tu solicitud',
-                    html: '<div id="swal-mensaje">Enviando mensaje de WhatsApp...</div><div class="progress mt-3" style="height: 8px;"><div id="swal-barra" class="progress-bar bg-primary" role="progressbar" style="width: 0%"></div></div>',
+                    title: 'Cambiando contraseña WiFi',
+                    html: `
+                        <div class="text-center">
+                            <div class="mb-3">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Cargando...</span>
+                                </div>
+                            </div>
+                            <h5 class="mb-3">Iniciando proceso...</h5>
+                            <div class="progress mb-3" style="height: 8px;">
+                                <div class="progress-bar bg-primary" role="progressbar" style="width: 0%"></div>
+                            </div>
+                            <p class="mb-0">Preparando cambio de contraseña...</p>
+                            <small class="text-muted">Paso 0 de ${steps.length}</small>
+                        </div>
+                    `,
                     allowOutsideClick: false,
                     allowEscapeKey: false,
-                    showConfirmButton: false,
-                    didOpen: () => { Swal.showLoading(); }
+                    showConfirmButton: false
                 });
                 
-                // Barra de progreso
-                const barra = document.getElementById('swal-barra');
-                let barraInterval = null;
-                if (barra) {
-                    let progreso = 0;
-                    barra.style.width = '0%';
-                    barraInterval = setInterval(() => {
-                        progreso += 2;
-                        barra.style.width = progreso + '%';
-                        if (progreso >= 100) clearInterval(barraInterval);
-                    }, 100);
+                try {
+                    // Procesar la solicitud
+                    let formData = new FormData(form);
+                    let data = {};
+                    formData.forEach((value, key) => { data[key] = value; });
+                    
+                    // Enviar WhatsApp
+                    let resp1 = await fetch(window.location.pathname + '?accion=whatsapp', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    });
+                    let res1 = await resp1.json();
+                    
+                    if (!res1.success) {
+                        clearInterval(progressInterval);
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error al enviar WhatsApp',
+                            text: res1.message || 'No se pudo enviar el código de verificación.',
+                            confirmButtonText: 'Entendido'
+                        });
+                        return;
+                    }
+                    
+                    // Cambiar contraseña
+                    await new Promise(r => setTimeout(r, 1000));
+                    
+                    let resp2 = await fetch(window.location.pathname + '?accion=cambiar', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    });
+                    let res2 = await resp2.json();
+                    
+                    // Limpiar intervalo
+                    clearInterval(progressInterval);
+                    
+                    if (!res2.success) {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error al cambiar contraseña',
+                            text: res2.message || 'No se pudo cambiar la contraseña.',
+                            confirmButtonText: 'Entendido'
+                        });
+                        return;
+                    }
+                    
+                    // Mostrar resultado exitoso con animación
+                    Swal.fire({
+                        icon: 'success',
+                        title: '¡Contraseña cambiada exitosamente!',
+                        html: `
+                            <div class="text-center">
+                                <div class="mb-3">
+                                    <i class="bi bi-check-circle-fill text-success" style="font-size: 3rem;"></i>
+                                </div>
+                                <p class="mb-3">Tu contraseña WiFi ha sido actualizada correctamente.</p>
+                                <div class="alert alert-info">
+                                    <i class="bi bi-info-circle me-2"></i>
+                                    <strong>Importante:</strong> Debes reconectarte con la nueva contraseña en todos tus dispositivos.
+                                </div>
+                            </div>
+                        `,
+                        showConfirmButton: true,
+                        confirmButtonText: 'Entendido',
+                        confirmButtonColor: '#28a745'
+                    }).then(() => {
+                        window.location.href = '/dashboard';
+                    });
+                    
+                } catch (error) {
+                    clearInterval(progressInterval);
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error de conexión',
+                        text: 'No se pudo procesar la solicitud. Verifica tu conexión a internet.',
+                        confirmButtonText: 'Entendido'
+                    });
                 }
-                
-                // Enviar WhatsApp
-                let formData = new FormData(form);
-                let data = {};
-                formData.forEach((value, key) => { data[key] = value; });
-                
-                let mensajeDiv = document.getElementById('swal-mensaje');
-                if (mensajeDiv) mensajeDiv.innerHTML = 'Enviando mensaje de WhatsApp...';
-                
-                let resp1 = await fetch(window.location.pathname + '?accion=whatsapp', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                });
-                let res1 = await resp1.json();
-                
-                if (!res1.success) {
-                    if (barraInterval) clearInterval(barraInterval);
-                    Swal.fire({ icon: 'error', title: 'Error', text: 'Error al enviar WhatsApp: ' + (res1.message || '') });
-                    return;
-                }
-                
-                // Cambiar contraseña
-                await new Promise(r => setTimeout(r, 1000));
-                if (mensajeDiv) mensajeDiv.innerHTML = 'Aplicando contraseña...';
-                
-                let resp2 = await fetch(window.location.pathname + '?accion=cambiar', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                });
-                let res2 = await resp2.json();
-                
-                if (!res2.success) {
-                    if (barraInterval) clearInterval(barraInterval);
-                    Swal.fire({ icon: 'error', title: 'Error', text: 'Error al cambiar la contraseña: ' + (res2.message || '') });
-                    return;
-                }
-                
-                // Éxito
-                if (barra) barra.style.width = '100%';
-                await new Promise(r => setTimeout(r, 1000));
-                Swal.fire({
-                    icon: 'success',
-                    title: '¡Contraseña cambiada exitosamente!',
-                    showConfirmButton: false,
-                    timer: 1800
-                });
-                setTimeout(() => { window.location.href = '/dashboard'; }, 1800);
             });
         }
         

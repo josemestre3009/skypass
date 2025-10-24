@@ -971,6 +971,8 @@ def normalizar_numero(telefono):
     return None
 
 def actualizar_parametros_wisphub(cedula, nueva_clave=None, nuevo_ssid=None, ip_especifica=None):
+    print(f'[Wisphub] INICIO: actualizar_parametros_wisphub - Cédula: {cedula}, Nueva clave: {nueva_clave}, Nuevo SSID: {nuevo_ssid}, IP específica: {ip_especifica}')
+    print(f'[Wisphub] DEBUG: API_KEY existe: {bool(API_KEY)}, BASE_URL: {BASE_URL}')
     headers = {
         'Authorization': f'Api-Key {API_KEY}',
         'Content-Type': 'application/json'
@@ -980,6 +982,9 @@ def actualizar_parametros_wisphub(cedula, nueva_clave=None, nuevo_ssid=None, ip_
     if not cliente:
         print('[Wisphub] Cliente no encontrado para actualizar parámetros')
         return False
+    
+    print(f'[Wisphub] Cliente encontrado: {cliente.get("nombre", "Sin nombre")} - ID: {cliente.get("id", "Sin ID")} - ID Servicio: {cliente.get("id_servicio", "Sin ID Servicio")}')
+    print(f'[Wisphub] DEBUG: Cliente completo: {cliente}')
     
     # Si se especifica una IP, buscar el cliente específico con esa IP
     if ip_especifica:
@@ -1014,6 +1019,13 @@ def actualizar_parametros_wisphub(cedula, nueva_clave=None, nuevo_ssid=None, ip_
     else:
         id_cliente = cliente.get('id_servicio') or cliente.get('id')
     
+    print(f'[Wisphub] ID del servicio a actualizar: {id_cliente}')
+    
+    # Validar que tenemos un ID válido
+    if not id_cliente:
+        print('[Wisphub] ERROR: No se encontró ID del servicio')
+        return False
+    
     data = {}
     if nueva_clave:
         data['password_ssid_router_wifi'] = nueva_clave
@@ -1021,11 +1033,15 @@ def actualizar_parametros_wisphub(cedula, nueva_clave=None, nuevo_ssid=None, ip_
     if nuevo_ssid:
         data['ssid_router_wifi'] = nuevo_ssid
         print(f'[Wisphub] Actualizando SSID WiFi para cliente {cedula}')
+        print(f'[Wisphub] Nuevo SSID: {nuevo_ssid}')
     if not data:
         print('[Wisphub] No hay datos para actualizar')
         return False
     
-    url = f'https://api.wisphub.net/api/clientes/{id_cliente}/'
+    url = f'{BASE_URL}/{id_cliente}/'
+    print(f'[Wisphub] URL construida: {url}')
+    print(f'[Wisphub] BASE_URL: {BASE_URL}')
+    print(f'[Wisphub] ID Servicio: {id_cliente}')
     try:
         print(f'[Wisphub] Enviando datos: {data} a {url}')
         response = requests.patch(url, headers=headers, json=data, timeout=10)

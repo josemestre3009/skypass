@@ -428,6 +428,8 @@ def get_db_connection():
     return conn
 
 def actualizar_parametros_wisphub(cedula, nueva_clave=None, nuevo_ssid=None, ip_especifica=None):
+    print(f'[Wisphub] INICIO: actualizar_parametros_wisphub - Cédula: {cedula}, Nueva clave: {nueva_clave}, Nuevo SSID: {nuevo_ssid}, IP específica: {ip_especifica}')
+    print(f'[Wisphub] DEBUG: API_KEY existe: {bool(API_KEY)}, BASE_URL: {BASE_URL}')
     headers = {
         'Authorization': f'Api-Key {API_KEY}',
         'Content-Type': 'application/json'
@@ -437,6 +439,9 @@ def actualizar_parametros_wisphub(cedula, nueva_clave=None, nuevo_ssid=None, ip_
     if not cliente:
         print('[Wisphub] Cliente no encontrado para actualizar parámetros')
         return False
+    
+    print(f'[Wisphub] Cliente encontrado: {cliente.get("nombre", "Sin nombre")} - ID: {cliente.get("id", "Sin ID")} - ID Servicio: {cliente.get("id_servicio", "Sin ID Servicio")}')
+    print(f'[Wisphub] DEBUG: Cliente completo: {cliente}')
     
     # Si se especifica una IP, buscar el cliente específico con esa IP
     if ip_especifica:
@@ -470,6 +475,14 @@ def actualizar_parametros_wisphub(cedula, nueva_clave=None, nuevo_ssid=None, ip_
             id_cliente = cliente.get('id_servicio') or cliente.get('id')
     else:
         id_cliente = cliente.get('id_servicio') or cliente.get('id')
+    
+    print(f'[Wisphub] ID del servicio a actualizar: {id_cliente}')
+    
+    # Validar que tenemos un ID válido
+    if not id_cliente:
+        print('[Wisphub] ERROR: No se encontró ID del servicio')
+        return False
+    
     data = {}
     if nueva_clave:
         data['password_ssid_router_wifi'] = nueva_clave
@@ -477,10 +490,14 @@ def actualizar_parametros_wisphub(cedula, nueva_clave=None, nuevo_ssid=None, ip_
     if nuevo_ssid:
         data['ssid_router_wifi'] = nuevo_ssid
         print(f'[Wisphub] Actualizando SSID WiFi para cliente {cedula}')
+        print(f'[Wisphub] Nuevo SSID: {nuevo_ssid}')
     if not data:
         print('[Wisphub] No hay datos para actualizar')
         return False
-    url = f'https://api.wisphub.net/api/clientes/{id_cliente}/'
+    url = f'{BASE_URL}/{id_cliente}/'
+    print(f'[Wisphub] URL construida: {url}')
+    print(f'[Wisphub] BASE_URL: {BASE_URL}')
+    print(f'[Wisphub] ID Servicio: {id_cliente}')
     try:
         print(f'[Wisphub] Enviando datos: {data} a {url}')
         response = requests.patch(url, headers=headers, json=data, timeout=10)
@@ -518,7 +535,7 @@ def verificar_dispositivo_online_alternativo(ip_buscada):
             cmd = ["ping", "-c", "1", "-W", "3", ip_buscada]
         
         print(f"[GenieACS] 📡 Haciendo ping a {ip_buscada}...")
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=2)
         
         if result.returncode == 0:
             print(f"[GenieACS] ✅ PING EXITOSO - Dispositivo responde")
@@ -549,7 +566,7 @@ def obtener_estado_online_device(ip_buscada, minutos_online=5):
         from datetime import datetime, timezone, timedelta
         
         print(f"[GenieACS] 📡 Solicitando lista de dispositivos...")
-        response = requests.get(f"{GENIEACS_API}/devices", timeout=7)
+        response = requests.get(f"{GENIEACS_API}/devices", timeout=3)
         print(f"[GenieACS]   - Status Code: {response.status_code}")
         
         response.raise_for_status()
@@ -1165,9 +1182,21 @@ def cambiar_wifi_cliente():
     if estado_servicio == 'suspendido':
         return jsonify({'success': False, 'message': 'El servicio del cliente está suspendido. No se pueden realizar cambios hasta que se reactive.'})
     
-    # Verificar si tenemos información en la sesión (validaciones ya hechas)
-    session_key = f'admin_device_info_{cedula}_{ip_a_usar}'
-    device_info = session.get(session_key)
+    # Modo de prueba rápida (saltar validaciones)
+    modo_prueba = request.args.get('modo_prueba', 'false').lower() == 'true'
+    
+    if modo_prueba:
+        print(f"[DEBUG] Modo prueba activado - Saltando validaciones de dispositivo")
+        device_id = obtener_device_id_por_ip(ip_a_usar)
+        if device_id:
+            interfaces_activas = [1, 2]  # Asumir interfaces 1 y 2
+            interfaces_info = {1: {'frecuencia': '2.4GHz'}, 2: {'frecuencia': '5GHz'}}
+        else:
+            return jsonify({'success': False, 'message': 'No se encontró el dispositivo en modo prueba'})
+    else:
+        # Verificar si tenemos información en la sesión (validaciones ya hechas)
+        session_key = f'admin_device_info_{cedula}_{ip_a_usar}'
+        device_info = session.get(session_key)
     
     if device_info:
         # Verificar que la información no sea muy antigua (más de 10 minutos)
@@ -1184,14 +1213,38 @@ def cambiar_wifi_cliente():
     else:
         print(f"[DEBUG] No hay información en sesión, validando dispositivo...")
         
-        # Verificar estado online del dispositivo
-        dispositivo_online, device_id = obtener_estado_online_device(ip_a_usar)
-        if not dispositivo_online:
-            print(f"[GenieACS] ⚠️  Verificación principal falló, intentando verificación alternativa...")
-            if not verificar_dispositivo_online_alternativo(ip_a_usar):
-                return jsonify({'success': False, 'message': 'El dispositivo está desconectado. Debe estar online para realizar cambios.'})
-            else:
-                print(f"[GenieACS] ✅ Verificación alternativa exitosa - Continuando con el proceso")
+        # Verificar estado online del dispositivo con timeout global
+        try:
+            import signal
+            
+            def timeout_handler(signum, frame):
+                raise TimeoutError("Timeout en validación de dispositivo")
+            
+            # Configurar timeout de 10 segundos
+            signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(10)
+            
+            dispositivo_online, device_id = obtener_estado_online_device(ip_a_usar)
+            signal.alarm(0)  # Cancelar timeout
+            
+            if not dispositivo_online:
+                print(f"[GenieACS] ⚠️  Verificación principal falló, intentando verificación alternativa...")
+                signal.alarm(5)  # Timeout más corto para ping
+                ping_ok = verificar_dispositivo_online_alternativo(ip_a_usar)
+                signal.alarm(0)  # Cancelar timeout
+                
+                if not ping_ok:
+                    return jsonify({'success': False, 'message': 'El dispositivo está desconectado. Debe estar online para realizar cambios.'})
+                else:
+                    print(f"[GenieACS] ✅ Verificación alternativa exitosa - Continuando con el proceso")
+                    
+        except TimeoutError:
+            signal.alarm(0)  # Cancelar timeout
+            return jsonify({'success': False, 'message': 'Timeout: El dispositivo no responde. Verifique que esté online.'})
+        except Exception as e:
+            signal.alarm(0)  # Cancelar timeout
+            print(f"[ERROR] Error en validación: {e}")
+            return jsonify({'success': False, 'message': f'Error validando dispositivo: {str(e)}'})
     device_id = obtener_device_id_por_ip(ip_a_usar)
         
     if not device_id:
@@ -1238,14 +1291,19 @@ def cambiar_wifi_cliente():
         if interfaces_cambiadas:
             # Reiniciar ONU una sola vez al final
             reiniciar_onu_genieacs(device_id)
+            # Actualizar WispHub con el nombre base (sin sufijos)
             actualizar_parametros_wisphub(cedula, nuevo_ssid=nuevo_ssid, ip_especifica=ip_a_usar)
             registrar_cambio(session['admin_id'], cedula, 'SSID', nuevo_ssid)
             
-            # Construir mensaje detallado
+            # Construir mensaje detallado ordenado por frecuencia
             if len(interfaces_cambiadas) == 2:
+                # Ordenar por frecuencia para mostrar siempre en el mismo orden
+                interfaces_ordenadas = sorted(interfaces_cambiadas, key=lambda x: x['frecuencia'])
+                
                 mensaje = f"✅ Nombre de red WiFi cambiado exitosamente:\n"
-                mensaje += f"• 2.4GHz: {interfaces_cambiadas[0]['nombre_final']}\n"
-                mensaje += f"• 5GHz: {interfaces_cambiadas[1]['nombre_final']}"
+                for interfaz in interfaces_ordenadas:
+                    mensaje += f"• {interfaz['frecuencia']}: {interfaz['nombre_final']}\n"
+                mensaje = mensaje.rstrip('\n')  # Quitar el último salto de línea
             else:
                 interfaz_cambiada = interfaces_cambiadas[0]
                 mensaje = f"✅ Nombre de red WiFi cambiado exitosamente:\n"
