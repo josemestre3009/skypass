@@ -8,7 +8,7 @@ soporte_bp = Blueprint('soporte', __name__, template_folder='templates/soporte')
 
 # Configuración de APIs externas
 WISPHUB_API_KEY = os.getenv('API_KEY_WISPHUB')
-WISPHUB_BASE_URL = 'https://api.wisphub.net/api/clientes'
+WISPHUB_BASE_URL = os.getenv('BASE_URL_WISPHUB')
 GENIEACS_API = os.getenv('GENIEACS_API_URL')
 
 # --- Utilidades ---
