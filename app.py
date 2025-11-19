@@ -1612,7 +1612,7 @@ def cambiar_parametro_genieacs_sin_reinicio(device_id, parametro, valor):
 def cambiar_contraseña_wifi_interfaz_sin_reinicio(device_id, interfaz, nueva_password):
     """Cambia la contraseña WiFi de una interfaz específica SIN reiniciar la ONU"""
     try:
-        parametro_password = f"InternetGatewayDevice.LANDevice.1.WLANConfiguration.{interfaz}.PreSharedKey.1.PreSharedKey"
+        parametro_password = f"InternetGatewayDevice.LANDevice.1.WLANConfiguration.{interfaz}.PreSharedKey.1.KeyPassphrase"
         print(f"[GenieACS] 📡 Cambiando password interfaz {interfaz} SIN reinicio")
         print(f"[GenieACS]   - Parámetro: {parametro_password}")
         print(f"[GenieACS]   - Nueva contraseña: {nueva_password}")
