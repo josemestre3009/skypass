@@ -171,24 +171,35 @@
             // Solo validar internamente, no mostrar información técnica al usuario
             console.log('Dispositivo validado:', data);
             
-            // Mostrar información de redes disponibles si hay 2 interfaces
-            if (data.interfaces_count === 2) {
-                mostrarRedesDisponibles(data.interfaces_info);
+            // Mostrar información de redes disponibles
+            if (data.interfaces_info && Object.keys(data.interfaces_info).length > 0) {
+                mostrarRedesDisponibles(data.interfaces_info, data.interfaces_count);
             }
         }
         
-        // Mostrar redes disponibles cuando hay 2 interfaces
-        function mostrarRedesDisponibles(interfaces_info) {
+        // Mostrar redes disponibles
+        function mostrarRedesDisponibles(interfaces_info, interfaces_count) {
             const alertDiv = document.createElement('div');
             alertDiv.className = 'alert alert-info';
             
-            let redesInfo = '<strong>📡 Redes WiFi Detectadas:</strong><br>';
-            for (const [interfaz, info] of Object.entries(interfaces_info)) {
-                const icono = info.frecuencia === '2.4GHz' ? '📶' : '🚀';
+            let redesInfo = '<strong>📡 Red WiFi Detectada:</strong><br>';
+            
+            // Si hay múltiples interfaces, mostrar todas
+            if (interfaces_count > 1) {
+                redesInfo = '<strong>📡 Redes WiFi Detectadas:</strong><br>';
+                for (const [interfaz, info] of Object.entries(interfaces_info)) {
+                    const icono = info.frecuencia === '2.4GHz' ? '📶' : '🚀';
+                    const ssidActual = info.ssid_actual || 'Desconocido';
+                    redesInfo += `${icono} <strong>${info.frecuencia}</strong> - Nombre actual: "${ssidActual}"<br>`;
+                }
+                redesInfo += '<small>El nuevo nombre se aplicará a ambas redes automáticamente.</small>';
+            } else {
+                // Si hay una sola interfaz, mostrar su SSID
+                const primeraInterfaz = Object.keys(interfaces_info)[0];
+                const info = interfaces_info[primeraInterfaz];
                 const ssidActual = info.ssid_actual || 'Desconocido';
-                redesInfo += `${icono} <strong>${info.frecuencia}</strong> - Nombre actual: "${ssidActual}"<br>`;
+                redesInfo += `📶 Nombre actual de la red: <strong>"${ssidActual}"</strong>`;
             }
-            redesInfo += '<small>El nuevo nombre se aplicará a ambas redes automáticamente.</small>';
             
             alertDiv.innerHTML = redesInfo;
             

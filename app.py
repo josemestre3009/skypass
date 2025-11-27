@@ -562,28 +562,59 @@ def page_not_found(e):
 
 # --- FUNCIONES DE GENIEACS COPIADAS DEL ADMIN ---
 def obtener_device_id_por_ip(ip_buscada):
+    """Obtiene el device_id por IP usando query optimizada MongoDB"""
     try:
-        response = requests.get(f"{GENIEACS_API}/devices")
+        import re
+        import json
+        
+        # OPTIMIZACIÓN: Usar query MongoDB con regex para filtrar directamente
+        ip_escaped = ip_buscada.replace('.', r'\.')
+        
+        query_dict = {
+            "InternetGatewayDevice.ManagementServer.ConnectionRequestURL._value": {
+                "$regex": f"http://{ip_escaped}:"
+            }
+        }
+        
+        query_str = json.dumps(query_dict)
+        url = f"{GENIEACS_API}/devices/"
+        params = {'query': query_str}
+        
+        print(f"[GENIEACS] Buscando IP con query optimizada: {ip_buscada}")
+        
+        response = requests.get(url, params=params, timeout=10)
         response.raise_for_status()
         dispositivos = response.json()
-        print(f"[GENIEACS] Buscando IP: {ip_buscada}")
-        for device in dispositivos:
-            device_id = device.get('_id')
-            # Buscar la IP en ConnectionRequestURL
-            url = device.get("InternetGatewayDevice", {}) \
-                      .get("ManagementServer", {}) \
-                      .get("ConnectionRequestURL", {}) \
-                      .get("_value")
-            ip_actual = None
-            if url:
-                import re
-                match = re.search(r"https?://([\d.]+):", url)
-                if match:
-                    ip_actual = match.group(1)
-            print(f"[GENIEACS] device_id: {device_id} | url: {url} | ip_actual: {ip_actual}")
-            if ip_actual == ip_buscada:
-                print(f"[GENIEACS] ¡Coincidencia encontrada!")
-                return device_id
+        
+        # Si la query optimizada no funciona, usar método tradicional
+        if len(dispositivos) == 0:
+            print(f"[GENIEACS] Query optimizada sin resultados, usando método tradicional...")
+            response = requests.get(f"{GENIEACS_API}/devices", timeout=10)
+            response.raise_for_status()
+            todos_dispositivos = response.json()
+            
+            for device in todos_dispositivos:
+                url_val = device.get("InternetGatewayDevice", {}) \
+                    .get("ManagementServer", {}) \
+                    .get("ConnectionRequestURL", {}) \
+                    .get("_value")
+                if url_val:
+                    match = re.search(r"https?://([\d.]+):", url_val)
+                    if match and match.group(1) == ip_buscada:
+                        print(f"[GENIEACS] ¡Coincidencia encontrada!")
+                        return device.get('_id')
+        else:
+            # Verificar que la IP coincida exactamente
+            for device in dispositivos:
+                url_val = device.get("InternetGatewayDevice", {}) \
+                    .get("ManagementServer", {}) \
+                    .get("ConnectionRequestURL", {}) \
+                    .get("_value", '')
+                if url_val:
+                    match = re.search(r"https?://([\d.]+):", url_val)
+                    if match and match.group(1) == ip_buscada:
+                        print(f"[GENIEACS] ¡Coincidencia encontrada!")
+                        return device.get('_id')
     except Exception as e:
         print(f"Error al buscar dispositivo en GenieACS: {e}")
     print(f"[GENIEACS] No se encontró ningún device_id para la IP: {ip_buscada}")
@@ -1143,7 +1174,8 @@ def verificar_dispositivo_online_alternativo(ip_buscada):
         return False
 
 def obtener_estado_online_device(ip_buscada, minutos_online=5):
-    """Devuelve (True, device_id) si el dispositivo está online, (False, None) si no."""
+    """Devuelve (True, device_id) si el dispositivo está online, (False, None) si no.
+    Usa query MongoDB optimizada para buscar directamente por IP sin iterar todos los dispositivos."""
     print(f"[GenieACS] 🔍 VERIFICANDO ESTADO ONLINE DEL DISPOSITIVO:")
     print(f"[GenieACS]   - IP buscada: {ip_buscada}")
     print(f"[GenieACS]   - Minutos online requeridos: {minutos_online}")
@@ -1151,42 +1183,102 @@ def obtener_estado_online_device(ip_buscada, minutos_online=5):
     
     try:
         import re
+        import json
         from datetime import datetime, timezone, timedelta
+        from urllib.parse import quote
         
-        print(f"[GenieACS] 📡 Solicitando lista de dispositivos...")
-        response = requests.get(f"{GENIEACS_API}/devices", timeout=7)
+        # OPTIMIZACIÓN: Usar query MongoDB con regex para filtrar directamente en el servidor
+        # Esto evita traer todos los dispositivos y filtrar en el cliente
+        print(f"[GenieACS] 📡 Buscando dispositivo con query optimizada (regex)...")
+        
+        # Construir query MongoDB que busca la IP dentro de ConnectionRequestURL
+        # Escapar puntos en la IP para regex (192.168.80.107 -> 192\.168\.80\.107)
+        ip_escaped = ip_buscada.replace('.', r'\.')
+        
+        # Query MongoDB: buscar donde ConnectionRequestURL contiene la IP
+        query_dict = {
+            "InternetGatewayDevice.ManagementServer.ConnectionRequestURL._value": {
+                "$regex": f"http://{ip_escaped}:"
+            }
+        }
+        
+        # Convertir a JSON string para la query
+        query_str = json.dumps(query_dict)
+        
+        url = f"{GENIEACS_API}/devices/"
+        params = {
+            'query': query_str
+        }
+        
+        print(f"[GenieACS]   - Query optimizada: {query_str}")
+        
+        response = requests.get(url, params=params, timeout=10)
         print(f"[GenieACS]   - Status Code: {response.status_code}")
         
         response.raise_for_status()
         dispositivos = response.json()
-        print(f"[GenieACS]   - Total dispositivos encontrados: {len(dispositivos)}")
+        print(f"[GenieACS]   - Dispositivos encontrados con query: {len(dispositivos)}")
         
-        for i, device in enumerate(dispositivos):
-            print(f"[GenieACS] 🔍 DISPOSITIVO {i+1}:")
-            print(f"[GenieACS]   - Device ID: {device.get('_id', 'N/A')}")
+        # Si la query optimizada no funciona, intentar método alternativo
+        if len(dispositivos) == 0:
+            print(f"[GenieACS] ⚠️ Query optimizada no encontró resultados, intentando método alternativo...")
+            # Intentar con formato diferente de regex
+            query_dict_alt = {
+                "InternetGatewayDevice.ManagementServer.ConnectionRequestURL._value": {
+                    "$regex": ip_escaped,
+                    "$options": "i"
+                }
+            }
+            query_str_alt = json.dumps(query_dict_alt)
+            params_alt = {'query': query_str_alt}
+            response_alt = requests.get(url, params=params_alt, timeout=10)
+            if response_alt.status_code == 200:
+                dispositivos = response_alt.json()
+                print(f"[GenieACS]   - Dispositivos encontrados (método alternativo): {len(dispositivos)}")
+        
+        # Si aún no hay resultados, usar método tradicional (fallback)
+        if len(dispositivos) == 0:
+            print(f"[GenieACS] ⚠️ Query optimizada falló, usando método tradicional (más lento)...")
+            response = requests.get(f"{GENIEACS_API}/devices", timeout=10)
+            response.raise_for_status()
+            todos_dispositivos = response.json()
+            print(f"[GenieACS]   - Total dispositivos para revisar: {len(todos_dispositivos)}")
             
-            # Obtener URL de conexión
-            url = device.get("InternetGatewayDevice", {}) \
+            # Buscar en todos los dispositivos (método lento pero seguro)
+            for i, device in enumerate(todos_dispositivos):
+                if i > 0 and i % 100 == 0:
+                    print(f"[GenieACS] 🔍 Revisando dispositivo {i+1}/{len(todos_dispositivos)}...")
+                
+                url_val = device.get("InternetGatewayDevice", {}) \
+                    .get("ManagementServer", {}) \
+                    .get("ConnectionRequestURL", {}) \
+                    .get("_value", '')
+                
+                if url_val:
+                    match = re.search(r"https?://([\d.]+):", url_val)
+                    if match and match.group(1) == ip_buscada:
+                        dispositivos = [device]  # Simular que encontramos el dispositivo
+                        print(f"[GenieACS] ✅ Dispositivo encontrado en posición {i+1}")
+                        break
+        
+        # Procesar resultados (debería ser solo 1 dispositivo o ninguno)
+        for device in dispositivos:
+            device_id = device.get('_id', 'N/A')
+            url_val = device.get("InternetGatewayDevice", {}) \
                 .get("ManagementServer", {}) \
                 .get("ConnectionRequestURL", {}) \
                 .get("_value", '')
             
-            print(f"[GenieACS]   - ConnectionRequestURL: {url}")
-            
+            # Verificar que la IP coincida exactamente
             ip_actual = ''
-            if url:
-                match = re.search(r"https?://([\d.]+):", url)
+            if url_val:
+                match = re.search(r"https?://([\d.]+):", url_val)
                 if match:
                     ip_actual = match.group(1)
-                    print(f"[GenieACS]   - IP extraída: {ip_actual}")
-                else:
-                    print(f"[GenieACS]   - No se pudo extraer IP de la URL")
-            else:
-                print(f"[GenieACS]   - No hay URL de conexión")
             
             if ip_actual == ip_buscada:
                 print(f"[GenieACS] ✅ ¡IP COINCIDENTE ENCONTRADA!")
-                print(f"[GenieACS]   - IP buscada: {ip_buscada}")
+                print(f"[GenieACS]   - Device ID: {device_id}")
                 print(f"[GenieACS]   - IP encontrada: {ip_actual}")
                 
                 # Revisar _lastInform
@@ -1207,7 +1299,7 @@ def obtener_estado_online_device(ip_buscada, minutos_online=5):
                         
                         if diferencia <= timedelta(minutes=minutos_online):
                             print(f"[GenieACS] ✅ DISPOSITIVO ONLINE - Dentro del límite de tiempo")
-                            return True, device.get('_id')
+                            return True, device_id
                         else:
                             print(f"[GenieACS] ❌ DISPOSITIVO OFFLINE - Fuera del límite de tiempo")
                             return False, None
@@ -1217,21 +1309,10 @@ def obtener_estado_online_device(ip_buscada, minutos_online=5):
                 else:
                     print(f"[GenieACS] ❌ DISPOSITIVO OFFLINE - No hay _lastInform")
                     return False, None
-            else:
-                print(f"[GenieACS]   - IP no coincide (buscada: {ip_buscada}, actual: {ip_actual})")
         
+        # Si llegamos aquí, no se encontró el dispositivo
         print(f"[GenieACS] ❌ DISPOSITIVO NO ENCONTRADO")
         print(f"[GenieACS]   - No se encontró ningún dispositivo con IP: {ip_buscada}")
-        print(f"[GenieACS]   - IPs encontradas en GenieACS:")
-        for device in dispositivos:
-            url = device.get("InternetGatewayDevice", {}) \
-                .get("ManagementServer", {}) \
-                .get("ConnectionRequestURL", {}) \
-                .get("_value", '')
-            if url:
-                match = re.search(r"https?://([\d.]+):", url)
-                if match:
-                    print(f"[GenieACS]     * {match.group(1)}")
         
         return False, None
     except Exception as e:
@@ -1521,7 +1602,7 @@ def identificar_frecuencia_por_canal(canal):
         return "Desconocida"
 
 def detectar_interfaces_y_frecuencias(device_id):
-    """Detecta interfaces activas y sus frecuencias"""
+    """Detecta interfaces activas y sus frecuencias. Si hay múltiples, prioriza 2.4GHz"""
     print(f"[GenieACS] 🔍 DETECTANDO INTERFACES Y FRECUENCIAS")
     
     # Obtener interfaces activas
@@ -1531,6 +1612,8 @@ def detectar_interfaces_y_frecuencias(device_id):
         return [], {}
     
     interfaces_info = {}
+    interfaz_24ghz = None
+    ssid_24ghz = None
     
     for interfaz in interfaces_activas:
         print(f"[GenieACS] 📡 Analizando interfaz {interfaz}")
@@ -1548,6 +1631,22 @@ def detectar_interfaces_y_frecuencias(device_id):
         }
         
         print(f"[GenieACS]   - Interfaz {interfaz}: Canal {canal} → {frecuencia}, SSID: {ssid_actual}")
+        
+        # Guardar la interfaz de 2.4GHz si es la primera que encontramos
+        if frecuencia == '2.4GHz' and interfaz_24ghz is None:
+            interfaz_24ghz = interfaz
+            ssid_24ghz = ssid_actual
+    
+    # Si hay múltiples interfaces y encontramos una de 2.4GHz, mostrar solo esa
+    if len(interfaces_activas) > 1 and interfaz_24ghz:
+        print(f"[GenieACS] ✅ Múltiples interfaces detectadas. Mostrando solo 2.4GHz (Interfaz {interfaz_24ghz}): {ssid_24ghz}")
+        return [interfaz_24ghz], {interfaz_24ghz: interfaces_info[interfaz_24ghz]}
+    
+    # Si hay una sola interfaz, mostrar su SSID
+    if len(interfaces_activas) == 1:
+        primera_interfaz = interfaces_activas[0]
+        ssid_primera = interfaces_info[primera_interfaz].get('ssid_actual', 'Desconocido')
+        print(f"[GenieACS] ✅ Nombre de red actual (Interfaz {primera_interfaz}): {ssid_primera}")
     
     return interfaces_activas, interfaces_info
 
