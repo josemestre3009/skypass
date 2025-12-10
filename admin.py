@@ -18,7 +18,7 @@ BASE_URL = os.getenv('BASE_URL_WISPHUB')
 GENIEACS_API = os.getenv("GENIEACS_API_URL")
 ip_server = os.getenv("IP_SERVER")  # Usado para logging/debugging de GenieACS
 
-# Configuración Evolution API
+# Configuración WhatsApp API
 EVOLUTION_BASE_URL = os.getenv("EVOLUTION_BASE_URL", "")
 EVOLUTION_API_KEY = os.getenv("EVOLUTION_API_KEY", "")
 EVOLUTION_INSTANCE = os.getenv("EVOLUTION_INSTANCE", "default")
@@ -763,7 +763,7 @@ def login():
 @admin_bp.route('/dashboard', methods=['GET', 'POST'])
 @admin_requerido
 def dashboard():
-    # Consulta el estado del bot de WhatsApp usando Evolution API
+    # Consulta el estado del bot de WhatsApp usando WhatsApp API
     try:
         if EVOLUTION_BASE_URL and EVOLUTION_API_KEY and EVOLUTION_INSTANCE:
             url = f"{EVOLUTION_BASE_URL}/instance/connectionState/{EVOLUTION_INSTANCE}"
@@ -771,7 +771,7 @@ def dashboard():
             resp = requests.get(url, headers=headers, timeout=5)
             resp.raise_for_status()
             data = resp.json()
-            # Evolution API retorna: {"instance":{"instanceName":"...","state":"open|close|connecting"}}
+            # WhatsApp API retorna: {"instance":{"instanceName":"...","state":"open|close|connecting"}}
             instance_data = data.get('instance', {})
             estado_whatsapp = instance_data.get('state', 'close')
             if estado_whatsapp == 'open':
@@ -779,10 +779,10 @@ def dashboard():
             else:
                 flash('❌ WhatsApp desconectado. No se pueden enviar mensajes automáticos.', 'danger')
         else:
-            flash('⚠️ Evolution API no configurada. Verifica las variables de entorno.', 'warning')
+            flash('⚠️ WhatsApp API no configurada. Verifica las variables de entorno.', 'warning')
     except requests.exceptions.RequestException as e:
         flash('⚠️ No se pudo consultar el estado del bot de WhatsApp.', 'warning')
-        print(f"[ERROR] Error al consultar estado Evolution API: {e}")
+        print(f"[ERROR] Error al consultar estado WhatsApp API: {e}")
     except Exception as e:
         flash('⚠️ Error inesperado al consultar estado de WhatsApp.', 'warning')
         print(f"[ERROR] Error inesperado: {e}")
@@ -1462,7 +1462,7 @@ def logout():
 @admin_requerido
 def conectar_whatsapp():
     """
-    Página para conectar WhatsApp usando Evolution API.
+    Página para conectar WhatsApp usando WhatsApp API.
     Obtiene el estado de la conexión y el QR code en base64.
     """
     estado = 'desconectado'
@@ -1472,7 +1472,7 @@ def conectar_whatsapp():
     try:
         # Validar configuración
         if not EVOLUTION_BASE_URL or not EVOLUTION_API_KEY or not EVOLUTION_INSTANCE:
-            flash('⚠️ Evolution API no configurada. Verifica las variables de entorno.', 'warning')
+            flash('⚠️ WhatsApp no configurada. Verifica las variables de entorno.', 'warning')
             return render_template('admin/conectar_whatsapp.html', estado='error', qr_url=None)
         
         headers = {"apikey": EVOLUTION_API_KEY}
@@ -1486,7 +1486,7 @@ def conectar_whatsapp():
             
             print(f"[DEBUG] Respuesta completa de connectionState: {data_estado}")
             
-            # Evolution API retorna: {"instance":{"instanceName":"...","state":"open|close|connecting"}}
+            # WhatsApp API retorna: {"instance":{"instanceName":"...","state":"open|close|connecting"}}
             instance_data = data_estado.get('instance', {})
             if not instance_data:
                 # Si no hay 'instance', intentar obtener directamente 'state'
@@ -1495,9 +1495,9 @@ def conectar_whatsapp():
             else:
                 estado_evolution = instance_data.get('state', 'close')
             
-            print(f"[DEBUG] Estado Evolution API extraído: {estado_evolution}")
+            print(f"[DEBUG] Estado WhatsApp API extraído: {estado_evolution}")
             
-            # Mapear estados de Evolution API a estados internos
+            # Mapear estados de WhatsApp API a estados internos
             if estado_evolution == 'open':
                 estado = 'conectado'
             elif estado_evolution == 'connecting':
@@ -1505,7 +1505,7 @@ def conectar_whatsapp():
             else:
                 estado = 'desconectado'
             
-            print(f"[DEBUG] Estado Evolution API: {estado_evolution} -> Estado interno: {estado}")
+            print(f"[DEBUG] Estado WhatsApp API: {estado_evolution} -> Estado interno: {estado}")
             
         except requests.exceptions.RequestException as e:
             print(f"[DEBUG] Error al consultar estado de conexión: {e}")
@@ -1526,7 +1526,7 @@ def conectar_whatsapp():
                 
                 print(f"[DEBUG] Respuesta completa de connect: {data_qr}")
                 
-                # Evolution API puede retornar el QR en diferentes campos
+                # WhatsApp API puede retornar el QR en diferentes campos
                 qr_base64 = data_qr.get('base64') or data_qr.get('qrcode') or data_qr.get('qr') or data_qr.get('qrcode', {}).get('base64')
                 
                 # Si la respuesta tiene una estructura anidada
@@ -1572,7 +1572,7 @@ def conectar_whatsapp():
 @admin_requerido
 def estado_bot():
     """
-    Endpoint AJAX para consultar el estado de WhatsApp usando Evolution API.
+    Endpoint AJAX para consultar el estado de WhatsApp usando WhatsApp API.
     Retorna un formato compatible con el código JavaScript existente.
     """
     try:
@@ -1580,7 +1580,7 @@ def estado_bot():
             return jsonify({
                 'conectado': False, 
                 'estado': 'error',
-                'error': 'Evolution API no configurada'
+                'error': 'WhatsApp no configurada'
             })
         
         url = f"{EVOLUTION_BASE_URL}/instance/connectionState/{EVOLUTION_INSTANCE}"
@@ -1589,7 +1589,7 @@ def estado_bot():
         resp.raise_for_status()
         data = resp.json()
         
-        # Evolution API retorna: {"instance":{"instanceName":"...","state":"open|close|connecting"}}
+        # WhatsApp API retorna: {"instance":{"instanceName":"...","state":"open|close|connecting"}}
         instance_data = data.get('instance', {})
         estado_evolution = instance_data.get('state', 'close')
         
@@ -1627,15 +1627,15 @@ def estado_bot():
 @admin_requerido
 def reiniciar_bot():
     """
-    Reinicia la instancia de WhatsApp usando Evolution API.
-    Evolution API no tiene un endpoint directo de restart, 
+    Reinicia la instancia de WhatsApp usando WhatsApp API.
+    WhatsApp API no tiene un endpoint directo de restart, 
     pero podemos desconectar y reconectar la instancia.
     """
     try:
         if not EVOLUTION_BASE_URL or not EVOLUTION_API_KEY or not EVOLUTION_INSTANCE:
             return jsonify({
                 'success': False, 
-                'error': 'Evolution API no configurada'
+                'error': 'WhatsApp no configurada'
             })
         
         headers = {"apikey": EVOLUTION_API_KEY}
@@ -1673,13 +1673,13 @@ def reiniciar_bot():
 @admin_requerido
 def desconectar_whatsapp():
     """
-    Desconecta la instancia de WhatsApp usando Evolution API.
+    Desconecta la instancia de WhatsApp usando WhatsApp API.
     """
     try:
         if not EVOLUTION_BASE_URL or not EVOLUTION_API_KEY or not EVOLUTION_INSTANCE:
             return jsonify({
                 'success': False, 
-                'error': 'Evolution API no configurada'
+                'error': 'WhatsApp no configurada'
             })
         
         headers = {"apikey": EVOLUTION_API_KEY}
