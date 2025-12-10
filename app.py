@@ -7,7 +7,6 @@ from admin import admin_bp
 from datetime import datetime, timedelta, timezone
 import random
 import sqlite3
-from time import time
 from soporte import soporte_bp
 
 # Cargar variables desde .env
@@ -27,6 +26,11 @@ API_KEY = os.getenv('API_KEY_WISPHUB')
 BASE_URL = os.getenv('BASE_URL_WISPHUB')
 GENIEACS_API = os.getenv("GENIEACS_API_URL")
 ip_server = os.getenv("IP_SERVER")
+
+# Configuración WhatsApp API
+EVOLUTION_BASE_URL = os.getenv("EVOLUTION_BASE_URL", "")
+EVOLUTION_API_KEY = os.getenv("EVOLUTION_API_KEY", "")
+EVOLUTION_INSTANCE = os.getenv("EVOLUTION_INSTANCE", "default")
 
 # Funciones de utilidad para clientes
 # (Aquí puedes agregar funciones propias si necesitas lógica de cliente)
@@ -319,23 +323,94 @@ def obtener_cliente_actual():
         'plan_megas': session.get('plan_megas', '')
     }
 
-
 import requests
-import time
+
+def verificar_estado_whatsapp():
+    """
+    Verifica el estado de conexión de WhatsApp usando WhatsApp API.
+    
+    WhatsApp API retorna: {"instance":{"instanceName":"...","state":"open|close|connecting"}}
+    
+    Returns:
+        str: 'open' si está conectado, 'close' si está desconectado, 'connecting' si está conectando, None si hay error
+    """
+    try:
+        if not EVOLUTION_BASE_URL or not EVOLUTION_API_KEY or not EVOLUTION_INSTANCE:
+            print(f"[WhatsApp] ❌ ERROR: Variables de WhatsApp API no configuradas en .env")
+            return None
+        
+        url = f"{EVOLUTION_BASE_URL}/instance/connectionState/{EVOLUTION_INSTANCE}"
+        headers = {"apikey": EVOLUTION_API_KEY}
+        response = requests.get(url, headers=headers, timeout=5)
+        response.raise_for_status()
+        data = response.json()
+        
+        # WhatsApp API retorna: {"instance":{"instanceName":"...","state":"..."}}
+        instance_data = data.get('instance', {})
+        estado = instance_data.get('state', 'close')
+        
+        print(f"[WhatsApp] 🔍 Estado de conexión: {estado}")
+        return estado
+    except Exception as e:
+        print(f"[WhatsApp] ⚠️ Error al verificar estado: {e}")
+        return None
 
 def enviar_whatsapp(telefono, mensaje):
+    """
+    Envía un mensaje de WhatsApp usando WhatsApp API.
+    Verifica primero si WhatsApp está conectado antes de intentar enviar.
+    
+    Args:
+        telefono: Número de teléfono (con o sin código de país)
+        mensaje: Texto del mensaje a enviar
+    
+    Returns:
+        bool: True si el mensaje se envió correctamente, False en caso contrario
+    """
     try:
-        url = f"http://{ip_server}:3002/send"
-        data = {"telefono": telefono, "mensaje": mensaje}
-        print(f"[WhatsApp] Enviando mensaje a {telefono}...")
-        response = requests.post(url, json=data, timeout=15)
+        # Validar que las variables de entorno estén configuradas
+        if not EVOLUTION_BASE_URL or not EVOLUTION_API_KEY or not EVOLUTION_INSTANCE:
+            print(f"[WhatsApp] ❌ ERROR: Variables de WhatsApp API no configuradas en .env")
+            return False
+        
+        # Verificar estado de conexión antes de enviar
+        estado = verificar_estado_whatsapp()
+        if estado != 'open':
+            print(f"[WhatsApp] ❌ ERROR: WhatsApp no está conectado. Estado actual: {estado}")
+            return False
+        
+        # Construir URL del endpoint de WhatsApp API
+        url = f"{EVOLUTION_BASE_URL}/message/sendText/{EVOLUTION_INSTANCE}"
+        
+        # Headers con la API key
+        headers = {
+            "apikey": EVOLUTION_API_KEY,
+            "Content-Type": "application/json"
+        }
+        
+        # Body según formato de WhatsApp API
+        data = {
+            "number": telefono,  # WhatsApp API usa "number"
+            "text": mensaje       # WhatsApp API usa "text"
+        }
+        
+        print(f"[WhatsApp] 📤 Enviando mensaje a {telefono}...")
+        print(f"[WhatsApp] 🔗 URL: {url}")
+        
+        response = requests.post(url, json=data, headers=headers, timeout=15)
+        response.raise_for_status()  # Lanza excepción si hay error HTTP
+        
         print(f"[WhatsApp] ✅ Enviado exitosamente: {response.text}")
         return True
+        
     except requests.exceptions.Timeout:
         print(f"[WhatsApp] ⏰ TIMEOUT - El servidor tardó más de 15 segundos")
         return False
     except requests.exceptions.ConnectionError:
-        print(f"[WhatsApp] 🔌 ERROR DE CONEXIÓN - No se pudo conectar al servidor")
+        print(f"[WhatsApp] 🔌 ERROR DE CONEXIÓN - No se pudo conectar al servidor WhatsApp API")
+        return False
+    except requests.exceptions.HTTPError as e:
+        print(f"[WhatsApp] ❌ ERROR HTTP {e.response.status_code}: {e.response.text}")
         return False
     except Exception as e:
         print(f"[WhatsApp] 💥 ERROR: {e}")
@@ -1120,7 +1195,6 @@ def diagnosticar_genieacs_config():
     print(f"[GenieACS] 🔧 DIAGNÓSTICO DE CONFIGURACIÓN:")
     print(f"[GenieACS]   - GENIEACS_API: {GENIEACS_API}")
     print(f"[GenieACS]   - IP_SERVER: {ip_server}")
-    print(f"[GenieACS]   - QR_SERVER: {os.getenv('QR_SERVER', 'No configurado')}")
     
     try:
         print(f"[GenieACS] 📡 Probando conexión con GenieACS...")

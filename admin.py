@@ -16,8 +16,12 @@ load_dotenv()
 API_KEY = os.getenv('API_KEY_WISPHUB')
 BASE_URL = os.getenv('BASE_URL_WISPHUB')
 GENIEACS_API = os.getenv("GENIEACS_API_URL")
-ip_server = os.getenv("IP_SERVER")
-qr_server = os.getenv("QR_SERVER")
+ip_server = os.getenv("IP_SERVER")  # Usado para logging/debugging de GenieACS
+
+# Configuración WhatsApp API
+EVOLUTION_BASE_URL = os.getenv("EVOLUTION_BASE_URL", "")
+EVOLUTION_API_KEY = os.getenv("EVOLUTION_API_KEY", "")
+EVOLUTION_INSTANCE = os.getenv("EVOLUTION_INSTANCE", "default")
 
 # Crear Blueprint
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
@@ -759,16 +763,29 @@ def login():
 @admin_bp.route('/dashboard', methods=['GET', 'POST'])
 @admin_requerido
 def dashboard():
-    # Consulta el estado del bot de WhatsApp
+    # Consulta el estado del bot de WhatsApp usando WhatsApp API
     try:
-        resp = requests.get(f'http://{ip_server}:3002/status', timeout=5)
-        data = resp.json()
-        if data.get('conectado'):
-            flash('✅ WhatsApp conectado correctamente.', 'success')
+        if EVOLUTION_BASE_URL and EVOLUTION_API_KEY and EVOLUTION_INSTANCE:
+            url = f"{EVOLUTION_BASE_URL}/instance/connectionState/{EVOLUTION_INSTANCE}"
+            headers = {"apikey": EVOLUTION_API_KEY}
+            resp = requests.get(url, headers=headers, timeout=5)
+            resp.raise_for_status()
+            data = resp.json()
+            # WhatsApp API retorna: {"instance":{"instanceName":"...","state":"open|close|connecting"}}
+            instance_data = data.get('instance', {})
+            estado_whatsapp = instance_data.get('state', 'close')
+            if estado_whatsapp == 'open':
+                flash('✅ WhatsApp conectado correctamente.', 'success')
+            else:
+                flash('❌ WhatsApp desconectado. No se pueden enviar mensajes automáticos.', 'danger')
         else:
-            flash('❌ WhatsApp desconectado. No se pueden enviar mensajes automáticos.', 'danger')
-    except Exception as e:
+            flash('⚠️ WhatsApp API no configurada. Verifica las variables de entorno.', 'warning')
+    except requests.exceptions.RequestException as e:
         flash('⚠️ No se pudo consultar el estado del bot de WhatsApp.', 'warning')
+        print(f"[ERROR] Error al consultar estado WhatsApp API: {e}")
+    except Exception as e:
+        flash('⚠️ Error inesperado al consultar estado de WhatsApp.', 'warning')
+        print(f"[ERROR] Error inesperado: {e}")
 
     cliente = None
     if request.method == 'POST' and 'cedula' in request.form:
@@ -1407,7 +1424,6 @@ def cambiar_wifi_cliente():
         print(f"[GenieACS] 🔧 DIAGNÓSTICO DE CONFIGURACIÓN (ADMIN):")
         print(f"[GenieACS]   - GENIEACS_API: {GENIEACS_API}")
         print(f"[GenieACS]   - IP_SERVER: {ip_server}")
-        print(f"[GenieACS]   - QR_SERVER: {qr_server}")
         
         # Usar interfaces_activas de la sesión o detectar si no están disponibles
         if not interfaces_activas:
@@ -1445,41 +1461,261 @@ def logout():
 @admin_bp.route('/conectar-whatsapp')
 @admin_requerido
 def conectar_whatsapp():
-    estado = None
+    """
+    Página para conectar WhatsApp usando WhatsApp API.
+    Obtiene el estado de la conexión y el QR code en base64.
+    """
+    estado = 'desconectado'
+    qr_base64 = None
+    qr_url = None
+    
     try:
-        resp = requests.get(f'http://{ip_server}:3002/status', timeout=3)
-        data = resp.json()
-        estado = data.get('estado')
-        print(f"[DEBUG] Estado del bot: {estado}, Datos completos: {data}")
+        # Validar configuración
+        if not EVOLUTION_BASE_URL or not EVOLUTION_API_KEY or not EVOLUTION_INSTANCE:
+            flash('⚠️ WhatsApp no configurada. Verifica las variables de entorno.', 'warning')
+            return render_template('admin/conectar_whatsapp.html', estado='error', qr_url=None)
+        
+        headers = {"apikey": EVOLUTION_API_KEY}
+        
+        # Consultar estado de la conexión
+        try:
+            url_estado = f"{EVOLUTION_BASE_URL}/instance/connectionState/{EVOLUTION_INSTANCE}"
+            resp_estado = requests.get(url_estado, headers=headers, timeout=5)
+            resp_estado.raise_for_status()
+            data_estado = resp_estado.json()
+            
+            print(f"[DEBUG] Respuesta completa de connectionState: {data_estado}")
+            
+            # WhatsApp API retorna: {"instance":{"instanceName":"...","state":"open|close|connecting"}}
+            instance_data = data_estado.get('instance', {})
+            if not instance_data:
+                # Si no hay 'instance', intentar obtener directamente 'state'
+                estado_evolution = data_estado.get('state', 'close')
+                print(f"[DEBUG] No se encontró 'instance', usando 'state' directamente: {estado_evolution}")
+            else:
+                estado_evolution = instance_data.get('state', 'close')
+            
+            print(f"[DEBUG] Estado WhatsApp API extraído: {estado_evolution}")
+            
+            # Mapear estados de WhatsApp API a estados internos
+            if estado_evolution == 'open':
+                estado = 'conectado'
+            elif estado_evolution == 'connecting':
+                estado = 'esperando_qr'
+            else:
+                estado = 'desconectado'
+            
+            print(f"[DEBUG] Estado WhatsApp API: {estado_evolution} -> Estado interno: {estado}")
+            
+        except requests.exceptions.RequestException as e:
+            print(f"[DEBUG] Error al consultar estado de conexión: {e}")
+            print(f"[DEBUG] Respuesta del servidor (si existe): {e.response.text if hasattr(e, 'response') and e.response else 'No hay respuesta'}")
+            # Si falla la consulta de estado, intentar obtener QR de todas formas
+            estado = 'desconectado'
+        except Exception as e:
+            print(f"[DEBUG] Error inesperado al consultar estado: {e}")
+            estado = 'desconectado'
+        
+        # Si no está conectado, intentar obtener el QR code
+        if estado != 'conectado':
+            try:
+                url_qr = f"{EVOLUTION_BASE_URL}/instance/connect/{EVOLUTION_INSTANCE}"
+                resp_qr = requests.get(url_qr, headers=headers, timeout=5)
+                resp_qr.raise_for_status()
+                data_qr = resp_qr.json()
+                
+                print(f"[DEBUG] Respuesta completa de connect: {data_qr}")
+                
+                # WhatsApp API puede retornar el QR en diferentes campos
+                qr_base64 = data_qr.get('base64') or data_qr.get('qrcode') or data_qr.get('qr') or data_qr.get('qrcode', {}).get('base64')
+                
+                # Si la respuesta tiene una estructura anidada
+                if not qr_base64 and 'qrcode' in data_qr and isinstance(data_qr['qrcode'], dict):
+                    qr_base64 = data_qr['qrcode'].get('base64')
+                
+                if qr_base64:
+                    # Convertir base64 a data URL para mostrar en el template
+                    # Si ya incluye el prefijo data:image, usarlo directamente
+                    if qr_base64.startswith('data:image'):
+                        qr_url = qr_base64
+                    else:
+                        # Agregar el prefijo si no lo tiene
+                        qr_url = f"data:image/png;base64,{qr_base64}"
+                    print(f"[DEBUG] QR obtenido correctamente (longitud: {len(qr_base64)} caracteres)")
+                else:
+                    print(f"[DEBUG] No se obtuvo QR en la respuesta. Estructura completa: {data_qr}")
+                    # Si no hay QR pero el estado es válido, no es un error crítico
+                    if estado == 'error':
+                        estado = 'desconectado'  # Cambiar a desconectado si no hay QR
+                        
+            except requests.exceptions.RequestException as e:
+                print(f"[DEBUG] Error al obtener QR (no crítico): {e}")
+                # Si falla obtener el QR pero tenemos un estado válido, no es error
+                if estado == 'error':
+                    estado = 'desconectado'
+            except Exception as e:
+                print(f"[DEBUG] Error inesperado al obtener QR: {e}")
+                if estado == 'error':
+                    estado = 'desconectado'
+        
     except Exception as e:
-        print(f"[DEBUG] Error al consultar bot: {e}")
+        # Solo establecer error si es algo realmente crítico
+        print(f"[DEBUG] Error crítico inesperado: {e}")
+        import traceback
+        print(f"[DEBUG] Traceback: {traceback.format_exc()}")
         estado = 'error'
-    # Si el estado es iniciando o desconocido, tratarlo como desconectado
-    if estado not in ['conectado', 'esperando_qr', 'desconectado', 'error']:
-        estado = 'desconectado'
-    qr_url = f"https://{qr_server}/qr-image?time={int(time.time())}"
+    
     return render_template('admin/conectar_whatsapp.html', estado=estado, qr_url=qr_url)
 
 
 @admin_bp.route('/estado-bot', methods=['GET'])
 @admin_requerido
 def estado_bot():
+    """
+    Endpoint AJAX para consultar el estado de WhatsApp usando WhatsApp API.
+    Retorna un formato compatible con el código JavaScript existente.
+    """
     try:
-        resp = requests.get(f'http://{ip_server}:3002/status', timeout=5)
+        if not EVOLUTION_BASE_URL or not EVOLUTION_API_KEY or not EVOLUTION_INSTANCE:
+            return jsonify({
+                'conectado': False, 
+                'estado': 'error',
+                'error': 'WhatsApp no configurada'
+            })
+        
+        url = f"{EVOLUTION_BASE_URL}/instance/connectionState/{EVOLUTION_INSTANCE}"
+        headers = {"apikey": EVOLUTION_API_KEY}
+        resp = requests.get(url, headers=headers, timeout=5)
+        resp.raise_for_status()
         data = resp.json()
-        return jsonify(data)
+        
+        # WhatsApp API retorna: {"instance":{"instanceName":"...","state":"open|close|connecting"}}
+        instance_data = data.get('instance', {})
+        estado_evolution = instance_data.get('state', 'close')
+        
+        # Convertir a formato compatible con el código existente
+        if estado_evolution == 'open':
+            return jsonify({
+                'conectado': True,
+                'estado': 'conectado'
+            })
+        elif estado_evolution == 'connecting':
+            return jsonify({
+                'conectado': False,
+                'estado': 'esperando_qr'
+            })
+        else:
+            return jsonify({
+                'conectado': False,
+                'estado': 'desconectado'
+            })
+            
+    except requests.exceptions.RequestException as e:
+        return jsonify({
+            'conectado': False, 
+            'estado': 'error',
+            'error': str(e)
+        })
     except Exception as e:
-        return jsonify({'conectado': False, 'error': str(e)})
+        return jsonify({
+            'conectado': False, 
+            'estado': 'error',
+            'error': str(e)
+        })
 
 @admin_bp.route('/reiniciar-bot', methods=['POST'])
 @admin_requerido
 def reiniciar_bot():
+    """
+    Reinicia la instancia de WhatsApp usando WhatsApp API.
+    WhatsApp API no tiene un endpoint directo de restart, 
+    pero podemos desconectar y reconectar la instancia.
+    """
     try:
-        resp = requests.post(f'http://{ip_server}:3002/restart', timeout=10)
-        data = resp.json()
-        return jsonify(data)
+        if not EVOLUTION_BASE_URL or not EVOLUTION_API_KEY or not EVOLUTION_INSTANCE:
+            return jsonify({
+                'success': False, 
+                'error': 'WhatsApp no configurada'
+            })
+        
+        headers = {"apikey": EVOLUTION_API_KEY}
+        
+        # Desconectar la instancia
+        url_logout = f"{EVOLUTION_BASE_URL}/instance/logout/{EVOLUTION_INSTANCE}"
+        try:
+            resp_logout = requests.delete(url_logout, headers=headers, timeout=10)
+            resp_logout.raise_for_status()
+        except:
+            pass  # Si falla, continuamos de todas formas
+        
+        # Reconectar la instancia (esto generará un nuevo QR)
+        url_connect = f"{EVOLUTION_BASE_URL}/instance/connect/{EVOLUTION_INSTANCE}"
+        resp_connect = requests.get(url_connect, headers=headers, timeout=10)
+        resp_connect.raise_for_status()
+        
+        return jsonify({
+            'success': True, 
+            'message': 'Instancia reiniciada. Escanea el nuevo QR para conectar.'
+        })
+        
+    except requests.exceptions.RequestException as e:
+        return jsonify({
+            'success': False, 
+            'error': f'Error al reiniciar: {str(e)}'
+        })
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
+        return jsonify({
+            'success': False, 
+            'error': str(e)
+        })
+
+@admin_bp.route('/desconectar-whatsapp', methods=['POST'])
+@admin_requerido
+def desconectar_whatsapp():
+    """
+    Desconecta la instancia de WhatsApp usando WhatsApp API.
+    """
+    try:
+        if not EVOLUTION_BASE_URL or not EVOLUTION_API_KEY or not EVOLUTION_INSTANCE:
+            return jsonify({
+                'success': False, 
+                'error': 'WhatsApp no configurada'
+            })
+        
+        headers = {"apikey": EVOLUTION_API_KEY}
+        
+        # Desconectar la instancia
+        url_logout = f"{EVOLUTION_BASE_URL}/instance/logout/{EVOLUTION_INSTANCE}"
+        resp_logout = requests.delete(url_logout, headers=headers, timeout=10)
+        resp_logout.raise_for_status()
+        
+        print(f"[DEBUG] WhatsApp desconectado exitosamente")
+        
+        return jsonify({
+            'success': True, 
+            'message': 'WhatsApp desconectado correctamente. Puedes volver a conectar escaneando el QR.'
+        })
+        
+    except requests.exceptions.RequestException as e:
+        print(f"[DEBUG] Error al desconectar WhatsApp: {e}")
+        error_msg = str(e)
+        if hasattr(e, 'response') and e.response:
+            try:
+                error_data = e.response.json()
+                error_msg = error_data.get('message', error_data.get('error', str(e)))
+            except:
+                error_msg = e.response.text or str(e)
+        
+        return jsonify({
+            'success': False, 
+            'error': f'Error al desconectar: {error_msg}'
+        })
+    except Exception as e:
+        print(f"[DEBUG] Error inesperado al desconectar: {e}")
+        return jsonify({
+            'success': False, 
+            'error': str(e)
+        })
 
 @admin_bp.route('/verificar-sesion', methods=['POST'])
 def verificar_sesion_admin():
