@@ -251,18 +251,63 @@
             <div class="qr-card d-flex flex-column align-items-center" style="min-width:320px;max-width:400px;">
                 <div class="qr-title mb-1"><i class="bi bi-whatsapp"></i> Escanea el QR de WhatsApp</div>
                 {% if estado in ['esperando_qr', 'desconectado'] %}
-                    <img src="{{ qr_url }}" alt="QR de WhatsApp" style="width:220px;height:220px;" class="qr-img" onerror="this.style.display='none'">
-                    <div class="text-muted mt-2">El QR se actualiza cada minuto</div>
+                    {% if qr_url %}
+                        <img src="{{ qr_url }}" alt="QR de WhatsApp" style="width:220px;height:220px;" class="qr-img" onerror="this.style.display='none'">
+                        <div class="text-muted mt-2">El QR se actualiza cada minuto</div>
+                    {% else %}
+                        <div class="alert alert-info text-center" style="padding: 1rem;">
+                            <i class="bi bi-info-circle-fill" style="font-size: 1.5rem; display: block; margin-bottom: 0.5rem;"></i>
+                            <div style="font-size: 0.95rem;">Generando código QR...</div>
+                        </div>
+                    {% endif %}
                     <button class="btn btn-outline-success btn-reload mt-2" onclick="window.location.reload()">
                         <i class="bi bi-arrow-clockwise"></i> Recargar QR
                     </button>
                 {% elif estado == 'conectado' %}
-                    <div class="alert alert-success text-center">
-                        ✅ Bot de WhatsApp conectado correctamente.
+                    <div class="text-center">
+                        <div style="padding: 1.5rem 1.2rem; border-radius: 0.8rem; border: 2px solid #28a745; background: #fff; box-shadow: 0 2px 12px rgba(40, 167, 69, 0.1);">
+                            <div style="margin-bottom: 0.8rem;">
+                                <i class="bi bi-check-circle-fill" style="font-size: 2.5rem; color: #28a745; display: block; animation: pulse 2s infinite;"></i>
+                            </div>
+                            <strong style="font-size: 1.1rem; color: #155724; display: block; margin-bottom: 0.5rem; font-weight: 700;">
+                                <i class="bi bi-whatsapp" style="font-size: 1.2rem; vertical-align: middle; margin-right: 0.4rem; color: #25D366;"></i> WhatsApp Conectado
+                            </strong>
+                            <div style="margin-top: 0.5rem; font-size: 0.95rem; color: #155724; line-height: 1.5;">
+                                Tu WhatsApp está conectado y listo para enviar mensajes.
+                            </div>
+                        </div>
+                        <button id="btn-desconectar-whatsapp" class="btn btn-danger rounded-pill px-4 py-1.5 mt-3" style="font-weight: 600; font-size: 0.9rem; box-shadow: 0 2px 8px rgba(220, 53, 69, 0.25); transition: all 0.3s ease; border: none;">
+                            <i class="bi bi-x-circle-fill" style="font-size: 1rem; margin-right: 0.4rem;"></i> Desconectar WhatsApp
+                        </button>
+                        <style>
+                            @keyframes pulse {
+                                0%, 100% { transform: scale(1); opacity: 1; }
+                                50% { transform: scale(1.05); opacity: 0.9; }
+                            }
+                            #btn-desconectar-whatsapp:hover {
+                                transform: translateY(-1px);
+                                box-shadow: 0 4px 12px rgba(220, 53, 69, 0.35) !important;
+                            }
+                            #btn-desconectar-whatsapp:active {
+                                transform: translateY(0);
+                            }
+                        </style>
                     </div>
                 {% elif estado == 'error' %}
-                    <div class="alert alert-danger text-center">
-                        ⚠️ Error en el bot de WhatsApp. Intenta reiniciar el microservicio.
+                    <div class="alert alert-danger text-center" style="padding: 1.5rem;">
+                        <i class="bi bi-exclamation-triangle-fill" style="font-size: 2rem; display: block; margin-bottom: 0.5rem;"></i>
+                        <strong style="font-size: 1.1rem;">Error de Conexión</strong>
+                        <div style="margin-top: 0.5rem; font-size: 0.95rem;">
+                            No se pudo conectar con Evolution API. Verifica:
+                            <ul style="text-align: left; margin-top: 0.5rem; font-size: 0.9rem;">
+                                <li>Que Evolution API esté corriendo</li>
+                                <li>Que las variables de entorno estén configuradas</li>
+                                <li>Que la instancia exista</li>
+                            </ul>
+                        </div>
+                        <button class="btn btn-outline-danger btn-sm mt-2" onclick="window.location.reload()">
+                            <i class="bi bi-arrow-clockwise"></i> Reintentar
+                        </button>
                     </div>
                 {% endif %}
             </div>
@@ -314,6 +359,69 @@
                     setTimeout(() => { window.location.href = res.redirect || '/admin/login'; }, 1200);
                 } else {
                     Swal.fire({ icon: 'error', title: 'Error', text: res.message || 'No se pudo cerrar la sesión.' });
+                }
+            });
+        }
+
+        // Botón de desconectar WhatsApp
+        const btnDesconectar = document.getElementById('btn-desconectar-whatsapp');
+        if (btnDesconectar) {
+            btnDesconectar.addEventListener('click', async function() {
+                const result = await Swal.fire({
+                    title: '¿Desconectar WhatsApp?',
+                    text: 'Esto cerrará la sesión de WhatsApp. Deberás escanear el QR nuevamente para volver a conectar.',
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#d33',
+                    cancelButtonColor: '#6c757d',
+                    confirmButtonText: '<i class="bi bi-x-circle-fill"></i> Sí, desconectar',
+                    cancelButtonText: '<i class="bi bi-x"></i> Cancelar',
+                    reverseButtons: true
+                });
+
+                if (result.isConfirmed) {
+                    // Mostrar loading
+                    Swal.fire({
+                        title: 'Desconectando...',
+                        html: '<div class="d-flex justify-content-center align-items-center"><span class="spinner-border text-danger" role="status" aria-hidden="true"></span></div>',
+                        allowOutsideClick: false,
+                        allowEscapeKey: false,
+                        showConfirmButton: false
+                    });
+
+                    try {
+                        const resp = await fetch("{{ url_for('admin.desconectar_whatsapp') }}", {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' }
+                        });
+                        const data = await resp.json();
+
+                        if (data.success) {
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'WhatsApp Desconectado',
+                                text: data.message || 'WhatsApp se ha desconectado correctamente.',
+                                confirmButtonText: 'Recargar página',
+                                confirmButtonColor: '#28a745'
+                            }).then(() => {
+                                window.location.reload();
+                            });
+                        } else {
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Error al desconectar',
+                                text: data.error || 'No se pudo desconectar WhatsApp.',
+                                confirmButtonColor: '#d33'
+                            });
+                        }
+                    } catch (error) {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error',
+                            text: 'No se pudo conectar con el servidor.',
+                            confirmButtonColor: '#d33'
+                        });
+                    }
                 }
             });
         }
