@@ -160,7 +160,7 @@ def index():
             session['nombre'] = cliente.get('nombre', '')
             session['cedula'] = cedula
             # Enviar WhatsApp automáticamente
-            if not enviar_whatsapp(whatsapp, f'Tu código de verificación es: {codigo}'):
+            if not enviar_otp_ycloud(whatsapp,codigo):
                 return jsonify({'success': False, 'code': 'error_envio', 'message': 'No se pudo enviar el código por WhatsApp.  '})
             return jsonify({'success': True, 'ultimos4': ultimos4})
     return render_template("users/user_login.html")
@@ -327,32 +327,53 @@ import requests
 
 def verificar_estado_whatsapp():
     """
-    Verifica el estado de conexión de WhatsApp usando WhatsApp API.
+    Verifica el estado de conexión de WhatsApp usando YCloud API.
     
-    WhatsApp API retorna: {"instance":{"instanceName":"...","state":"open|close|connecting"}}
+    YCloud API retorna: {"items": [{"status": "CONNECTED", ...}]}
     
     Returns:
-        str: 'open' si está conectado, 'close' si está desconectado, 'connecting' si está conectando, None si hay error
+        str: 'CONNECTED' si está conectado, 'DISCONNECTED' si está desconectado, None si hay error
     """
     try:
-        if not EVOLUTION_BASE_URL or not EVOLUTION_API_KEY or not EVOLUTION_INSTANCE:
-            print(f"[WhatsApp] ❌ ERROR: Variables de WhatsApp API no configuradas en .env")
+        api_key = os.getenv('YCLOUD_API_KEY')
+        sender_id = os.getenv('YCLOUD_SENDER_ID') # ID del número en YCloud (ej: 862353686972427)
+        
+        if not api_key:
+            print(f"[YCloud] ❌ ERROR: Variables de YCloud API no configuradas en .env")
             return None
         
-        url = f"{EVOLUTION_BASE_URL}/instance/connectionState/{EVOLUTION_INSTANCE}"
-        headers = {"apikey": EVOLUTION_API_KEY}
-        response = requests.get(url, headers=headers, timeout=5)
+        url = "https://api.ycloud.com/v2/whatsapp/phoneNumbers"
+        headers = {
+            "X-API-Key": api_key,
+            "Content-Type": "application/json"
+        }
+        
+        response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()
         data = response.json()
         
-        # WhatsApp API retorna: {"instance":{"instanceName":"...","state":"..."}}
-        instance_data = data.get('instance', {})
-        estado = instance_data.get('state', 'close')
+        # YCloud retorna una lista de items
+        items = data.get('items', [])
         
-        print(f"[WhatsApp] 🔍 Estado de conexión: {estado}")
-        return estado
+        if sender_id:
+            # Filtrar por el ID específico si está configurado
+            for item in items:
+                if item.get('id') == sender_id:
+                     estado = item.get('status', 'UNKNOWN')
+                     print(f"[YCloud] 🔍 Estado de conexión ({sender_id}): {estado}")
+                     return estado
+            print(f"[YCloud] ⚠️ No se encontró el número con ID {sender_id}")
+        elif items:
+            # Si no hay ID específico, tomar el primero
+            estado = items[0].get('status', 'UNKNOWN')
+            print(f"[YCloud] 🔍 Estado de conexión (primer número): {estado}")
+            return estado
+            
+        print("[YCloud] ⚠️ No se encontraron números en la cuenta")
+        return None
+        
     except Exception as e:
-        print(f"[WhatsApp] ⚠️ Error al verificar estado: {e}")
+        print(f"[YCloud] ⚠️ Error al verificar estado: {e}")
         return None
 
 def enviar_whatsapp(telefono, mensaje):
@@ -416,6 +437,139 @@ def enviar_whatsapp(telefono, mensaje):
         print(f"[WhatsApp] 💥 ERROR: {e}")
         return False
 
+def enviar_confirmacion_de_cambio(telefono,mensaje):
+    try:
+        api_key = os.getenv('YCLOUD_API_KEY')
+        
+        if not api_key:
+            print("[YCloud] ❌ ERROR: API Key no configurada")
+            return False
+
+        # Endpoint oficial de YCloud para enviar mensajes
+        url = "https://api.ycloud.com/v2/whatsapp/messages/sendDirectly"
+
+        headers = {
+            "Content-Type": "application/json",
+            "X-API-Key": api_key
+        }
+
+        # Estructura del payload SEGÚN TU SOLICITUD
+        data = {
+            "from": "573127313737", # Tu número de envío
+            "to": telefono,
+            "type": "template",
+            "template": {
+                "name": "solicitud_cambio_skypass_v1",
+                "language": {
+                    "code": "en",
+                    "policy": "deterministic"
+                },
+                "components": [
+                    {
+                        "type": "body",
+                        "parameters": [
+                            {
+                                "type": "text",
+                                "text": mensaje
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+
+        print(f"[YCloud] Mensaje de Cambio Enviando mensaje {mensaje} a {telefono}...")
+
+        response = requests.post(url, json=data, headers=headers, timeout=15)
+        response.raise_for_status()
+        
+        resultado = response.json()
+        print(f"[YCloud] ✅ Mensaje enviado. ID: {resultado.get('id')}")
+        return True
+
+    except requests.exceptions.HTTPError as e:
+        print(f"[YCloud] ❌ ERROR HTTP: {e.response.text}")
+        return False
+    except Exception as e:
+        print(f"[YCloud] 💥 ERROR: {e}")
+        return False
+    
+
+
+def enviar_otp_ycloud(telefono, codigo):
+    """
+    Envía un código OTP usando una plantilla de autenticación de YCloud.
+    
+    Args:
+        telefono: Número de teléfono (E.164, ej: +573001234567)
+        codigo: El código de verificación (ej: "123456")
+    """
+    try:
+        api_key = os.getenv('YCLOUD_API_KEY')
+        
+        if not api_key:
+            print("[YCloud] ❌ ERROR: API Key no configurada")
+            return False
+
+        # Endpoint oficial de YCloud para enviar mensajes
+        url = "https://api.ycloud.com/v2/whatsapp/messages/sendDirectly"
+
+        headers = {
+            "Content-Type": "application/json",
+            "X-API-Key": api_key
+        }
+
+        # Estructura del payload SEGÚN TU SOLICITUD
+        data = {
+            "from": "573127313737", # Tu número de envío
+            "to": telefono,
+            "type": "template",
+            "template": {
+                "name": "auth_skypass",
+                "language": {
+                    "code": "es_CO",
+                    "policy": "deterministic"
+                },
+                "components": [
+                    {
+                        "type": "body",
+                        "parameters": [
+                            {
+                                "type": "text",
+                                "text": codigo
+                            }
+                        ]
+                    },
+                    {
+                        "type": "button",
+                        "sub_type": "url",
+                        "index": "0",
+                        "parameters": [
+                            {
+                                "type": "text",
+                                "text": codigo
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+
+        print(f"[YCloud] outbox_tray Enviando OTP {codigo} a {telefono}...")
+
+        response = requests.post(url, json=data, headers=headers, timeout=15)
+        response.raise_for_status()
+        
+        resultado = response.json()
+        print(f"[YCloud] ✅ Mensaje enviado. ID: {resultado.get('id')}")
+        return True
+
+    except requests.exceptions.HTTPError as e:
+        print(f"[YCloud] ❌ ERROR HTTP: {e.response.text}")
+        return False
+    except Exception as e:
+        print(f"[YCloud] 💥 ERROR: {e}")
+        return False
 
 
 @app.route("/cambiar_clave", methods=["GET", "POST"])
@@ -507,7 +661,7 @@ def cambiar_clave():
         whatsapp = normalizar_numero(cliente['celular'])
         if not whatsapp:
             return jsonify({'success': False, 'message': 'El número de teléfono no es válido para WhatsApp.'})
-        if not enviar_whatsapp(whatsapp, f"¡Hola! tu contraseña Wifi será cambiada en unos segundos. Nueva Contraseña: {nueva_clave}"):
+        if not enviar_confirmacion_de_cambio(whatsapp, nueva_clave):
             return jsonify({'success': False, 'message': 'No se pudo enviar el WhatsApp.'})
         return jsonify({'success': True})
     
@@ -609,7 +763,7 @@ def cambiar_nombre_red():
         whatsapp = normalizar_numero(cliente['celular'])
         if not whatsapp:
             return jsonify({'success': False, 'message': 'El número de teléfono no es válido para WhatsApp.'})
-        if not enviar_whatsapp(whatsapp, f"¡Hola! tu Nombre de la Red Wifi será cambiada en unos segundos. Nuevo Nombre: {nuevo_nombre}"):
+        if not enviar_confirmacion_de_cambio(whatsapp,nuevo_nombre):
             return jsonify({'success': False, 'message': 'No se pudo enviar el WhatsApp.'})
         return jsonify({'success': True})
     
@@ -1179,7 +1333,7 @@ def reenviar_codigo():
     codigo = session.get('codigo_verificacion')
     if not telefono or not codigo:
         return jsonify({'success': False, 'message': 'No hay sesión activa.'})
-    if not enviar_whatsapp(telefono, f'Tu código de verificación es: {codigo}'):
+    if not enviar_otp_ycloud(telefono, codigo):
         return jsonify({'success': False, 'message': 'No se pudo enviar el código.  '})
     return jsonify({'success': True})
 
