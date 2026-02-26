@@ -1865,16 +1865,14 @@ def detectar_interfaces_y_frecuencias(device_id):
             interfaz_24ghz = interfaz
             ssid_24ghz = ssid_actual
     
-    # Si hay múltiples interfaces y encontramos una de 2.4GHz, mostrar solo esa
-    if len(interfaces_activas) > 1 and interfaz_24ghz:
-        print(f"[GenieACS] ✅ Múltiples interfaces detectadas. Mostrando solo 2.4GHz (Interfaz {interfaz_24ghz}): {ssid_24ghz}")
-        return [interfaz_24ghz], {interfaz_24ghz: interfaces_info[interfaz_24ghz]}
-    
-    # Si hay una sola interfaz, mostrar su SSID
+    # Si hay una sola interfaz, solo esa se usa
     if len(interfaces_activas) == 1:
         primera_interfaz = interfaces_activas[0]
         ssid_primera = interfaces_info[primera_interfaz].get('ssid_actual', 'Desconocido')
-        print(f"[GenieACS] ✅ Nombre de red actual (Interfaz {primera_interfaz}): {ssid_primera}")
+        print(f"[GenieACS] ✅ Interfaz única activa (Interfaz {primera_interfaz}): {ssid_primera}")
+    else:
+        # Si hay múltiples interfaces, se usan TODAS
+        print(f"[GenieACS] ✅ Múltiples interfaces activas: {list(interfaces_info.keys())} — se cambiarán todas")
     
     return interfaces_activas, interfaces_info
 
