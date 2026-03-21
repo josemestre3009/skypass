@@ -1183,6 +1183,87 @@ def formatear_fecha(value, formato='%d/%m/%Y %H:%M'):
 
 app.jinja_env.filters['formatear_fecha'] = formatear_fecha
 
+# ─── ENDPOINTS ADMIN PARA PRUEBAS (sin login ni sesión) ───────────────────────
+
+@app.route("/admin/api/cambiar_password_wifi", methods=["POST"])
+def admin_cambiar_password_wifi():
+    """
+    Endpoint directo para cambiar contraseña WiFi sin sesión.
+    Body JSON:
+    {
+        "ip": "192.168.1.100",
+        "nueva_password": "MiClave123"
+    }
+    """
+    if not request.is_json:
+        return jsonify({"success": False, "message": "Content-Type debe ser application/json"}), 400
+
+    data = request.get_json()
+    ip = data.get("ip")
+    nueva_password = data.get("nueva_password")
+
+    if not ip:
+        return jsonify({"success": False, "message": "Falta el campo 'ip'"}), 400
+    if not nueva_password:
+        return jsonify({"success": False, "message": "Falta el campo 'nueva_password'"}), 400
+    if len(nueva_password) < 8:
+        return jsonify({"success": False, "message": "La contraseña debe tener al menos 8 caracteres"}), 400
+
+    # Buscar device_id por IP
+    dispositivo_online, device_id = obtener_estado_online_device(ip)
+    if not dispositivo_online or not device_id:
+        device_id = obtener_device_id_por_ip(ip)
+    if not device_id:
+        return jsonify({"success": False, "message": f"No se encontró ningún dispositivo con la IP {ip}"}), 404
+
+    # Detectar interfaces activas
+    interfaces_activas = detectar_interfaces_wifi_activas(device_id)
+    if not interfaces_activas:
+        return jsonify({"success": False, "message": "No se encontraron interfaces WiFi activas en el dispositivo"}), 404
+
+    ok, mensaje = cambiar_contraseña_wifi_interfaces_ya_detectadas(device_id, interfaces_activas, nueva_password)
+    return jsonify({"success": ok, "message": mensaje, "device_id": device_id, "interfaces": interfaces_activas})
+
+
+@app.route("/admin/api/cambiar_nombre_red", methods=["POST"])
+def admin_cambiar_nombre_red():
+    """
+    Endpoint directo para cambiar nombre de red WiFi sin sesión.
+    Body JSON:
+    {
+        "ip": "192.168.1.100",
+        "nuevo_nombre": "MiRedNueva"
+    }
+    """
+    if not request.is_json:
+        return jsonify({"success": False, "message": "Content-Type debe ser application/json"}), 400
+
+    data = request.get_json()
+    ip = data.get("ip")
+    nuevo_nombre = data.get("nuevo_nombre")
+
+    if not ip:
+        return jsonify({"success": False, "message": "Falta el campo 'ip'"}), 400
+    if not nuevo_nombre:
+        return jsonify({"success": False, "message": "Falta el campo 'nuevo_nombre'"}), 400
+
+    # Buscar device_id por IP
+    dispositivo_online, device_id = obtener_estado_online_device(ip)
+    if not dispositivo_online or not device_id:
+        device_id = obtener_device_id_por_ip(ip)
+    if not device_id:
+        return jsonify({"success": False, "message": f"No se encontró ningún dispositivo con la IP {ip}"}), 404
+
+    # Detectar interfaces y frecuencias
+    interfaces_activas, interfaces_info = detectar_interfaces_y_frecuencias(device_id)
+    if not interfaces_activas:
+        return jsonify({"success": False, "message": "No se encontraron interfaces WiFi activas en el dispositivo"}), 404
+
+    ok, mensaje = cambiar_nombre_red_wifi_inteligente(device_id, interfaces_info, nuevo_nombre)
+    return jsonify({"success": ok, "message": mensaje, "device_id": device_id, "interfaces": interfaces_activas})
+
+# ──────────────────────────────────────────────────────────────────────────────
+
 @app.route("/api/clientes/", methods=["GET"])
 def buscar_cliente_api():
     cedula = request.args.get("cedula")
