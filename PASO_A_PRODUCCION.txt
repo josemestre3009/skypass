@@ -72,20 +72,24 @@ python app.py
 
 6. Pega la siguiente configuración:
 [Unit]
-   Description=Skypass Web App
-   After=network.target
+Description=Skypass Web App
+After=network.target
 
 [Service]
-   User=root
-   WorkingDirectory=/root/skypass
-   Environment="PATH=/root/skypass/venv/bin"
-   ExecStart=/root/skypass/venv/bin/gunicorn -w 4 -b 0.0.0.0:8000 app:app
-   Restart=always
-   StandardOutput=journal
-   StandardError=journal
+User=root
+WorkingDirectory=/root/skypass
+# --- AÑADE ESTA LÍNEA ---
+Environment="PYTHONUNBUFFERED=1"
+Environment="PATH=/root/skypass/venv/bin"
+# --- CAMBIA ESTA LÍNEA (agregando los flags de log) ---
+ExecStart=/root/skypass/venv/bin/gunicorn --access-logfile - --error-logfile - -w 4 -b 0.0.0.0:8000 app:app
+Restart=always
+StandardOutput=journal
+StandardError=journal
 
 [Install]
-   WantedBy=multi-user.target
+WantedBy=multi-user.target
+
 
 7. Recarga systemd y arranca los servicios:
    sudo systemctl daemon-reload
