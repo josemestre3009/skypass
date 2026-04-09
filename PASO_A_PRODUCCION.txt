@@ -22,22 +22,7 @@ pip install -r requirements.txt
 python app.py
 # Detén con Ctrl+C si todo arranca bien
 
-4. INSTALA Y CONFIGURA EL BOT NODE.JS
--------------------------------------
-cd ~/skypass/base-baileys-memory
-rm -rf node_modules package-lock.json
-npm install
-npm install @bot-whatsapp/database-json
-   rm -rf ./base-baileys-memory/db
-   rm -rf ./base-baileys-memory/bot_sessions
 
-# Prueba el bot manualmente:
-node app.js
-# Debes ver mensajes de que el bot y el portal web están escuchando en sus puertos.
-# Prueba los endpoints:
-curl http://localhost:3002/status
-curl -X POST http://localhost:3002/send -H "Content-Type: application/json" -d '{"telefono":"573001234567","mensaje":"Prueba"}'
-# Si todo responde bien, detén con Ctrl+C.
 
 5. CONFIGURA CREDENCIALES Y VARIABLES DE ENTORNO
 ------------------------------------------------
@@ -61,27 +46,7 @@ curl -X POST http://localhost:3002/send -H "Content-Type: application/json" -d '
 6. CREA Y CONFIGURA LOS SERVICIOS SYSTEMD PARA PRODUCCIÓN
 ---------------------------------------------------------
 
-### A. Servicio para el BOT NODE.JS
 
-1. Crea el archivo del servicio:
-   sudo nano /etc/systemd/system/bot-baileys.service
-
-2. Pega la siguiente configuración:
-[Unit]
-   Description=Bot Baileys Skypass
-   After=network.target
-
-[Service]
-   User=root
-   WorkingDirectory=/root/skypass/base-baileys-memory
-   Environment=PORT=3002
-   ExecStart=/usr/bin/node app.js
-   Restart=always
-   StandardOutput=journal
-   StandardError=journal
-
-[Install]
-   WantedBy=multi-user.target
 
 ### B. Servicio para la APP PYTHON (Flask + Gunicorn)
 

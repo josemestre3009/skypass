@@ -376,66 +376,7 @@ def verificar_estado_whatsapp():
         print(f"[YCloud] ⚠️ Error al verificar estado: {e}")
         return None
 
-def enviar_whatsapp(telefono, mensaje):
-    """
-    Envía un mensaje de WhatsApp usando WhatsApp API.
-    Verifica primero si WhatsApp está conectado antes de intentar enviar.
-    
-    Args:
-        telefono: Número de teléfono (con o sin código de país)
-        mensaje: Texto del mensaje a enviar
-    
-    Returns:
-        bool: True si el mensaje se envió correctamente, False en caso contrario
-    """
-    try:
-        # Validar que las variables de entorno estén configuradas
-        if not EVOLUTION_BASE_URL or not EVOLUTION_API_KEY or not EVOLUTION_INSTANCE:
-            print(f"[WhatsApp] ❌ ERROR: Variables de WhatsApp API no configuradas en .env")
-            return False
-        
-        # Verificar estado de conexión antes de enviar
-        estado = verificar_estado_whatsapp()
-        if estado != 'open':
-            print(f"[WhatsApp] ❌ ERROR: WhatsApp no está conectado. Estado actual: {estado}")
-            return False
-        
-        # Construir URL del endpoint de WhatsApp API
-        url = f"{EVOLUTION_BASE_URL}/message/sendText/{EVOLUTION_INSTANCE}"
-        
-        # Headers con la API key
-        headers = {
-            "apikey": EVOLUTION_API_KEY,
-            "Content-Type": "application/json"
-        }
-        
-        # Body según formato de WhatsApp API
-        data = {
-            "number": telefono,  # WhatsApp API usa "number"
-            "text": mensaje       # WhatsApp API usa "text"
-        }
-        
-        print(f"[WhatsApp] 📤 Enviando mensaje a {telefono}...")
-        print(f"[WhatsApp] 🔗 URL: {url}")
-        
-        response = requests.post(url, json=data, headers=headers, timeout=15)
-        response.raise_for_status()  # Lanza excepción si hay error HTTP
-        
-        print(f"[WhatsApp] ✅ Enviado exitosamente: {response.text}")
-        return True
-        
-    except requests.exceptions.Timeout:
-        print(f"[WhatsApp] ⏰ TIMEOUT - El servidor tardó más de 15 segundos")
-        return False
-    except requests.exceptions.ConnectionError:
-        print(f"[WhatsApp] 🔌 ERROR DE CONEXIÓN - No se pudo conectar al servidor WhatsApp API")
-        return False
-    except requests.exceptions.HTTPError as e:
-        print(f"[WhatsApp] ❌ ERROR HTTP {e.response.status_code}: {e.response.text}")
-        return False
-    except Exception as e:
-        print(f"[WhatsApp] 💥 ERROR: {e}")
-        return False
+
 
 def enviar_confirmacion_de_cambio(telefono,mensaje):
     try:
