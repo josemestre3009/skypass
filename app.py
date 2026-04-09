@@ -409,15 +409,20 @@ def enviar_confirmacion_de_cambio(telefono,mensaje):
                 },
                 "components": [
                     {
+                        "type": "header",
+                        "parameters": [
+                            {
+                                "type": "text",
+                                "text": empresa
+                            }
+                        ]
+                    },
+                    {
                         "type": "body",
                         "parameters": [
                             {
                                 "type": "text",
                                 "text": mensaje
-                            },
-                            {
-                                "type": "text",
-                                "text": empresa
                             }
                         ]
                     }
