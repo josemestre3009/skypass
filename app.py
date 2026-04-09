@@ -422,7 +422,7 @@ def enviar_confirmacion_de_cambio(telefono,mensaje):
                         "parameters": [
                             {
                                 "type": "text",
-                                "text": mensaje
+                                "text": f"*{mensaje}*" 
                             }
                         ]
                     }
