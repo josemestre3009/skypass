@@ -381,6 +381,7 @@ def verificar_estado_whatsapp():
 def enviar_confirmacion_de_cambio(telefono,mensaje):
     try:
         api_key = os.getenv('YCLOUD_API_KEY')
+        empresa = os.getenv('EMPRESA')
         
         if not api_key:
             print("[YCloud] ❌ ERROR: API Key no configurada")
@@ -400,7 +401,7 @@ def enviar_confirmacion_de_cambio(telefono,mensaje):
             "to": telefono,
             "type": "template",
             "template": {
-                "name": "solicitud_cambio_skypass_v1",
+                "name": "solicitud_cambio_skypass_v2",
                 "language": {
                     "code": "en",
                     "policy": "deterministic"
@@ -412,6 +413,10 @@ def enviar_confirmacion_de_cambio(telefono,mensaje):
                             {
                                 "type": "text",
                                 "text": mensaje
+                            },
+                            {
+                                "type": "text",
+                                "text": empresa
                             }
                         ]
                     }
