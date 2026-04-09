@@ -395,6 +395,7 @@ def enviar_confirmacion_de_cambio(telefono,mensaje):
             "X-API-Key": api_key
         }
 
+
         # Estructura del payload SEGÚN TU SOLICITUD
         data = {
             "from": "573127313737", # Tu número de envío
@@ -403,7 +404,7 @@ def enviar_confirmacion_de_cambio(telefono,mensaje):
             "template": {
                 "name": "solicitud_cambio_skypass_v2",
                 "language": {
-                    "code": "en",
+                    "code": "es_CO",
                     "policy": "deterministic"
                 },
                 "components": [

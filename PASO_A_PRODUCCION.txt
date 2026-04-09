@@ -52,6 +52,7 @@ python app.py
 
 1. Activa el entorno virtual:
    cd ~/skypass
+   python3 -m venv venv
    source venv/bin/activate
 
 2. Instala Gunicorn dentro del entorno virtual:
