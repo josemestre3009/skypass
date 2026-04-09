@@ -51,11 +51,14 @@ python app.py
 ### B. Servicio para la APP PYTHON (Flask + Gunicorn)
 
 1. Activa el entorno virtual:
+rm -rf venv/
+
    cd ~/skypass
    python3 -m venv venv
    source venv/bin/activate
 
 2. Instala Gunicorn dentro del entorno virtual:
+pip install -r requirements.txt
    pip install gunicorn
 
 3. Verifica que Gunicorn esté instalado y tenga permisos de ejecución:
@@ -71,37 +74,33 @@ python app.py
    sudo nano /etc/systemd/system/skypass-web.service
 
 6. Pega la siguiente configuración:
-[Unit]
-Description=Skypass Web App
-After=network.target
+   [Unit]
+   Description=Skypass Web App
+   After=network.target
 
-[Service]
-User=root
-WorkingDirectory=/root/skypass
-# --- AÑADE ESTA LÍNEA ---
-Environment="PYTHONUNBUFFERED=1"
-Environment="PATH=/root/skypass/venv/bin"
-# --- CAMBIA ESTA LÍNEA (agregando los flags de log) ---
-ExecStart=/root/skypass/venv/bin/gunicorn --access-logfile - --error-logfile - -w 4 -b 0.0.0.0:8000 app:app
-Restart=always
-StandardOutput=journal
-StandardError=journal
+   [Service]
+   User=root
+   WorkingDirectory=/root/skypass
+   # --- AÑADE ESTA LÍNEA ---
+   Environment="PYTHONUNBUFFERED=1"
+   Environment="PATH=/root/skypass/venv/bin"
+   # --- CAMBIA ESTA LÍNEA (agregando los flags de log) ---
+   ExecStart=/root/skypass/venv/bin/gunicorn --access-logfile - --error-logfile - -w 4 -b 0.0.0.0:8000 app:app
+   Restart=always
+   StandardOutput=journal
+   StandardError=journal
 
-[Install]
-WantedBy=multi-user.target
+   [Install]
+   WantedBy=multi-user.target
 
 
 7. Recarga systemd y arranca los servicios:
    sudo systemctl daemon-reload
-   sudo systemctl start bot-baileys
-   sudo systemctl enable bot-baileys
    sudo systemctl start skypass-web
    sudo systemctl enable skypass-web
 
 8. Verifica el estado y los logs:
-   sudo systemctl status bot-baileys
    sudo systemctl status skypass-web
-   sudo journalctl -u bot-baileys.service -n 50
    sudo journalctl -u skypass-web.service -n 50
 
 # Si algún servicio falla:
