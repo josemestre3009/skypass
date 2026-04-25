@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,26 +9,30 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.svg') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" />
     <style>
         body {
             background: linear-gradient(120deg, #f7f9fb 60%, #e3f6fc 100%);
             min-height: 100vh;
         }
+
         .navbar {
             background: #fff !important;
             border-bottom: 1px solid #e5e7eb;
             min-height: 70px;
-            box-shadow: 0 2px 8px 0 rgba(31,38,135,0.04);
+            box-shadow: 0 2px 8px 0 rgba(31, 38, 135, 0.04);
         }
+
         .navbar-brand img {
             height: 48px !important;
             width: auto;
             cursor: pointer;
         }
+
         .navbar .btn {
             border-radius: 2rem !important;
         }
+
         .container-main {
             min-height: 100vh;
             display: flex;
@@ -37,6 +42,7 @@
             padding-top: 90px;
             padding-bottom: 24px;
         }
+
         .main-flex {
             width: 100%;
             max-width: 1000px;
@@ -46,23 +52,27 @@
             align-items: flex-start;
             gap: 32px;
         }
-        .pasos-card, .qr-card {
+
+        .pasos-card,
+        .qr-card {
             background: #fff;
             border-radius: 1.2rem;
-            box-shadow: 0 4px 16px 0 rgba(31,38,135,0.10);
+            box-shadow: 0 4px 16px 0 rgba(31, 38, 135, 0.10);
             padding: 1.5rem 1.2rem 1.2rem 1.2rem;
             margin: 0 auto;
             width: 100%;
             max-width: 340px;
             min-width: 0;
         }
+
         .pasos-card {
             position: relative;
             overflow: visible;
             border-radius: 1.5rem;
-            box-shadow: 0 8px 32px 0 rgba(31,38,135,0.10);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.10);
             background: #fff;
         }
+
         .wizard-timeline {
             position: relative;
             margin-left: 32px;
@@ -70,6 +80,7 @@
             flex-direction: column;
             gap: 2.1rem;
         }
+
         .wizard-timeline::before {
             content: '';
             position: absolute;
@@ -81,12 +92,14 @@
             border-radius: 2px;
             z-index: 0;
         }
+
         .wizard-step {
             position: relative;
             display: flex;
             align-items: flex-start;
             gap: 1.1rem;
         }
+
         .wizard-circle {
             z-index: 2;
             width: 36px;
@@ -102,14 +115,16 @@
             background: #f1f1f1;
             color: #b0b0b0;
             border: 2.5px solid #e0e7ef;
-            box-shadow: 0 1px 4px 0 rgba(31,38,135,0.07);
+            box-shadow: 0 1px 4px 0 rgba(31, 38, 135, 0.07);
             transition: box-shadow 0.3s, transform 0.3s, background 0.3s, color 0.3s, border 0.3s;
         }
+
         .wizard-step.done .wizard-circle {
             background: #28a745;
             color: #fff;
             border: 2.5px solid #28a745;
         }
+
         .wizard-step.active .wizard-circle {
             background: #2563eb;
             color: #fff;
@@ -117,30 +132,36 @@
             box-shadow: 0 4px 16px 0 #2563eb33;
             transform: scale(1.12);
         }
+
         .wizard-step.pending .wizard-circle {
             background: #f1f1f1;
             color: #b0b0b0;
             border: 2.5px solid #e0e7ef;
         }
+
         .wizard-content {
             flex: 1;
             display: flex;
             flex-direction: column;
         }
+
         .wizard-label {
             font-size: 1.08rem;
             font-weight: 900;
             color: #222;
             margin-bottom: 0.1rem;
         }
+
         .wizard-desc {
             font-size: 0.97rem;
             color: #6c757d;
         }
+
         .qr-card {
             text-align: center;
             align-items: center;
         }
+
         .qr-title {
             font-size: 1.08rem;
             font-weight: 800;
@@ -150,24 +171,29 @@
             align-items: center;
             gap: 0.4rem;
         }
+
         .qr-title i {
             font-size: 1.2rem;
             color: #2563eb;
         }
+
         .qr-img {
             margin: 0.7rem 0 0.7rem 0;
             border-radius: 0.7rem;
-            box-shadow: 0 1px 6px 0 rgba(31,38,135,0.10);
+            box-shadow: 0 1px 6px 0 rgba(31, 38, 135, 0.10);
             background: #f8f9fa;
             padding: 0.5rem;
         }
+
         .btn-back {
             margin-top: 1.1rem;
         }
+
         .btn-reload {
             margin-top: 0.5rem;
             margin-bottom: 0.5rem;
         }
+
         .alert {
             min-height: 40px;
             display: flex;
@@ -175,34 +201,44 @@
             justify-content: center;
             font-size: 0.98rem;
         }
+
         @media (max-width: 991px) {
             .container-main {
                 padding-top: 60px;
             }
+
             .main-flex {
                 min-height: unset;
                 flex-direction: column !important;
                 align-items: stretch !important;
                 gap: 16px;
             }
-            .pasos-card, .qr-card {
+
+            .pasos-card,
+            .qr-card {
                 margin-bottom: 1.2rem;
                 max-width: 100% !important;
             }
         }
+
         @media (max-width: 600px) {
             .container-main {
                 padding-top: 48px;
             }
-            .qr-card, .pasos-card {
+
+            .qr-card,
+            .pasos-card {
                 padding: 0.7rem 0.2rem 0.7rem 0.2rem;
             }
+
             .qr-title {
                 font-size: 0.98rem;
             }
+
             .wizard-label {
                 font-size: 0.91rem;
             }
+
             .wizard-circle {
                 width: 24px;
                 height: 24px;
@@ -211,6 +247,7 @@
         }
     </style>
 </head>
+
 <body>
     <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm fixed-top">
         <div class="container-fluid d-flex justify-content-between align-items-center px-3">
@@ -226,62 +263,71 @@
         <div class="main-flex">
             <!-- Columna de información -->
             <div class="pasos-card mb-4 mb-lg-0" style="min-width:320px;max-width:400px;">
-                <h5 class="fw-bold mb-4" style="color:#222; font-size:1.25rem;">Estado de WhatsApp (YCloud)</h5>
-                <div class="instrucciones-vinculacion p-3 animate__animated animate__fadeIn" style="background:#f4f8fd;border-radius:1rem;box-shadow:0 2px 8px 0 rgba(31,38,135,0.06);">
-                    <div class="mb-2" style="font-weight:700;font-size:1.08rem;color:#2563eb;display:flex;align-items:center;gap:0.5rem;">
+                <h5 class="fw-bold mb-4" style="color:#222; font-size:1.25rem;">Estado de WhatsApp</h5>
+                <div class="instrucciones-vinculacion p-3 animate__animated animate__fadeIn"
+                    style="background:#f4f8fd;border-radius:1rem;box-shadow:0 2px 8px 0 rgba(31,38,135,0.06);">
+                    <div class="mb-2"
+                        style="font-weight:700;font-size:1.08rem;color:#2563eb;display:flex;align-items:center;gap:0.5rem;">
                         <i class="bi bi-info-circle-fill"></i> Información
                     </div>
                     <p style="font-size:1.04rem;">
-                        La integración utiliza la API oficial de WhatsApp Business. 
+                        La integración utiliza la API oficial de WhatsApp Business.
                         No requiere escanear códigos QR ni mantener un teléfono encendido.
                     </p>
 
                 </div>
             </div>
-            
+
             <!-- Columna Estado -->
             <div class="qr-card d-flex flex-column align-items-center" style="min-width:320px;max-width:400px;">
                 <div class="qr-title mb-1"><i class="bi bi-whatsapp"></i> Estado de Conexión</div>
-                
+
                 {% if estado == 'conectado' %}
-                    <div class="text-center mt-3">
-                        <div style="padding: 1.5rem 1.2rem; border-radius: 0.8rem; border: 2px solid #28a745; background: #fff; box-shadow: 0 2px 12px rgba(40, 167, 69, 0.1);">
-                            <div style="margin-bottom: 0.8rem;">
-                                <i class="bi bi-check-circle-fill" style="font-size: 2.5rem; color: #28a745; display: block; animation: pulse 2s infinite;"></i>
-                            </div>
-                            <strong style="font-size: 1.1rem; color: #155724; display: block; margin-bottom: 0.5rem; font-weight: 700;">
-                                <i class="bi bi-whatsapp" style="font-size: 1.2rem; vertical-align: middle; margin-right: 0.4rem; color: #25D366;"></i> WhatsApp Conectado
-                            </strong>
-                            <div style="margin-top: 0.5rem; font-size: 0.95rem; color: #155724; line-height: 1.5;">
-                                API activa y lista para enviar mensajes.
-                            </div>
+                <div class="text-center mt-3">
+                    <div
+                        style="padding: 1.5rem 1.2rem; border-radius: 0.8rem; border: 2px solid #28a745; background: #fff; box-shadow: 0 2px 12px rgba(40, 167, 69, 0.1);">
+                        <div style="margin-bottom: 0.8rem;">
+                            <i class="bi bi-check-circle-fill"
+                                style="font-size: 2.5rem; color: #28a745; display: block; animation: pulse 2s infinite;"></i>
+                        </div>
+                        <strong
+                            style="font-size: 1.1rem; color: #155724; display: block; margin-bottom: 0.5rem; font-weight: 700;">
+                            <i class="bi bi-whatsapp"
+                                style="font-size: 1.2rem; vertical-align: middle; margin-right: 0.4rem; color: #25D366;"></i>
+                            WhatsApp Conectado
+                        </strong>
+                        <div style="margin-top: 0.5rem; font-size: 0.95rem; color: #155724; line-height: 1.5;">
+                            API activa y lista para enviar mensajes.
                         </div>
                     </div>
+                </div>
                 {% else %}
-                    <div class="text-center mt-3">
-                         <div class="alert alert-warning text-center" style="padding: 1.5rem;">
-                            <i class="bi bi-exclamation-triangle-fill" style="font-size: 2rem; display: block; margin-bottom: 0.5rem;"></i>
-                            <strong style="font-size: 1.1rem;">Desconectado o Sin Configurar</strong>
-                            <div style="margin-top: 0.5rem; font-size: 0.95rem;">
-                                No se detectó una conexión activa con YCloud.
-                            </div>
-                            <div style="margin-top: 1rem; font-size: 0.9rem; text-align: left;">
-                                <small>Verifica en tu archivo .env:</small>
-                                <ul style="margin-bottom: 0;">
-                                    <li>YCLOUD_API_KEY</li>
-                                    <li>YCLOUD_SENDER_ID</li>
-                                </ul>
-                            </div>
+                <div class="text-center mt-3">
+                    <div class="alert alert-warning text-center" style="padding: 1.5rem;">
+                        <i class="bi bi-exclamation-triangle-fill"
+                            style="font-size: 2rem; display: block; margin-bottom: 0.5rem;"></i>
+                        <strong style="font-size: 1.1rem;">Desconectado o Sin Configurar</strong>
+                        <div style="margin-top: 0.5rem; font-size: 0.95rem;">
+                            No se detectó una conexión activa.
                         </div>
-                        <button class="btn btn-primary rounded-pill mt-3" onclick="window.location.reload()">
-                            <i class="bi bi-arrow-clockwise"></i> Verificar Conexión
-                        </button>
+                        <div style="margin-top: 1rem; font-size: 0.9rem; text-align: left;">
+                            <small>Verifica en tu archivo .env:</small>
+                            <ul style="margin-bottom: 0;">
+                                <li>YCLOUD_API_KEY</li>
+                                <li>YCLOUD_SENDER_ID</li>
+                            </ul>
+                        </div>
                     </div>
+                    <button class="btn btn-primary rounded-pill mt-3" onclick="window.location.reload()">
+                        <i class="bi bi-arrow-clockwise"></i> Verificar Conexión
+                    </button>
+                </div>
                 {% endif %}
             </div>
         </div>
         <div class="d-flex justify-content-center mt-4 mb-2">
-            <a href="{{ url_for('admin.dashboard') }}" class="btn btn-outline-primary rounded-pill btn-back px-4" style="font-size:1.15rem;">
+            <a href="{{ url_for('admin.dashboard') }}" class="btn btn-outline-primary rounded-pill btn-back px-4"
+                style="font-size:1.15rem;">
                 <i class="bi bi-arrow-left"></i> Volver al Dashboard
             </a>
         </div>
@@ -290,110 +336,111 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="{{ url_for('static', filename='session-timeout.js') }}"></script>
     <script>
-    // Verificación de sesión automática
-    function verificarSesionAdmin() {
-        fetch('/admin/verificar-sesion', {method: 'POST'})
-            .then(res => {
-                if (res.status === 401) {
+        // Verificación de sesión automática
+        function verificarSesionAdmin() {
+            fetch('/admin/verificar-sesion', { method: 'POST' })
+                .then(res => {
+                    if (res.status === 401) {
+                        window.location.href = '/admin/login';
+                    }
+                    return res.json();
+                })
+                .catch(() => {
                     window.location.href = '/admin/login';
-                }
-                return res.json();
-            })
-            .catch(() => {
-                window.location.href = '/admin/login';
-            });
-    }
-
-    // Verificar sesión cada 20 segundos
-    setInterval(verificarSesionAdmin, 20000);
-
-    document.addEventListener('DOMContentLoaded', function() {
-        const formLogout = document.getElementById('form-logout-admin');
-        if (formLogout) {
-            formLogout.addEventListener('submit', async function(e) {
-                e.preventDefault();
-                let resp = await fetch("{{ url_for('admin.logout') }}", {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
                 });
-                let res = await resp.json();
-                if (res.success) {
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Sesión cerrada',
-                        showConfirmButton: false,
-                        timer: 1200
-                    });
-                    setTimeout(() => { window.location.href = res.redirect || '/admin/login'; }, 1200);
-                } else {
-                    Swal.fire({ icon: 'error', title: 'Error', text: res.message || 'No se pudo cerrar la sesión.' });
-                }
-            });
         }
 
-        // Botón de desconectar WhatsApp
-        const btnDesconectar = document.getElementById('btn-desconectar-whatsapp');
-        if (btnDesconectar) {
-            btnDesconectar.addEventListener('click', async function() {
-                const result = await Swal.fire({
-                    title: '¿Desconectar WhatsApp?',
-                    text: 'Esto cerrará la sesión de WhatsApp. Deberás escanear el QR nuevamente para volver a conectar.',
-                    icon: 'warning',
-                    showCancelButton: true,
-                    confirmButtonColor: '#d33',
-                    cancelButtonColor: '#6c757d',
-                    confirmButtonText: '<i class="bi bi-x-circle-fill"></i> Sí, desconectar',
-                    cancelButtonText: '<i class="bi bi-x"></i> Cancelar',
-                    reverseButtons: true
-                });
+        // Verificar sesión cada 20 segundos
+        setInterval(verificarSesionAdmin, 20000);
 
-                if (result.isConfirmed) {
-                    // Mostrar loading
-                    Swal.fire({
-                        title: 'Desconectando...',
-                        html: '<div class="d-flex justify-content-center align-items-center"><span class="spinner-border text-danger" role="status" aria-hidden="true"></span></div>',
-                        allowOutsideClick: false,
-                        allowEscapeKey: false,
-                        showConfirmButton: false
+        document.addEventListener('DOMContentLoaded', function () {
+            const formLogout = document.getElementById('form-logout-admin');
+            if (formLogout) {
+                formLogout.addEventListener('submit', async function (e) {
+                    e.preventDefault();
+                    let resp = await fetch("{{ url_for('admin.logout') }}", {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                    let res = await resp.json();
+                    if (res.success) {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Sesión cerrada',
+                            showConfirmButton: false,
+                            timer: 1200
+                        });
+                        setTimeout(() => { window.location.href = res.redirect || '/admin/login'; }, 1200);
+                    } else {
+                        Swal.fire({ icon: 'error', title: 'Error', text: res.message || 'No se pudo cerrar la sesión.' });
+                    }
+                });
+            }
+
+            // Botón de desconectar WhatsApp
+            const btnDesconectar = document.getElementById('btn-desconectar-whatsapp');
+            if (btnDesconectar) {
+                btnDesconectar.addEventListener('click', async function () {
+                    const result = await Swal.fire({
+                        title: '¿Desconectar WhatsApp?',
+                        text: 'Esto cerrará la sesión de WhatsApp. Deberás escanear el QR nuevamente para volver a conectar.',
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonColor: '#d33',
+                        cancelButtonColor: '#6c757d',
+                        confirmButtonText: '<i class="bi bi-x-circle-fill"></i> Sí, desconectar',
+                        cancelButtonText: '<i class="bi bi-x"></i> Cancelar',
+                        reverseButtons: true
                     });
 
-                    try {
-                        const resp = await fetch("{{ url_for('admin.desconectar_whatsapp') }}", {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' }
+                    if (result.isConfirmed) {
+                        // Mostrar loading
+                        Swal.fire({
+                            title: 'Desconectando...',
+                            html: '<div class="d-flex justify-content-center align-items-center"><span class="spinner-border text-danger" role="status" aria-hidden="true"></span></div>',
+                            allowOutsideClick: false,
+                            allowEscapeKey: false,
+                            showConfirmButton: false
                         });
-                        const data = await resp.json();
 
-                        if (data.success) {
-                            Swal.fire({
-                                icon: 'success',
-                                title: 'WhatsApp Desconectado',
-                                text: data.message || 'WhatsApp se ha desconectado correctamente.',
-                                confirmButtonText: 'Recargar página',
-                                confirmButtonColor: '#28a745'
-                            }).then(() => {
-                                window.location.reload();
+                        try {
+                            const resp = await fetch("{{ url_for('admin.desconectar_whatsapp') }}", {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' }
                             });
-                        } else {
+                            const data = await resp.json();
+
+                            if (data.success) {
+                                Swal.fire({
+                                    icon: 'success',
+                                    title: 'WhatsApp Desconectado',
+                                    text: data.message || 'WhatsApp se ha desconectado correctamente.',
+                                    confirmButtonText: 'Recargar página',
+                                    confirmButtonColor: '#28a745'
+                                }).then(() => {
+                                    window.location.reload();
+                                });
+                            } else {
+                                Swal.fire({
+                                    icon: 'error',
+                                    title: 'Error al desconectar',
+                                    text: data.error || 'No se pudo desconectar WhatsApp.',
+                                    confirmButtonColor: '#d33'
+                                });
+                            }
+                        } catch (error) {
                             Swal.fire({
                                 icon: 'error',
-                                title: 'Error al desconectar',
-                                text: data.error || 'No se pudo desconectar WhatsApp.',
+                                title: 'Error',
+                                text: 'No se pudo conectar con el servidor.',
                                 confirmButtonColor: '#d33'
                             });
                         }
-                    } catch (error) {
-                        Swal.fire({
-                            icon: 'error',
-                            title: 'Error',
-                            text: 'No se pudo conectar con el servidor.',
-                            confirmButtonColor: '#d33'
-                        });
                     }
-                }
-            });
-        }
-    });
+                });
+            }
+        });
     </script>
 </body>
-</html> 
+
+</html>
