@@ -1888,22 +1888,55 @@ def cambiar_parametro_genieacs_sin_reinicio(device_id, parametro, valor):
         return False
 
 def cambiar_contraseña_wifi_interfaz_sin_reinicio(device_id, interfaz, nueva_password):
-    """Cambia la contraseña WiFi de una interfaz específica SIN reiniciar la ONU"""
+    """Cambia la contraseña WiFi de una interfaz específica SIN reiniciar la ONU.
+    Envía KeyPassphrase y PreSharedKey simultáneamente en un solo setParameterValues,
+    ya que GenieACS devuelve 200 aunque el parámetro no exista en el equipo."""
     try:
-        parametro_password = f"InternetGatewayDevice.LANDevice.1.WLANConfiguration.{interfaz}.PreSharedKey.1.KeyPassphrase"
-        print(f"[GenieACS] 📡 Cambiando password interfaz {interfaz} SIN reinicio")
-        print(f"[GenieACS]   - Parámetro: {parametro_password}")
+        param_key  = f"InternetGatewayDevice.LANDevice.1.WLANConfiguration.{interfaz}.PreSharedKey.1.KeyPassphrase"
+        param_psk  = f"InternetGatewayDevice.LANDevice.1.WLANConfiguration.{interfaz}.PreSharedKey.1.PreSharedKey"
+
+        print(f"[GenieACS] 📡 Cambiando password interfaz {interfaz} SIN reinicio (doble parámetro)")
+        print(f"[GenieACS]   - Parámetro 1: {param_key}")
+        print(f"[GenieACS]   - Parámetro 2: {param_psk}")
         print(f"[GenieACS]   - Nueva contraseña: {nueva_password}")
-        
-        resultado = cambiar_parametro_genieacs_sin_reinicio(device_id, parametro_password, nueva_password)
-        
-        if resultado:
-            print(f"[GenieACS] ✅ Password cambiado exitosamente en interfaz {interfaz}")
-            return True
-        else:
-            print(f"[GenieACS] ❌ Error cambiando password en interfaz {interfaz}")
-            return False
-            
+
+        # Construir payload con AMBOS parámetros en una sola tarea
+        # El router aplica el que reconoce e ignora el otro
+        from urllib.parse import quote
+        payload = {
+            "name": "setParameterValues",
+            "parameterValues": [
+                [param_key, nueva_password],
+                [param_psk, nueva_password],
+            ]
+        }
+
+        formats_to_try = [
+            ("Original",          device_id),
+            ("Doble codificado",  device_id.replace('%', '%25')),
+            ("Decodificado",      device_id.replace('%2D', '-').replace('%2B', '+')),
+            ("Codificado simple", device_id.replace('-', '%2D').replace('+', '%2B')),
+            ("Quote completo",    quote(device_id, safe='')),
+        ]
+
+        for format_name, test_device_id in formats_to_try:
+            url = f"{GENIEACS_API}/devices/{test_device_id}/tasks?connection_request"
+            print(f"[GenieACS] 🔄 POST ({format_name}): {url}")
+            try:
+                response = requests.post(url, json=payload, timeout=30)
+                print(f"[GenieACS]   - Status: {response.status_code} | {response.text[:120]}")
+                if response.status_code in [200, 201, 202]:
+                    print(f"[GenieACS] ✅ Password enviado exitosamente (ambos parámetros) con formato: {format_name}")
+                    return True
+                elif response.status_code == 404:
+                    continue
+            except Exception as e:
+                print(f"[GenieACS] ❌ Error en formato {format_name}: {e}")
+                continue
+
+        print(f"[GenieACS] ❌ Todos los formatos fallaron para interfaz {interfaz}")
+        return False
+
     except Exception as e:
         print(f"[GenieACS] ❌ Error cambiando password interfaz {interfaz}: {e}")
         return False
