@@ -1,0 +1,172 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Detalle ONU{% endblock %}
+{% block nav_dispositivos %}active{% endblock %}
+{% block head %}
+<style>
+.detail-header { display:flex;align-items:center;gap:0.75rem;margin-bottom:1.5rem;flex-wrap:wrap; }
+.badge-online  { background:#dcfce7;color:#15803d;border-radius:99px;padding:0.25rem 0.75rem;font-size:0.82rem;font-weight:700; }
+.badge-offline { background:#f3f4f6;color:#6b7280;border-radius:99px;padding:0.25rem 0.75rem;font-size:0.82rem;font-weight:700; }
+.info-section  { background:#fff;border:1px solid #e5e7eb;border-radius:0.75rem;margin-bottom:1rem;overflow:hidden; }
+.info-section-title { padding:0.7rem 1.1rem;border-bottom:1px solid #f0f0f0;font-size:0.72rem;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.07em; }
+.info-grid { display:grid;grid-template-columns:1fr 1fr;padding:0.5rem 1.1rem; }
+.info-cell { padding:0.55rem 0; }
+.info-label { font-size:0.68rem;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.06em; }
+.info-val   { font-size:0.9rem;color:#111;margin-top:0.1rem; }
+.optica-grid { display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;padding:1rem 1.1rem; }
+.optica-card { text-align:center;background:#f9fafb;border-radius:0.5rem;padding:1rem 0.5rem; }
+.optica-val  { font-size:1.6rem;font-weight:800;line-height:1.1; }
+.optica-label { font-size:0.7rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.06em;margin-top:0.3rem; }
+.wifi-card   { margin:0.75rem 1.1rem;background:#f9fafb;border-radius:0.5rem;padding:0.75rem 1rem;display:flex;justify-content:space-between;align-items:flex-start; }
+.wifi-ssid   { font-weight:700;font-size:0.95rem; }
+.wifi-meta   { font-size:0.8rem;color:#6b7280;margin-top:0.2rem; }
+.freq-badge  { font-size:0.75rem;font-weight:600;color:var(--color-primary);background:#eff6ff;border-radius:4px;padding:0.1rem 0.45rem; }
+.hosts-table { width:100%;border-collapse:collapse; }
+.hosts-table th { font-size:0.68rem;font-weight:700;color:#9ca3af;text-transform:uppercase;padding:0.5rem 1.1rem;text-align:left;border-bottom:1px solid #f0f0f0; }
+.hosts-table td { padding:0.55rem 1.1rem;font-size:0.82rem;color:#374151;border-bottom:1px solid #f9fafb; }
+.hosts-table tr:last-child td { border-bottom:none; }
+.rx-ok   { color:#15803d; }
+.rx-warn { color:#d97706; }
+.rx-crit { color:#dc2626; }
+.skeleton { background:linear-gradient(90deg,#f0f0f0 25%,#e0e0e0 50%,#f0f0f0 75%);background-size:200% 100%;animation:shimmer 1.2s infinite;border-radius:0.3rem;display:inline-block; }
+@keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+@media(max-width:600px) {
+    .info-grid { grid-template-columns:1fr; }
+    .optica-grid { grid-template-columns:1fr 1fr; }
+}
+</style>
+{% endblock %}
+{% block content %}
+<div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1.25rem;">
+    <a href="{{ url_for('admin.admin_dispositivos_conectados') }}" style="color:#6b7280;text-decoration:none;font-size:0.85rem;">
+        <i class="bi bi-arrow-left"></i> Dispositivos
+    </a>
+    <span style="color:#d1d5db;">/</span>
+    <span style="font-size:0.85rem;color:#111;font-family:monospace;" id="page-device-id">{{ device_id }}</span>
+</div>
+
+<div class="detail-header" id="detail-header">
+    <span class="skeleton" style="width:80px;height:24px;">&nbsp;</span>
+    <span class="skeleton" style="width:120px;height:18px;">&nbsp;</span>
+</div>
+
+<div id="detail-content">
+    <!-- Loading placeholders -->
+    <div class="info-section">
+        <div class="info-section-title">Información del dispositivo</div>
+        <div style="padding:1.5rem;color:#9ca3af;text-align:center;">Cargando...</div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const DEVICE_ID = {{ device_id|tojson }};
+
+function rxClass(q) {
+    return q === 'ok' ? 'rx-ok' : q === 'warning' ? 'rx-warn' : q === 'critical' ? 'rx-crit' : '';
+}
+
+function renderDetail(d) {
+    // Header
+    const header = document.getElementById('detail-header');
+    header.innerHTML = `
+        <span class="${d.online ? 'badge-online' : 'badge-offline'}">
+            <i class="bi ${d.online ? 'bi-circle-fill' : 'bi-circle'}" style="font-size:0.6rem;margin-right:0.3rem;"></i>
+            ${d.online ? 'Online' : 'Offline'}
+        </span>
+        <span style="font-size:0.85rem;color:#6b7280;">Ultimo inform: ${d.tiempo || '—'}</span>
+    `;
+
+    // RX color
+    const rxVal = d.rx_power !== null && d.rx_power !== undefined
+        ? `<span class="${rxClass(d.rx_calidad)}" style="font-size:1.6rem;">${d.rx_power} dBm</span>`
+        : '<span style="color:#9ca3af;font-size:1.3rem;">—</span>';
+    const tempVal = d.temperatura !== null && d.temperatura !== undefined
+        ? `<span style="font-size:1.6rem;color:${d.temperatura > 70 ? '#dc2626' : d.temperatura > 55 ? '#d97706' : '#111'};">${d.temperatura}°C</span>`
+        : '<span style="color:#9ca3af;font-size:1.3rem;">—</span>';
+    const hostsVal = d.hosts_count !== null && d.hosts_count !== undefined
+        ? `<span style="font-size:1.6rem;color:var(--color-primary);font-weight:800;">${d.hosts_count}</span>`
+        : '<span style="color:#9ca3af;font-size:1.3rem;">—</span>';
+
+    // WiFi interfaces
+    const wifiHtml = d.wifi_interfaces && d.wifi_interfaces.length
+        ? d.wifi_interfaces.map(iface => `
+            <div class="wifi-card">
+                <div>
+                    <div class="wifi-ssid">${iface.ssid || '—'}</div>
+                    <div class="wifi-meta">Canal: ${iface.channel ?? '—'} &nbsp; Seguridad: ${iface.security || '—'}</div>
+                </div>
+                <span class="freq-badge">${iface.frequency || '—'}</span>
+            </div>`).join('')
+        : '<div style="padding:1rem 1.1rem;color:#9ca3af;font-size:0.85rem;">Sin interfaces WiFi detectadas</div>';
+
+    // LAN hosts
+    const hostsHtml = d.lan_hosts && d.lan_hosts.length
+        ? `<table class="hosts-table">
+            <thead><tr><th>IP</th><th>MAC</th><th>Nombre del equipo</th><th>Estado</th></tr></thead>
+            <tbody>${d.lan_hosts.map(h => `<tr>
+                <td style="font-family:monospace;font-size:0.8rem;">${h.ip || '—'}</td>
+                <td style="font-family:monospace;font-size:0.8rem;color:#6b7280;">${h.mac}</td>
+                <td style="font-size:0.8rem;">${h.hostname || 'Equipo genérico'}</td>
+                <td><span style="background:${h.active ? '#dcfce7' : '#f3f4f6'};color:${h.active ? '#15803d' : '#6b7280'};border-radius:99px;padding:0.1rem 0.5rem;font-size:0.72rem;">${h.active ? 'Conectado' : 'Inactivo'}</span></td>
+            </tr>`).join('')}</tbody>
+           </table>`
+        : '<div style="padding:1rem 1.1rem;color:#9ca3af;font-size:0.85rem;">Sin hosts LAN detectados</div>';
+
+    document.getElementById('detail-content').innerHTML = `
+        <div class="info-section">
+            <div class="info-section-title">Informacion del dispositivo</div>
+            <div class="info-grid">
+                <div class="info-cell"><div class="info-label">ID Servidor ACS</div><div class="info-val" style="font-family:monospace;font-size:0.8rem;">${d.id}</div></div>
+                <div class="info-cell"><div class="info-label">Serial</div><div class="info-val" style="font-family:monospace;">${d.serial || '—'}</div></div>
+                <div class="info-cell"><div class="info-label">Fabricante</div><div class="info-val">${d.fabricante || '—'}</div></div>
+                <div class="info-cell"><div class="info-label">Modelo</div><div class="info-val">${d.modelo || '—'}</div></div>
+                <div class="info-cell"><div class="info-label">OUI</div><div class="info-val" style="font-family:monospace;">${d.oui || '—'}</div></div>
+                <div class="info-cell"><div class="info-label">MAC WAN</div><div class="info-val" style="font-family:monospace;">${d.mac_wan || '—'}</div></div>
+                <div class="info-cell"><div class="info-label">Firmware</div><div class="info-val">${d.firmware || '—'}</div></div>
+                <div class="info-cell"><div class="info-label">Hardware</div><div class="info-val">${d.hardware || '—'}</div></div>
+                <div class="info-cell"><div class="info-label">Uptime</div><div class="info-val">${d.uptime || '—'}</div></div>
+            </div>
+        </div>
+        <div class="info-section">
+            <div class="info-section-title">Conexion WAN</div>
+            <div class="info-grid">
+                <div class="info-cell"><div class="info-label">IP WAN</div><div class="info-val" style="font-family:monospace;">${d.ip_wan || '—'}</div></div>
+                <div class="info-cell"><div class="info-label">Estado</div><div class="info-val">${d.wan_status || '—'}</div></div>
+                <div class="info-cell" style="grid-column:1/-1;"><div class="info-label">TR-069 URL</div><div class="info-val" style="font-family:monospace;font-size:0.8rem;">${d.conn_request_url || '—'}</div></div>
+            </div>
+        </div>
+        <div class="info-section">
+            <div class="info-section-title">Optica / Senales</div>
+            <div class="optica-grid">
+                <div class="optica-card">${rxVal}<div class="optica-label">RX Power</div></div>
+                <div class="optica-card">${tempVal}<div class="optica-label">Temperatura</div></div>
+                <div class="optica-card">${hostsVal}<div class="optica-label">Eq. Conectados</div></div>
+            </div>
+        </div>
+        <div class="info-section">
+            <div class="info-section-title">Interfaces WiFi</div>
+            ${wifiHtml}
+        </div>
+        <div class="info-section">
+            <div class="info-section-title">Hosts LAN Conectados <span style="background:#e5e7eb;border-radius:99px;padding:0.1rem 0.5rem;font-size:0.75rem;font-weight:700;">${d.lan_hosts ? d.lan_hosts.length : 0}</span></div>
+            ${hostsHtml}
+        </div>
+    `;
+}
+
+fetch('/admin/api/dispositivo/' + encodeURIComponent(DEVICE_ID))
+.then(r => r.json())
+.then(data => {
+    if (data.success) {
+        renderDetail(data.device);
+    } else {
+        document.getElementById('detail-content').innerHTML =
+            `<div style="padding:2rem;color:#dc2626;text-align:center;">Error: ${data.error || 'Dispositivo no encontrado'}</div>`;
+    }
+})
+.catch(err => {
+    document.getElementById('detail-content').innerHTML =
+        `<div style="padding:2rem;color:#dc2626;text-align:center;">Error de conexión</div>`;
+});
+</script>
+{% endblock %}

@@ -1,545 +1,404 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dispositivos Conectados - WISP</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
-    <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.svg') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-    <style>
-        body { background: #f7f9fb; }
-        .dashboard-title-no-box {
-            font-size: 2rem;
-            font-weight: 700;
-            color: #2563eb;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            margin-bottom: 2rem;
-            justify-content: center;
-        }
-        .card {
-            border-radius: 1.2rem;
-            box-shadow: 0 4px 24px 0 rgba(31, 38, 135, 0.07);
-            border: none;
-        }
-        .btn-outline-primary, .btn-primary {
-            border-radius: 2rem;
-        }
-        .navbar {
-            background: #fff !important;
-            border-bottom: 1px solid #e5e7eb;
-            min-height: 70px;
-            box-shadow: 0 2px 8px 0 rgba(31,38,135,0.04);
-        }
-        .navbar-brand img {
-            height: 48px !important;
-            width: auto;
-            cursor: pointer;
-        }
-        .navbar .btn {
-            border-radius: 2rem !important;
-        }
-    </style>
-</head>
-<body>
-    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm fixed-top">
-        <div class="container-fluid d-flex justify-content-between align-items-center px-3">
-            <a class="navbar-brand" href="{{ url_for('admin.dashboard') }}">
-                <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo">
-            </a>
-            <form id="form-logout-admin" class="mb-0">
-                <button type="submit" class="btn btn-outline-danger rounded-pill px-4">Cerrar Sesión</button>
-            </form>
-        </div>
-    </nav>
-    <div class="dashboard-bg">
-        <div class="dashboard-title-no-box">
-            <i class="bi bi-hdd-network text-success"></i>
-            <span>Dispositivos Conectados</span>
-        </div>
-        <div class="container-fluid maxw-1100">
-            <div class="card shadow p-4">
-                <div class="d-flex justify-content-between mb-3 flex-column flex-md-row gap-2">
-                    <div class="col-12 col-md-6">
-                        <input type="text" class="form-control" id="filtro-busqueda" placeholder="Buscar por IP o ID...">
-                    </div>
-                    <button class="btn btn-primary" id="btn-refrescar"><i class="bi bi-arrow-clockwise"></i> Refrescar</button>
-                </div>
-                <!-- Resumen de conteos -->
-                <div class="row g-3 mb-3" id="summary-cards">
-                    <div class="col-12 col-md-3">
-                        <div class="card border-0 shadow-sm h-100">
-                            <div class="card-body d-flex align-items-center justify-content-between">
-                                <div>
-                                    <div class="text-muted small">Conectados</div>
-                                    <div class="fw-bold fs-4" id="count-conectados">0</div>
-                                </div>
-                                <i class="bi bi-wifi text-success fs-3"></i>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-12 col-md-3">
-                        <div class="card border-0 shadow-sm h-100">
-                            <div class="card-body d-flex align-items-center justify-content-between">
-                                <div>
-                                    <div class="text-muted small">Desconectados</div>
-                                    <div class="fw-bold fs-4" id="count-desconectados">0</div>
-                                </div>
-                                <i class="bi bi-wifi-off text-danger fs-3"></i>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-12 col-md-3">
-                        <div class="card border-0 shadow-sm h-100">
-                            <div class="card-body d-flex align-items-center justify-content-between">
-                                <div>
-                                    <div class="text-muted small">Inactivos</div>
-                                    <div class="fw-bold fs-4" id="count-inactivos">0</div>
-                                </div>
-                                <i class="bi bi-exclamation-triangle text-warning fs-3"></i>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-12 col-md-3">
-                        <div class="card border-0 shadow-sm h-100">
-                            <div class="card-body d-flex align-items-center justify-content-between">
-                                <div>
-                                    <div class="text-muted small">Total dispositivos</div>
-                                    <div class="fw-bold fs-4" id="count-total">0</div>
-                                </div>
-                                <i class="bi bi-hdd-network text-primary fs-3"></i>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="table-responsive">
-                    <table class="table table-striped align-middle mb-0" id="tabla-dispositivos">
-                        <thead class="table-light">
-                            <tr>
-                                <th style="cursor: pointer;" onclick="sortTable('device_id')" class="border-bottom">
-                                    <div class="d-flex align-items-center justify-content-between">
-                                        <span>ID del Dispositivo</span>
-                                        <i class="bi bi-arrow-down-up text-muted"></i>
-                                    </div>
-                                </th>
-                                <th style="cursor: pointer;" onclick="sortTable('ip')" class="border-bottom">
-                                    <div class="d-flex align-items-center justify-content-between">
-                                        <span>Dirección IP</span>
-                                        <i class="bi bi-arrow-down-up text-muted"></i>
-                                    </div>
-                                </th>
-                                <th style="cursor: pointer;" onclick="sortTable('last_inform')" class="border-bottom">
-                                    <div class="d-flex align-items-center justify-content-between">
-                                        <span>Último Informe</span>
-                                        <i class="bi bi-arrow-down-up text-muted"></i>
-                                    </div>
-                                </th>
-                                <th style="cursor: pointer;" onclick="sortTable('estado')" class="border-bottom">
-                                    <div class="d-flex align-items-center justify-content-between">
-                                        <span>Estado</span>
-                                        <i class="bi bi-arrow-down-up text-muted"></i>
-                                    </div>
-                                </th>
-                                <th class="border-bottom">
-                                    <span>Acciones</span>
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody id="tbody-dispositivos">
-                            <tr><td colspan="5" class="text-secondary text-center">Cargando información...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-                
-                <!-- Paginación -->
-                <div id="pagination-container" class="mt-3"></div>
-            </div>
-        </div>
-        <div class="d-flex justify-content-center mt-3 mb-4">
-            <a href="{{ url_for('admin.dashboard') }}" class="btn btn-outline-primary btn-lg rounded-pill px-4 shadow-sm">
-                <i class="bi bi-house-door"></i> Volver al Dashboard
-            </a>
+{% extends "admin/base_admin.html" %}
+{% block title %}Dispositivos{% endblock %}
+{% block nav_dispositivos %}active{% endblock %}
+{% block head %}
+<style>
+.rx-ok   { color: #15803d; font-weight: 600; font-size: 0.82rem; }
+.rx-warn { color: #d97706; font-weight: 600; font-size: 0.82rem; }
+.rx-crit { color: #dc2626; font-weight: 600; font-size: 0.82rem; }
+.rx-na   { color: #9ca3af; font-size: 0.82rem; }
+.bulk-bar { display:none;align-items:center;gap:0.6rem;padding:0.6rem 1rem;background:#fff3cd;border-bottom:1px solid #fde68a; }
+.bulk-bar-text { font-size:0.83rem;color:#92400e;font-weight:600; }
+.chk-col { width:36px;padding-left:0.85rem !important;padding-right:0.25rem !important; }
+.badge-online  { background:#dcfce7;color:#15803d;border-radius:99px;padding:0.15rem 0.6rem;font-size:0.75rem;font-weight:600;display:inline-flex;align-items:center;gap:0.3rem; }
+.badge-offline { background:#f3f4f6;color:#6b7280;border-radius:99px;padding:0.15rem 0.6rem;font-size:0.75rem;font-weight:600;display:inline-flex;align-items:center;gap:0.3rem; }
+.dot { width:7px;height:7px;border-radius:50%;display:inline-block; }
+.dot-g { background:#22c55e; }
+.dot-gray { background:#9ca3af; }
+.summary-cards { display:grid;grid-template-columns:repeat(3,1fr);gap:0.75rem;margin-bottom:1rem; }
+.sc { background:#fff;border:1px solid #e5e7eb;border-radius:0.65rem;padding:0.75rem 1rem;display:flex;align-items:center;justify-content:space-between; }
+.sc-val { font-size:1.4rem;font-weight:800;color:#111; }
+.sc-label { font-size:0.72rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em; }
+.main-card { background:#fff;border:1px solid #e5e7eb;border-radius:0.75rem;overflow:hidden; }
+.card-toolbar { display:flex;align-items:center;gap:0.75rem;padding:0.85rem 1rem;border-bottom:1px solid #f0f0f0;flex-wrap:wrap; }
+.devices-table { width:100%;border-collapse:collapse; }
+.devices-table th {
+    font-size:0.68rem;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.06em;
+    padding:0.55rem 0.75rem;text-align:left;border-bottom:1px solid #f0f0f0;
+    cursor:pointer;white-space:nowrap;
+}
+.devices-table td { padding:0.55rem 0.75rem;font-size:0.82rem;color:#374151;border-bottom:1px solid #f9fafb;vertical-align:middle; }
+.devices-table tr:last-child td { border-bottom:none; }
+.serial-link { color:var(--color-primary);text-decoration:none;font-family:monospace;font-size:0.78rem;font-weight:600; }
+.serial-link:hover { text-decoration:underline; }
+.ip-chip { font-family:monospace;font-size:0.78rem;background:#f3f4f6;padding:0.1rem 0.45rem;border-radius:0.3rem; }
+@media(max-width:900px) {
+    .summary-cards { grid-template-columns:1fr 1fr; }
+    .col-hide { display:none; }
+}
+@media(max-width:600px) { .summary-cards { grid-template-columns:1fr 1fr; } }
+</style>
+{% endblock %}
+{% block content %}
+<div class="page-topbar">
+    <div class="page-title">Dispositivos</div>
+    <button class="btn btn-sm btn-primary" id="btn-refrescar">
+        <i class="bi bi-arrow-clockwise"></i> Refrescar
+    </button>
+</div>
+
+<div class="summary-cards">
+    <div class="sc">
+        <div><div class="sc-label">Total</div><div class="sc-val" id="cnt-total">—</div></div>
+        <i class="bi bi-hdd-network" style="font-size:1.4rem;color:#9ca3af;"></i>
+    </div>
+    <div class="sc">
+        <div><div class="sc-label">Online</div><div class="sc-val" id="cnt-online" style="color:#15803d;">—</div></div>
+        <i class="bi bi-wifi" style="font-size:1.4rem;color:#22c55e;"></i>
+    </div>
+    <div class="sc">
+        <div><div class="sc-label">Offline</div><div class="sc-val" id="cnt-offline" style="color:#dc2626;">—</div></div>
+        <i class="bi bi-wifi-off" style="font-size:1.4rem;color:#ef4444;"></i>
+    </div>
+</div>
+
+<div class="main-card">
+    <div class="card-toolbar">
+        <input type="text" id="filtro-busqueda" class="form-control form-control-sm" placeholder="Buscar SN, IP, SS..." style="max-width:200px;">
+        <select class="form-select form-select-sm" id="filtro-estado" style="max-width:110px;">
+            <option value="">Todos</option>
+            <option value="online">Online</option>
+            <option value="offline">Offline</option>
+        </select>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:0.5rem;">
+            <label class="text-muted" style="font-size:0.8rem;margin:0;">Mostrar:</label>
+            <select class="form-select form-select-sm" id="items-per-page" style="width:auto;">
+                <option value="10" selected>10</option>
+                <option value="20">20</option>
+                <option value="30">30</option>
+                <option value="50">50</option>
+            </select>
         </div>
     </div>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script src="{{ url_for('static', filename='session-timeout.js') }}"></script>
-    <script>
-    let dispositivosData = [];
-    let currentPage = 1;
-    let itemsPerPage = 10;
-    let sortColumn = 'device_id';
-    let sortDirection = 'asc';
-    
-    function renderTabla(filtro = '') {
-        const tbody = document.getElementById('tbody-dispositivos');
-        let datos = dispositivosData;
-        
-        // Aplicar filtro
-        if (filtro) {
-            const f = filtro.toLowerCase();
-            datos = datos.filter(d =>
-                (d.device_id && d.device_id.toLowerCase().includes(f)) ||
-                (d.ip && d.ip.toLowerCase().includes(f))
-            );
-        }
-        
-        // Ordenar datos
-        datos.sort((a, b) => {
-            let aVal = a[sortColumn] || '';
-            let bVal = b[sortColumn] || '';
-            
-            // Manejo especial para fechas
-            if (sortColumn === 'last_inform') {
-                const aDate = a.ultimo_informe ? new Date(a.ultimo_informe) : new Date(0);
-                const bDate = b.ultimo_informe ? new Date(b.ultimo_informe) : new Date(0);
-                
-                if (sortDirection === 'asc') {
-                    return aDate - bDate;
-                } else {
-                    return bDate - aDate;
-                }
-            }
-            
-            // Manejo especial para estado (basado en la fecha del último informe)
-            if (sortColumn === 'estado') {
-                const aDate = a.ultimo_informe ? new Date(a.ultimo_informe) : new Date(0);
-                const bDate = b.ultimo_informe ? new Date(b.ultimo_informe) : new Date(0);
-                
-                if (sortDirection === 'asc') {
-                    return aDate - bDate;
-                } else {
-                    return bDate - aDate;
-                }
-            }
-            
-            // Ordenamiento normal para otras columnas
-            if (sortDirection === 'asc') {
-                return aVal.localeCompare(bVal);
+    <div class="bulk-bar" id="bulk-bar">
+        <span class="bulk-bar-text"><span id="sel-count">0</span> seleccionados</span>
+        <button class="btn btn-sm btn-danger" onclick="eliminarSeleccionados()">
+            <i class="bi bi-trash"></i> Eliminar seleccionados
+        </button>
+        <button class="btn btn-sm btn-outline-secondary" onclick="deseleccionarTodo()">Cancelar</button>
+    </div>
+    <div style="overflow-x:auto;">
+        <table class="devices-table">
+            <thead>
+                <tr>
+                    <th class="chk-col"><input type="checkbox" id="chk-all" title="Seleccionar todo"></th>
+                    <th onclick="sortTable('serial')">SERIAL / ID <i class="bi bi-arrow-down-up" style="font-size:0.65rem;"></i></th>
+                    <th onclick="sortTable('mac')" class="col-hide">MAC</th>
+                    <th onclick="sortTable('modelo')">MODELO</th>
+                    <th onclick="sortTable('ip')">IP WAN</th>
+                    <th onclick="sortTable('ssid')" class="col-hide">SSID</th>
+                    <th onclick="sortTable('rx')">RX</th>
+                    <th onclick="sortTable('hosts')">HOSTS</th>
+                    <th onclick="sortTable('temp')" class="col-hide">TEMP</th>
+                    <th onclick="sortTable('uptime')" class="col-hide">TIEMPO</th>
+                    <th onclick="sortTable('online')">ESTADO</th>
+                    <th>ACCIONES</th>
+                </tr>
+            </thead>
+            <tbody id="tbody-dispositivos">
+                <tr><td colspan="12" style="padding:2rem;color:#9ca3af;text-align:center;">Cargando dispositivos...</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div id="pagination-container" style="padding:0.75rem 1rem;border-top:1px solid #f0f0f0;"></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script>
+let dispositivosData = [];
+let currentPage = 1;
+let itemsPerPage = 10;
+let sortColumn = 'online';
+let sortDirection = 'desc';
+
+function rxHtml(d) {
+    if (d.rx === null || d.rx === undefined) return '<span class="rx-na">—</span>';
+    const cls = d.rx_calidad === 'ok' ? 'rx-ok' : d.rx_calidad === 'warning' ? 'rx-warn' : 'rx-crit';
+    return `<span class="${cls}">${d.rx} dBm</span>`;
+}
+function tempHtml(d) {
+    if (d.temp === null || d.temp === undefined) return '<span class="rx-na">—</span>';
+    const color = d.temp > 70 ? '#dc2626' : d.temp > 55 ? '#d97706' : '#374151';
+    return `<span style="color:${color};font-size:0.82rem;">${d.temp}°C</span>`;
+}
+function estadoHtml(d) {
+    return d.online
+        ? `<span class="badge-online"><span class="dot dot-g"></span>Online</span>`
+        : `<span class="badge-offline"><span class="dot dot-gray"></span>Offline</span>`;
+}
+
+function renderTabla() {
+    const filtro = (document.getElementById('filtro-busqueda').value || '').toLowerCase();
+    const filtroEstado = document.getElementById('filtro-estado').value;
+    let datos = dispositivosData.filter(d => {
+        if (filtroEstado === 'online' && !d.online) return false;
+        if (filtroEstado === 'offline' && d.online) return false;
+        if (!filtro) return true;
+        return (d.serial||'').toLowerCase().includes(filtro)
+            || (d.ip||'').includes(filtro)
+            || (d.ssid||'').toLowerCase().includes(filtro)
+            || (d.modelo||'').toLowerCase().includes(filtro)
+            || (d.mac||'').toLowerCase().includes(filtro);
+    });
+
+    datos.sort((a, b) => {
+        let av = a[sortColumn], bv = b[sortColumn];
+        if (sortColumn === 'online') { av = a.online ? 1 : 0; bv = b.online ? 1 : 0; }
+        if (sortColumn === 'rx')     { av = a.rx ?? -999; bv = b.rx ?? -999; }
+        if (sortColumn === 'hosts')  { av = a.hosts ?? -1; bv = b.hosts ?? -1; }
+        if (sortColumn === 'temp')   { av = a.temp ?? -999; bv = b.temp ?? -999; }
+        if (av === null || av === undefined) av = '';
+        if (bv === null || bv === undefined) bv = '';
+        if (typeof av === 'number') return sortDirection === 'asc' ? av - bv : bv - av;
+        return sortDirection === 'asc'
+            ? String(av).localeCompare(String(bv))
+            : String(bv).localeCompare(String(av));
+    });
+
+    // summary
+    const tot = dispositivosData.length;
+    const on  = dispositivosData.filter(d => d.online).length;
+    document.getElementById('cnt-total').textContent  = tot;
+    document.getElementById('cnt-online').textContent = on;
+    document.getElementById('cnt-offline').textContent = tot - on;
+
+    const total = datos.length;
+    const start = (currentPage - 1) * itemsPerPage;
+    const page  = datos.slice(start, start + itemsPerPage);
+
+    const tbody = document.getElementById('tbody-dispositivos');
+    if (!page.length) {
+        tbody.innerHTML = '<tr><td colspan="12" style="padding:2rem;color:#9ca3af;text-align:center;">Sin resultados</td></tr>';
+    } else {
+        tbody.innerHTML = page.map(d => {
+            const detailUrl = '/admin/dispositivo/' + encodeURIComponent(d.device_id);
+            const safeId = (d.device_id || '').replace(/'/g, "\\'");
+            const safeIp = (d.ip || '').replace(/'/g, "\\'");
+            return `<tr>
+                <td class="chk-col"><input type="checkbox" class="chk-row" data-id="${safeId}" data-ip="${safeIp}"></td>
+                <td>
+                    <a class="serial-link" href="${detailUrl}">${d.serial || d.device_id}</a>
+                </td>
+                <td class="col-hide" style="font-family:monospace;font-size:0.75rem;color:#6b7280;">${d.mac || '—'}</td>
+                <td style="font-size:0.8rem;">${d.modelo || '—'}</td>
+                <td><span class="ip-chip">${d.ip || '—'}</span></td>
+                <td class="col-hide" style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${d.ssid||''}">${d.ssid || '—'}</td>
+                <td>${rxHtml(d)}</td>
+                <td><span style="font-weight:600;color:#4f46e5;">${d.hosts !== null && d.hosts !== undefined ? d.hosts : '—'}</span></td>
+                <td class="col-hide">${tempHtml(d)}</td>
+                <td class="col-hide" style="font-size:0.8rem;color:#6b7280;">${d.tiempo || '—'}</td>
+                <td>${estadoHtml(d)}</td>
+                <td>
+                    <div style="display:flex;gap:0.25rem;">
+                        <button class="btn btn-sm" style="padding:0.25rem 0.5rem;border:1px solid #e5e7eb;border-radius:0.4rem;background:#fff;color:#3b82f6;" onclick="verDetalle('${d.device_id}')" title="Ver detalle">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                        <button class="btn btn-sm" style="padding:0.25rem 0.5rem;border:1px solid #e5e7eb;border-radius:0.4rem;background:#fff;color:#10b981;" onclick="summonDevice('${d.device_id}')" title="Summon (Forzar Conexión)">
+                            <i class="bi bi-arrow-repeat"></i>
+                        </button>
+                        <button class="btn btn-sm" style="padding:0.25rem 0.5rem;border:1px solid #e5e7eb;border-radius:0.4rem;background:#fff;color:#dc2626;" onclick="eliminarDevice('${d.device_id}', '${d.ip}')" title="Eliminar">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>`;
+        }).join('');
+    }
+
+    renderPagination(Math.ceil(total / itemsPerPage), total);
+}
+
+function renderPagination(totalPages, totalItems) {
+    const c = document.getElementById('pagination-container');
+    if (!totalPages) { c.innerHTML = ''; return; }
+    const start = Math.max(1, currentPage - 2), end = Math.min(totalPages, currentPage + 2);
+    let pages = '';
+    for (let i = start; i <= end; i++) {
+        pages += `<li class="page-item ${i===currentPage?'active':''}"><a class="page-link" href="#" onclick="event.preventDefault();changePage(${i})">${i}</a></li>`;
+    }
+    const shown = Math.min(currentPage * itemsPerPage, totalItems);
+    c.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;font-size:0.8rem;color:#6b7280;">
+        <span>Mostrando ${(currentPage-1)*itemsPerPage+1}–${shown} de ${totalItems}</span>
+        <nav><ul class="pagination pagination-sm mb-0">
+            <li class="page-item ${currentPage===1?'disabled':''}"><a class="page-link" href="#" onclick="event.preventDefault();changePage(${currentPage-1})"><i class="bi bi-chevron-left"></i></a></li>
+            ${pages}
+            <li class="page-item ${currentPage===totalPages?'disabled':''}"><a class="page-link" href="#" onclick="event.preventDefault();changePage(${currentPage+1})"><i class="bi bi-chevron-right"></i></a></li>
+        </ul></nav>
+    </div>`;
+}
+
+function changePage(p) { currentPage = p; renderTabla(); }
+
+function sortTable(col) {
+    sortDirection = sortColumn === col ? (sortDirection === 'asc' ? 'desc' : 'asc') : 'desc';
+    sortColumn = col; currentPage = 1; renderTabla();
+}
+
+function cargarDispositivos() {
+    document.getElementById('tbody-dispositivos').innerHTML =
+        '<tr><td colspan="12" style="padding:2rem;color:#9ca3af;text-align:center;">Cargando...</td></tr>';
+    fetch("{{ url_for('admin.api_dispositivos_conectados') }}")
+    .then(r => r.json())
+    .then(data => {
+        dispositivosData = data.dispositivos || [];
+        currentPage = 1;
+        renderTabla();
+    })
+    .catch(() => {
+        document.getElementById('tbody-dispositivos').innerHTML =
+            '<tr><td colspan="12" style="padding:2rem;color:#dc2626;text-align:center;">Error al cargar dispositivos.</td></tr>';
+    });
+}
+
+function verDetalle(deviceId) {
+    window.location.href = '/admin/dispositivo/' + encodeURIComponent(deviceId);
+}
+
+function eliminarDevice(deviceId, ip) {
+    Swal.fire({
+        title: 'Eliminar dispositivo',
+        text: `¿Eliminar ${deviceId}?`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        confirmButtonText: 'Eliminar',
+        cancelButtonText: 'Cancelar',
+    }).then(result => {
+        if (!result.isConfirmed) return;
+        fetch("{{ url_for('admin.eliminar_device') }}", {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({device_id: deviceId, ip})
+        }).then(r => r.json()).then(data => {
+            if (data.success) {
+                dispositivosData = dispositivosData.filter(d => d.device_id !== deviceId);
+                renderTabla();
+                Swal.fire({icon:'success', title:'Eliminado', timer:1500, showConfirmButton:false});
             } else {
-                return bVal.localeCompare(aVal);
+                Swal.fire({icon:'error', title:'Error', text: data.message});
             }
         });
-        // Calcular resumen de conteos
-        actualizarResumen(datos);
-
-        // Calcular paginación
-        const totalPages = Math.ceil(datos.length / itemsPerPage);
-        const startIndex = (currentPage - 1) * itemsPerPage;
-        const endIndex = startIndex + itemsPerPage;
-        const dispositivosPaginados = datos.slice(startIndex, endIndex);
-        
-        // Renderizar tabla
-        if (dispositivosPaginados.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5" class="text-warning text-center">No hay datos para mostrar.</td></tr>';
-        } else {
-            tbody.innerHTML = '';
-            dispositivosPaginados.forEach(d => {
-                tbody.innerHTML += `
-                    <tr class="align-middle">
-                        <td>
-                            <div class="d-flex align-items-center">
-                                <i class="bi bi-router text-primary me-2"></i>
-                                <span class="fw-medium">${d.device_id || 'N/A'}</span>
-                            </div>
-                        </td>
-                        <td>
-                            <span class="badge bg-light text-dark border">${d.ip || 'N/A'}</span>
-                        </td>
-                        <td>
-                            <span class="text-muted">${d.ultimo_informe ? new Date(d.ultimo_informe).toLocaleString() : 'N/A'}</span>
-                        </td>
-                        <td>
-                            ${getEstadoDispositivo(d.ultimo_informe)}
-                        </td>
-                        <td>
-                            <button class="btn btn-outline-danger btn-sm" onclick="eliminarDevice('${d.device_id}', '${d.ip}')" title="Eliminar dispositivo">
-                                <i class="bi bi-trash"></i>
-                            </button>
-                        </td>
-                    </tr>
-                `;
-            });
-        }
-        
-        // Renderizar paginación
-        renderPagination(totalPages, datos.length);
-    }
-    
-    function renderPagination(totalPages, totalItems) {
-        const paginationContainer = document.getElementById('pagination-container');
-        if (!paginationContainer) return;
-        
-        let paginationHTML = `
-            <div class="d-flex justify-content-between align-items-center">
-                <div class="text-muted">
-                    Mostrando ${((currentPage - 1) * itemsPerPage) + 1} a ${Math.min(currentPage * itemsPerPage, totalItems)} de ${totalItems} dispositivos
-                </div>
-                <nav>
-                    <ul class="pagination pagination-sm mb-0">
-        `;
-        
-        // Botón anterior
-        paginationHTML += `
-            <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
-                <a class="page-link" href="#" onclick="changePage(${currentPage - 1})">
-                    <i class="bi bi-chevron-left"></i>
-                </a>
-            </li>
-        `;
-        
-        // Páginas
-        const startPage = Math.max(1, currentPage - 2);
-        const endPage = Math.min(totalPages, currentPage + 2);
-        
-        for (let i = startPage; i <= endPage; i++) {
-            paginationHTML += `
-                <li class="page-item ${i === currentPage ? 'active' : ''}">
-                    <a class="page-link" href="#" onclick="changePage(${i})">${i}</a>
-                </li>
-            `;
-        }
-        
-        // Botón siguiente
-        paginationHTML += `
-            <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
-                <a class="page-link" href="#" onclick="changePage(${currentPage + 1})">
-                    <i class="bi bi-chevron-right"></i>
-                </a>
-            </li>
-        `;
-        
-        paginationHTML += `
-                    </ul>
-                </nav>
-            </div>
-        `;
-        
-        paginationContainer.innerHTML = paginationHTML;
-    }
-    
-    function changePage(page) {
-        currentPage = page;
-        renderTabla(document.getElementById('filtro-busqueda').value);
-    }
-    
-    function getEstadoDispositivo(ultimoInforme) {
-        if (!ultimoInforme) {
-            return '<span class="badge bg-secondary"><i class="bi bi-question-circle"></i> Sin datos</span>';
-        }
-        
-        const ahora = new Date();
-        const ultimoInformeDate = new Date(ultimoInforme);
-        const diferenciaHoras = (ahora - ultimoInformeDate) / (1000 * 60 * 60);
-        
-        if (diferenciaHoras <= 1) {
-            // Conectado: último informe hace menos de 1 hora
-            return '<span class="badge bg-success"><i class="bi bi-wifi"></i> Conectado</span>';
-        } else if (diferenciaHoras <= 24) {
-            // Desconectado: último informe hace más de 1 hora pero menos de 24 horas
-            return '<span class="badge bg-danger"><i class="bi bi-wifi-off"></i> Desconectado</span>';
-        } else {
-            // Inactivo: último informe hace más de 24 horas
-            return '<span class="badge bg-warning"><i class="bi bi-exclamation-triangle"></i> Inactivo</span>';
-        }
-    }
-
-    function obtenerEstadoLabel(ultimoInforme) {
-        if (!ultimoInforme) return 'sin_datos';
-        const ahora = new Date();
-        const ultimoInformeDate = new Date(ultimoInforme);
-        const diferenciaHoras = (ahora - ultimoInformeDate) / (1000 * 60 * 60);
-        if (diferenciaHoras <= 1) return 'conectado';
-        if (diferenciaHoras <= 24) return 'desconectado';
-        return 'inactivo';
-    }
-
-    function actualizarResumen(datos) {
-        const total = datos.length;
-        let conectados = 0, desconectados = 0, inactivos = 0;
-        datos.forEach(d => {
-            const est = obtenerEstadoLabel(d.ultimo_informe);
-            if (est === 'conectado') conectados++;
-            else if (est === 'desconectado') desconectados++;
-            else if (est === 'inactivo') inactivos++;
-        });
-        const elTotal = document.getElementById('count-total');
-        const elCon = document.getElementById('count-conectados');
-        const elDes = document.getElementById('count-desconectados');
-        const elIna = document.getElementById('count-inactivos');
-        if (elTotal) elTotal.textContent = total;
-        if (elCon) elCon.textContent = conectados;
-        if (elDes) elDes.textContent = desconectados;
-        if (elIna) elIna.textContent = inactivos;
-    }
-    
-    function sortTable(column) {
-        if (sortColumn === column) {
-            sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
-        } else {
-            sortColumn = column;
-            sortDirection = 'asc';
-        }
-        currentPage = 1; // Reset a la primera página
-        renderTabla(document.getElementById('filtro-busqueda').value);
-        
-        // Actualizar iconos de ordenamiento
-        document.querySelectorAll('th i').forEach(icon => {
-            icon.className = 'bi bi-arrow-down-up';
-        });
-        
-        const currentIcon = document.querySelector(`th[onclick="sortTable('${column}')"] i`);
-        if (currentIcon) {
-            currentIcon.className = sortDirection === 'asc' ? 'bi bi-arrow-up' : 'bi bi-arrow-down';
-        }
-    }
-    
-    
-    function cargarDispositivos() {
-        const tbody = document.getElementById('tbody-dispositivos');
-        tbody.innerHTML = '<tr><td colspan="4" class="text-secondary text-center">Cargando información...</td></tr>';
-        fetch('/admin/api/dispositivos_conectados')
-            .then(res => {
-                // Si la respuesta es 302 (redirección), significa que la sesión expiró
-                if (res.status === 302) {
-                    window.location.href = '/admin/login';
-                    return;
-                }
-                return res.json();
-            })
-            .then(data => {
-                if (!data) return; // Si no hay datos, no actualizar
-                
-                if (data.success && data.dispositivos.length > 0) {
-                    dispositivosData = data.dispositivos;
-                    currentPage = 1; // Reset a la primera página
-                    renderTabla(document.getElementById('filtro-busqueda').value);
-                } else if (data.success && data.dispositivos.length === 0) {
-                    dispositivosData = [];
-                    renderTabla();
-                } else {
-                    tbody.innerHTML = `<tr><td colspan='5' class='text-danger text-center'>${data.error || 'No se pudieron obtener los datos de los dispositivos.'}</td></tr>`;
-                }
-            })
-            .catch(err => {
-                // En caso de error de red, no mostrar error
-                console.log('Error al cargar dispositivos:', err);
-            });
-    }
-    
-    document.getElementById('btn-refrescar').addEventListener('click', cargarDispositivos);
-    document.getElementById('filtro-busqueda').addEventListener('input', function() {
-        currentPage = 1; // Reset a la primera página al filtrar
-        renderTabla(this.value);
     });
-    window.onload = cargarDispositivos;
-    
-    // Verificación de sesión automática
-    function verificarSesionAdmin() {
-        fetch('/admin/verificar-sesion', {method: 'POST'})
-            .then(res => {
-                if (res.status === 401) {
-                    window.location.href = '/admin/login';
-                }
-                return res.json();
-            })
-            .catch(() => {
-                window.location.href = '/admin/login';
-            });
-    }
+}
 
-    // Verificar sesión cada 20 segundos
-    setInterval(verificarSesionAdmin, 20000);
-    
-    // Función para eliminar un dispositivo
-    async function eliminarDevice(deviceId, ip) {
-        try {
-            // Decodificar el device_id si está codificado
-            const deviceIdDecoded = deviceId ? decodeURIComponent(deviceId) : deviceId;
-            const displayId = deviceIdDecoded || ip;
-            
-            const result = await Swal.fire({
-                title: '¿Eliminar dispositivo?',
-                text: `¿Estás seguro de que deseas eliminar el dispositivo ${displayId}? Esta acción no se puede deshacer.`,
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonText: 'Sí, eliminar',
-                cancelButtonText: 'Cancelar',
-                confirmButtonColor: '#dc3545',
-                cancelButtonColor: '#6c757d'
-            });
-            
-            if (result.isConfirmed) {
-                const response = await fetch('/admin/eliminar_device', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        device_id: deviceId,
-                        ip: ip
-                    })
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Dispositivo eliminado',
-                        text: 'El dispositivo ha sido eliminado exitosamente.',
-                        timer: 2000,
-                        showConfirmButton: false
-                    });
-                    // Recargar la lista de dispositivos
-                    setTimeout(() => {
-                        cargarDispositivos();
-                    }, 2000);
-                } else {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Error',
-                        text: data.message || 'No se pudo eliminar el dispositivo.'
-                    });
-                }
-            }
-        } catch (error) {
-            console.error('Error al eliminar dispositivo:', error);
+function summonDevice(deviceId) {
+    Swal.fire({
+        title: 'Forzando conexión...',
+        text: 'Enviando petición de Summon al dispositivo',
+        allowOutsideClick: false,
+        didOpen: () => { Swal.showLoading(); }
+    });
+    fetch("{{ url_for('admin.summon_device') }}", {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({device_id: deviceId})
+    }).then(r => r.json()).then(data => {
+        if (data.success) {
             Swal.fire({
-                icon: 'error',
-                title: 'Error',
-                text: 'Error de conexión al eliminar el dispositivo.'
+                icon: 'success',
+                title: 'Summon enviado',
+                text: 'El dispositivo debería reportarse en breve.',
+                timer: 2000,
+                showConfirmButton: false
             });
+            // Opcional: recargar para ver si el status/uptime cambió
+            setTimeout(cargarDispositivos, 2000);
+        } else {
+            Swal.fire({icon: 'error', title: 'Error', text: data.message || 'No se pudo contactar al dispositivo'});
         }
-    }
-    
-    document.addEventListener('DOMContentLoaded', function() {
-        const formLogout = document.getElementById('form-logout-admin');
-        if (formLogout) {
-            formLogout.addEventListener('submit', async function(e) {
-                e.preventDefault();
-                let resp = await fetch("{{ url_for('admin.logout') }}", {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
-                });
-                let res = await resp.json();
-                if (res.success) {
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Sesión cerrada',
-                        showConfirmButton: false,
-                        timer: 1200
-                    });
-                    setTimeout(() => { window.location.href = res.redirect || '/admin/login'; }, 1200);
-                } else {
-                    Swal.fire({ icon: 'error', title: 'Error', text: res.message || 'No se pudo cerrar la sesión.' });
-                }
-            });
-        }
+    }).catch(e => {
+        Swal.fire({icon: 'error', title: 'Error de red', text: 'Falló la petición al servidor.'});
     });
-    </script>
-</body>
-</html> 
+}
+
+document.getElementById('btn-refrescar').addEventListener('click', cargarDispositivos);
+document.getElementById('filtro-busqueda').addEventListener('input', () => { currentPage=1; renderTabla(); });
+document.getElementById('filtro-estado').addEventListener('change', () => { currentPage=1; renderTabla(); });
+document.getElementById('items-per-page').addEventListener('change', function() {
+    itemsPerPage = parseInt(this.value); currentPage = 1; renderTabla();
+});
+
+// ── Bulk select ───────────────────────────────────────────────────────────────
+function updateBulkBar() {
+    const checked = document.querySelectorAll('.chk-row:checked');
+    const bar = document.getElementById('bulk-bar');
+    document.getElementById('sel-count').textContent = checked.length;
+    bar.style.display = checked.length > 0 ? 'flex' : 'none';
+    const chkAll = document.getElementById('chk-all');
+    const all = document.querySelectorAll('.chk-row');
+    chkAll.indeterminate = checked.length > 0 && checked.length < all.length;
+    chkAll.checked = all.length > 0 && checked.length === all.length;
+}
+
+document.getElementById('chk-all').addEventListener('change', function() {
+    document.querySelectorAll('.chk-row').forEach(c => c.checked = this.checked);
+    updateBulkBar();
+});
+
+document.getElementById('tbody-dispositivos').addEventListener('change', function(e) {
+    if (e.target.classList.contains('chk-row')) updateBulkBar();
+});
+
+function deseleccionarTodo() {
+    document.querySelectorAll('.chk-row').forEach(c => c.checked = false);
+    document.getElementById('chk-all').checked = false;
+    updateBulkBar();
+}
+
+async function eliminarSeleccionados() {
+    const checked = [...document.querySelectorAll('.chk-row:checked')];
+    if (!checked.length) return;
+    const ids = checked.map(c => ({ id: c.dataset.id, ip: c.dataset.ip }));
+
+    const { isConfirmed } = await Swal.fire({
+        title: `Eliminar ${ids.length} dispositivo${ids.length > 1 ? 's' : ''}`,
+        text: 'Esta acción no se puede deshacer.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        confirmButtonText: 'Eliminar',
+        cancelButtonText: 'Cancelar',
+    });
+    if (!isConfirmed) return;
+
+    Swal.fire({ title: 'Eliminando...', allowOutsideClick: false, showConfirmButton: false, didOpen: () => Swal.showLoading() });
+
+    let errors = 0;
+    for (const { id, ip } of ids) {
+        try {
+            const res = await fetch("{{ url_for('admin.eliminar_device') }}", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ device_id: id, ip })
+            }).then(r => r.json());
+            if (res.success) {
+                dispositivosData = dispositivosData.filter(d => d.device_id !== id);
+            } else {
+                errors++;
+            }
+        } catch { errors++; }
+    }
+
+    if (errors === 0) {
+        Swal.fire({ icon: 'success', title: `${ids.length} eliminado${ids.length > 1 ? 's' : ''}`, timer: 1500, showConfirmButton: false });
+    } else {
+        Swal.fire({ icon: 'warning', title: 'Completado con errores', text: `${ids.length - errors} eliminados, ${errors} con error.` });
+    }
+    renderTabla();
+    updateBulkBar();
+}
+
+cargarDispositivos();
+</script>
+{% endblock %}

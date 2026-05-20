@@ -1,214 +1,196 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Soporte - Comparación de IPs</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
-    <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.svg') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-    <style>
-        .dashboard-bg {
-            min-height: 100vh;
-            padding-top: 90px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding-left: 10px;
-            padding-right: 10px;
-        }
-        .dashboard-title-no-box {
-            font-size: 2rem;
-            font-weight: 700;
-            color: #2563eb;
-            display: flex;
-            align-items: center;
-            gap: 0.7rem;
-            justify-content: center;
-        }
-        .table-responsive { width: 100%; }
-        .filtro-zona { max-width: 300px; margin-bottom: 1.5rem; }
-        .estado-ambos { background: #e6ffe6; }
-        .estado-wisphub { background: #fffbe6; }
-        .estado-genieacs { background: #ffe6e6; }
-        .navbar-brand img {
-            height: 38px !important;
-            max-width: 180px;
-        }
-        @media (max-width: 900px) {
-            .dashboard-title-no-box { font-size: 1.3rem; }
-        }
-        .row.g-3.align-items-end.justify-content-center.mb-3 {
-            margin-bottom: 1.2rem !important;
-        }
-    </style>
-</head>
-<body>
-    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm fixed-top">
-        <div class="container-fluid d-flex justify-content-between align-items-center px-3">
-            <a class="navbar-brand" href="{{ url_for('admin.dashboard') }}">
-                <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo" style="height:38px;width:auto;max-width:180px;">
-            </a>
-            <form method="POST" action="{{ url_for('admin.logout') }}" class="mb-0">
-                <button type="submit" class="btn btn-outline-danger rounded-pill px-4">Cerrar Sesión</button>
-            </form>
-        </div>
-    </nav>
-    <div class="dashboard-bg">
-        <div class="dashboard-title-no-box" style="margin-bottom: 1.2rem;">
-            <i class="bi bi-hdd-network text-info"></i>
-            <span>Soporte: Comparación de IPs Wisphub </span>
-        </div>
-        <div class="row g-3 align-items-end justify-content-center mb-3">
-            <div class="col-auto">
-                <label for="segmentoSelect" class="form-label">Filtrar por segmento:</label>
-                <select id="segmentoSelect" class="form-select">
-                    <option value="">Todos</option>
+{% extends "admin/base_admin.html" %}
+{% block title %}Soporte IPs{% endblock %}
+{% block nav_soporte %}active{% endblock %}
+{% block head %}
+<style>
+.summary-cards { display:grid;grid-template-columns:repeat(3,1fr);gap:0.75rem;margin-bottom:1rem; }
+.sc { background:#fff;border:1px solid #e5e7eb;border-radius:0.65rem;padding:0.75rem 1rem;display:flex;align-items:center;justify-content:space-between; }
+.sc-val { font-size:1.4rem;font-weight:800;color:#111; }
+.sc-label { font-size:0.7rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em; }
+.main-card { background:#fff;border:1px solid #e5e7eb;border-radius:0.75rem;overflow:hidden; }
+.card-toolbar { display:flex;align-items:center;gap:0.6rem;padding:0.8rem 1rem;border-bottom:1px solid #f0f0f0;flex-wrap:wrap; }
+.ip-table { width:100%;border-collapse:collapse; }
+.ip-table th { font-size:0.68rem;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.06em;padding:0.55rem 0.9rem;text-align:left;border-bottom:1px solid #f0f0f0; }
+.ip-table td { padding:0.6rem 0.9rem;font-size:0.83rem;color:#374151;border-bottom:1px solid #f9fafb; }
+.ip-table tr:last-child td { border-bottom:none; }
+.badge-ambos    { background:#dcfce7;color:#15803d;border-radius:99px;padding:0.12rem 0.6rem;font-size:0.73rem;font-weight:600; }
+.badge-wisphub  { background:#fef9c3;color:#854d0e;border-radius:99px;padding:0.12rem 0.6rem;font-size:0.73rem;font-weight:600; }
+.badge-genie    { background:#fee2e2;color:#dc2626;border-radius:99px;padding:0.12rem 0.6rem;font-size:0.73rem;font-weight:600; }
+.pag-bar { display:flex;justify-content:space-between;align-items:center;padding:0.7rem 0.9rem;border-top:1px solid #f0f0f0; }
+@media(max-width:700px){ .summary-cards { grid-template-columns:1fr 1fr; } }
+</style>
+{% endblock %}
+{% block content %}
+<div class="page-topbar">
+    <div class="page-title">Soporte IPs</div>
+    <button class="btn btn-sm btn-outline-secondary" onclick="cargarDatos(1)">
+        <i class="bi bi-arrow-clockwise"></i> Refrescar
+    </button>
+</div>
+
+<!-- Summary cards -->
+<div class="summary-cards">
+    <div class="sc">
+        <div><div class="sc-label">Ambos sistemas</div><div class="sc-val" id="cnt-ambos" style="color:#15803d;">—</div></div>
+        <i class="bi bi-check2-circle" style="font-size:1.4rem;color:#22c55e;"></i>
+    </div>
+    <div class="sc">
+        <div><div class="sc-label">Solo Wisphub</div><div class="sc-val" id="cnt-wisphub" style="color:#d97706;">—</div></div>
+        <i class="bi bi-exclamation-circle" style="font-size:1.4rem;color:#f59e0b;"></i>
+    </div>
+    <div class="sc">
+        <div><div class="sc-label">Solo dispositivos</div><div class="sc-val" id="cnt-genie" style="color:#dc2626;">—</div></div>
+        <i class="bi bi-x-circle" style="font-size:1.4rem;color:#ef4444;"></i>
+    </div>
+</div>
+
+<div class="main-card">
+    <div class="card-toolbar">
+        <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
+            <div>
+                <select id="segmentoSelect" class="form-select form-select-sm" style="max-width:170px;">
+                    <option value="">Todos los segmentos</option>
                 </select>
             </div>
-            <div class="col-auto">
-                <label for="estadoSelect" class="form-label">Filtrar por estado:</label>
-                <select id="estadoSelect" class="form-select">
-                    <option value="">Todos</option>
-                </select>
-            </div>
-            <div class="col-auto">
-                <label for="pageSizeSelect" class="form-label">Clientes por página:</label>
-                <select id="pageSizeSelect" class="form-select">
-                    <option value="10">10</option>
-                    <option value="20" selected>20</option>
-                    <option value="50">50</option>
-                    <option value="100">100</option>
-                    <option value="200">200</option>
+            <div>
+                <select id="estadoSelect" class="form-select form-select-sm" style="max-width:180px;">
+                    <option value="">Todos los estados</option>
                 </select>
             </div>
         </div>
-        <div id="alerta-error"></div>
-        <div class="table-responsive">
-            <table class="table table-bordered table-hover align-middle" id="tabla-ips">
-                <thead class="table-light">
-                    <tr>
-                        <th>IP</th>
-                        <th>Nombre</th>
-                        <th>Estado</th>
-                    </tr>
-                </thead>
-                <tbody id="tbody-ips">
-                    <tr><td colspan="3" class="text-center">Cargando datos...</td></tr>
-                </tbody>
-            </table>
-        </div>
-        <div class="d-flex justify-content-center align-items-center my-3 gap-2" id="paginacion">
-            <button class="btn btn-outline-primary" id="btn-prev" disabled>&laquo; Anterior</button>
-            <span id="pagina-info">Página 1 de 1</span>
-            <button class="btn btn-outline-primary" id="btn-next" disabled>Siguiente &raquo;</button>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:0.5rem;">
+            <label style="font-size:0.78rem;color:#9ca3af;margin:0;">Mostrar:</label>
+            <select id="pageSizeSelect" class="form-select form-select-sm" style="width:auto;">
+                <option value="10">10</option>
+                <option value="20" selected>20</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+            </select>
         </div>
     </div>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-    let datosIps = [];
-    let estados = [];
-    let segmentos = [];
-    let paginaActual = 1;
-    let totalPaginas = 1;
-    let estadoFiltro = "";
-    let segmentoFiltro = "";
-    let pageSize = 20;
-    function cargarDatos(page = 1) {
-        document.getElementById('tbody-ips').innerHTML = '<tr><td colspan="3" class="text-center">Cargando datos...</td></tr>';
-        estadoFiltro = document.getElementById('estadoSelect').value;
-        segmentoFiltro = document.getElementById('segmentoSelect').value;
-        pageSize = parseInt(document.getElementById('pageSizeSelect').value);
-        let url = `/api/soporte/ips?page=${page}&page_size=${pageSize}`;
-        if (segmentoFiltro) url += `&segmento=${encodeURIComponent(segmentoFiltro)}`;
-        if (estadoFiltro) url += `&estado=${encodeURIComponent(estadoFiltro)}`;
-        fetch(url)
-            .then(res => res.json())
-            .then(data => {
-                if (!data.success) {
-                    document.getElementById('alerta-error').innerHTML = '<div class="alert alert-danger">'+data.error+'</div>';
-                    return;
-                }
-                datosIps = data.ips;
-                estados = data.estados;
-                segmentos = data.segmentos;
-                paginaActual = data.page;
-                totalPaginas = data.total_pages;
-                poblarEstados();
-                poblarSegmentos();
-                mostrarDatos();
-                actualizarPaginacion();
-            })
-            .catch(() => {
-                document.getElementById('alerta-error').innerHTML = '<div class="alert alert-danger">Error al consultar los datos.</div>';
-            });
-    }
-    function poblarEstados() {
-        const select = document.getElementById('estadoSelect');
-        const valorActual = select.value;
-        select.innerHTML = '<option value="">Todos</option>';
-        estados.forEach(e => {
-            select.innerHTML += `<option value="${e}">${e}</option>`;
-        });
-        select.value = valorActual;
-    }
-    function poblarSegmentos() {
-        const select = document.getElementById('segmentoSelect');
-        const valorActual = select.value;
-        select.innerHTML = '<option value="">Todos</option>';
-        segmentos.forEach(s => {
-            select.innerHTML += `<option value="${s}">${s}</option>`;
-        });
-        select.value = valorActual;
-    }
-    function mostrarDatos() {
-        const estado = document.getElementById('estadoSelect').value;
-        const segmento = document.getElementById('segmentoSelect').value;
-        const tbody = document.getElementById('tbody-ips');
-        let filtrados = datosIps;
-        if (estado) filtrados = filtrados.filter(x => x.estado === estado);
-        if (segmento) filtrados = filtrados.filter(x => x.segmento === segmento);
-        if (filtrados.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="3" class="text-center">No hay datos para mostrar.</td></tr>';
-            return;
-        }
-        tbody.innerHTML = '';
-        filtrados.forEach(row => {
-            let clase = '';
-            if (row.estado === 'Ambos') clase = 'estado-ambos';
-            else if (row.estado === 'Solo Wisphub') clase = 'estado-wisphub';
-            else if (row.estado === 'Solo Dispositivos') clase = 'estado-genieacs';
-            tbody.innerHTML += `
-                <tr class="${clase}">
-                    <td>${row.ip}</td>
-                    <td>${row.nombre}</td>
-                    <td><span class="badge ${row.estado==='Ambos'?'bg-success':(row.estado==='Solo Wisphub'?'bg-warning text-dark':'bg-danger')}">${row.estado}</span></td>
+
+    <div id="alerta-error"></div>
+
+    <div style="overflow-x:auto;">
+        <table class="ip-table">
+            <thead>
+                <tr>
+                    <th>IP</th>
+                    <th>Nombre</th>
+                    <th>Estado</th>
                 </tr>
-            `;
+            </thead>
+            <tbody id="tbody-ips">
+                <tr><td colspan="3" style="padding:2.5rem;text-align:center;color:#9ca3af;">Cargando datos...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="pag-bar">
+        <span style="font-size:0.8rem;color:#6b7280;" id="pagina-info">Página 1 de 1</span>
+        <div style="display:flex;gap:0.4rem;">
+            <button class="btn btn-sm btn-outline-secondary" id="btn-prev" disabled>
+                <i class="bi bi-chevron-left"></i> Anterior
+            </button>
+            <button class="btn btn-sm btn-outline-secondary" id="btn-next" disabled>
+                Siguiente <i class="bi bi-chevron-right"></i>
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+let datosIps = [];
+let estados = [];
+let segmentos = [];
+let paginaActual = 1;
+let totalPaginas = 1;
+
+function cargarDatos(page = 1) {
+    document.getElementById('tbody-ips').innerHTML =
+        '<tr><td colspan="3" style="padding:2rem;text-align:center;color:#9ca3af;">Cargando...</td></tr>';
+    const estadoFiltro   = document.getElementById('estadoSelect').value;
+    const segmentoFiltro = document.getElementById('segmentoSelect').value;
+    const pageSize       = parseInt(document.getElementById('pageSizeSelect').value);
+    let url = `/api/soporte/ips?page=${page}&page_size=${pageSize}`;
+    if (segmentoFiltro) url += `&segmento=${encodeURIComponent(segmentoFiltro)}`;
+    if (estadoFiltro)   url += `&estado=${encodeURIComponent(estadoFiltro)}`;
+
+    fetch(url)
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) {
+                document.getElementById('alerta-error').innerHTML =
+                    `<div style="padding:1rem;color:#dc2626;font-size:0.83rem;">${data.error}</div>`;
+                return;
+            }
+            datosIps     = data.ips;
+            estados      = data.estados;
+            segmentos    = data.segmentos;
+            paginaActual = data.page;
+            totalPaginas = data.total_pages;
+            poblarSelect('estadoSelect',   estados);
+            poblarSelect('segmentoSelect', segmentos);
+            mostrarDatos();
+            actualizarContadores();
+            actualizarPaginacion();
+        })
+        .catch(() => {
+            document.getElementById('alerta-error').innerHTML =
+                '<div style="padding:1rem;color:#dc2626;font-size:0.83rem;">Error al consultar los datos.</div>';
         });
+}
+
+function poblarSelect(id, items) {
+    const sel = document.getElementById(id);
+    const cur = sel.value;
+    const primer = id === 'estadoSelect' ? 'Todos los estados' : 'Todos los segmentos';
+    sel.innerHTML = `<option value="">${primer}</option>` +
+        items.map(v => `<option value="${v}">${v}</option>`).join('');
+    sel.value = cur;
+}
+
+function mostrarDatos() {
+    const tbody = document.getElementById('tbody-ips');
+    if (!datosIps.length) {
+        tbody.innerHTML = '<tr><td colspan="3" style="padding:2rem;text-align:center;color:#9ca3af;">Sin datos para mostrar.</td></tr>';
+        return;
     }
-    function actualizarPaginacion() {
-        document.getElementById('pagina-info').textContent = `Página ${paginaActual} de ${totalPaginas}`;
-        document.getElementById('btn-prev').disabled = paginaActual <= 1;
-        document.getElementById('btn-next').disabled = paginaActual >= totalPaginas;
-    }
-    document.getElementById('estadoSelect').addEventListener('change', function() {
-        cargarDatos(1);
-    });
-    document.getElementById('segmentoSelect').addEventListener('change', function() {
-        cargarDatos(1);
-    });
-    document.getElementById('pageSizeSelect').addEventListener('change', function() {
-        cargarDatos(1);
-    });
-    document.getElementById('btn-prev').addEventListener('click', function() {
-        if (paginaActual > 1) cargarDatos(paginaActual - 1);
-    });
-    document.getElementById('btn-next').addEventListener('click', function() {
-        if (paginaActual < totalPaginas) cargarDatos(paginaActual + 1);
-    });
-    window.onload = function() { cargarDatos(1); };
-    </script>
-</body>
-</html>
+    tbody.innerHTML = datosIps.map(row => {
+        let badge;
+        if (row.estado === 'Ambos')             badge = `<span class="badge-ambos">${row.estado}</span>`;
+        else if (row.estado === 'Solo Wisphub') badge = `<span class="badge-wisphub">${row.estado}</span>`;
+        else                                    badge = `<span class="badge-genie">${row.estado}</span>`;
+        return `<tr>
+            <td style="font-family:monospace;font-size:0.8rem;">${row.ip}</td>
+            <td>${row.nombre || '—'}</td>
+            <td>${badge}</td>
+        </tr>`;
+    }).join('');
+}
+
+function actualizarContadores() {
+    const ambos   = datosIps.filter(r => r.estado === 'Ambos').length;
+    const solo_wh = datosIps.filter(r => r.estado === 'Solo Wisphub').length;
+    const solo_gn = datosIps.filter(r => r.estado === 'Solo Dispositivos').length;
+    document.getElementById('cnt-ambos').textContent   = ambos;
+    document.getElementById('cnt-wisphub').textContent = solo_wh;
+    document.getElementById('cnt-genie').textContent   = solo_gn;
+}
+
+function actualizarPaginacion() {
+    document.getElementById('pagina-info').textContent = `Página ${paginaActual} de ${totalPaginas}`;
+    document.getElementById('btn-prev').disabled = paginaActual <= 1;
+    document.getElementById('btn-next').disabled = paginaActual >= totalPaginas;
+}
+
+document.getElementById('estadoSelect').addEventListener('change', () => cargarDatos(1));
+document.getElementById('segmentoSelect').addEventListener('change', () => cargarDatos(1));
+document.getElementById('pageSizeSelect').addEventListener('change', () => cargarDatos(1));
+document.getElementById('btn-prev').addEventListener('click', () => { if (paginaActual > 1) cargarDatos(paginaActual - 1); });
+document.getElementById('btn-next').addEventListener('click', () => { if (paginaActual < totalPaginas) cargarDatos(paginaActual + 1); });
+
+cargarDatos(1);
+</script>
+{% endblock %}

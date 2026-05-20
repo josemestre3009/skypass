@@ -251,7 +251,7 @@
 <body>
     <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm fixed-top">
         <div class="container-fluid d-flex justify-content-between align-items-center px-3">
-            <a class="navbar-brand" href="{{ url_for('admin.dashboard') }}">
+            <a class="navbar-brand" href="{{ url_for('admin.dashboard_admin') }}">
                 <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo">
             </a>
             <form id="form-logout-admin" class="mb-0">
@@ -326,7 +326,7 @@
             </div>
         </div>
         <div class="d-flex justify-content-center mt-4 mb-2">
-            <a href="{{ url_for('admin.dashboard') }}" class="btn btn-outline-primary rounded-pill btn-back px-4"
+            <a href="{{ url_for('admin.dashboard_admin') }}" class="btn btn-outline-primary rounded-pill btn-back px-4"
                 style="font-size:1.15rem;">
                 <i class="bi bi-arrow-left"></i> Volver al Dashboard
             </a>
@@ -377,68 +377,6 @@
                 });
             }
 
-            // Botón de desconectar WhatsApp
-            const btnDesconectar = document.getElementById('btn-desconectar-whatsapp');
-            if (btnDesconectar) {
-                btnDesconectar.addEventListener('click', async function () {
-                    const result = await Swal.fire({
-                        title: '¿Desconectar WhatsApp?',
-                        text: 'Esto cerrará la sesión de WhatsApp. Deberás escanear el QR nuevamente para volver a conectar.',
-                        icon: 'warning',
-                        showCancelButton: true,
-                        confirmButtonColor: '#d33',
-                        cancelButtonColor: '#6c757d',
-                        confirmButtonText: '<i class="bi bi-x-circle-fill"></i> Sí, desconectar',
-                        cancelButtonText: '<i class="bi bi-x"></i> Cancelar',
-                        reverseButtons: true
-                    });
-
-                    if (result.isConfirmed) {
-                        // Mostrar loading
-                        Swal.fire({
-                            title: 'Desconectando...',
-                            html: '<div class="d-flex justify-content-center align-items-center"><span class="spinner-border text-danger" role="status" aria-hidden="true"></span></div>',
-                            allowOutsideClick: false,
-                            allowEscapeKey: false,
-                            showConfirmButton: false
-                        });
-
-                        try {
-                            const resp = await fetch("{{ url_for('admin.desconectar_whatsapp') }}", {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' }
-                            });
-                            const data = await resp.json();
-
-                            if (data.success) {
-                                Swal.fire({
-                                    icon: 'success',
-                                    title: 'WhatsApp Desconectado',
-                                    text: data.message || 'WhatsApp se ha desconectado correctamente.',
-                                    confirmButtonText: 'Recargar página',
-                                    confirmButtonColor: '#28a745'
-                                }).then(() => {
-                                    window.location.reload();
-                                });
-                            } else {
-                                Swal.fire({
-                                    icon: 'error',
-                                    title: 'Error al desconectar',
-                                    text: data.error || 'No se pudo desconectar WhatsApp.',
-                                    confirmButtonColor: '#d33'
-                                });
-                            }
-                        } catch (error) {
-                            Swal.fire({
-                                icon: 'error',
-                                title: 'Error',
-                                text: 'No se pudo conectar con el servidor.',
-                                confirmButtonColor: '#d33'
-                            });
-                        }
-                    }
-                });
-            }
         });
     </script>
 </body>

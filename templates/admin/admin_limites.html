@@ -1,497 +1,220 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Límites de Clientes - WISP</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
-    <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.svg') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-    <style>
-        body {
-            background: #f7f9fb;
-        }
-        .admin-navbar {
-            background: #fff;
-            border-bottom: 1px solid #e5e7eb;
-        }
-        .admin-logo {
-            cursor: pointer;
-        }
-        .dashboard-title-no-box {
-            font-size: 2rem;
-            font-weight: 700;
-            color: #2563eb;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            margin-bottom: 2rem;
-            justify-content: center;
-        }
-        .card {
-            border-radius: 1.2rem;
-            box-shadow: 0 4px 24px 0 rgba(31, 38, 135, 0.07);
-            border: none;
-        }
-        .btn-outline-primary {
-            border-radius: 2rem;
-        }
-        .navbar {
-            background: #fff !important;
-            border-bottom: 1px solid #e5e7eb;
-            min-height: 70px;
-            box-shadow: 0 2px 8px 0 rgba(31,38,135,0.04);
-        }
-        .navbar-brand img {
-            height: 48px !important;
-            width: auto;
-            cursor: pointer;
-        }
-        .navbar .btn {
-            border-radius: 2rem !important;
-        }
-        #ip {
-            background: #fff;
-            border-radius: 1.5rem;
-            box-shadow: 0 2px 8px 0 rgba(31,38,135,0.07);
-            border: 1.5px solid #e5e7eb;
-            font-size: 1.08rem;
-            padding-left: 1.2rem;
-            padding-right: 1.2rem;
-            transition: box-shadow 0.2s;
-        }
-        #ip:focus {
-            box-shadow: 0 4px 16px 0 rgba(31,38,135,0.13);
-            border-color: #2563eb;
-        }
-        #nombre-cliente-preview {
-            margin-top: 0.3rem;
-            font-size: 1.08rem;
-            font-weight: 500;
-            color: #2563eb;
-            background: #f4f8fd;
-            border-radius: 1.2rem;
-            display: inline-block;
-            padding: 0.25rem 1.1rem;
-            box-shadow: 0 1px 4px 0 rgba(31,38,135,0.07);
-            min-width: 120px;
-            min-height: 1.8rem;
-        }
-        .form-control {
-            border-radius: 0.5rem !important;
-            box-shadow: none !important;
-            font-size: 1.08rem;
-            border: 1.5px solid #e5e7eb;
-            padding-left: 1rem;
-            padding-right: 1rem;
-            height: 44px;
-        }
-        .form-control:focus {
-            border-color: #2563eb;
-            box-shadow: 0 0 0 2px rgba(37,99,235,0.08);
-        }
-        .btn-primary {
-            border-radius: 2rem !important;
-            font-size: 1.08rem;
-            font-weight: 600;
-            padding: 0.7rem 2.2rem;
-            height: auto;
-            display: inline-block;
-        }
-    </style>
-</head>
-<body>
-    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm fixed-top">
-        <div class="container-fluid d-flex justify-content-between align-items-center px-3">
-            <a class="navbar-brand" href="{{ url_for('admin.dashboard') }}">
-                <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo">
-            </a>
-            <form id="form-logout-admin" class="mb-0">
-                <button type="submit" class="btn btn-outline-danger rounded-pill px-4">Cerrar Sesión</button>
-            </form>
-        </div>
-    </nav>
-    <div class="dashboard-bg">
-        <div class="dashboard-title-no-box">
-            <i class="bi bi-sliders text-warning"></i>
-            <span>Límites de Clientes</span>
-        </div>
-        <div class="container-fluid maxw-1100">
-            <!-- Límite Global -->
-            <div class="card shadow p-4 mb-4">
-                <h5 class="fw-bold mb-3" style="color:#2563eb;"><i class="bi bi-globe2"></i> Límite Global de Cambios Permitidos por Mes</h5>
+{% extends "admin/base_admin.html" %}
+{% block title %}Límites{% endblock %}
+{% block nav_limites %}active{% endblock %}
+{% block head %}
+<style>
+.panel-card { background:#fff;border:1px solid #e5e7eb;border-radius:0.75rem;overflow:hidden;margin-bottom:1rem; }
+.panel-title { font-size:0.82rem;font-weight:700;color:#111;padding:0.85rem 1.15rem;border-bottom:1px solid #f0f0f0; }
+.panel-body  { padding:1.15rem; }
+.field-label { font-size:0.68rem;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.25rem;display:block; }
+.global-row  { display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap; }
+.hint        { font-size:0.73rem;color:#9ca3af;margin-top:0.45rem; }
+.search-row  { display:grid;grid-template-columns:1fr 90px auto auto;gap:0.6rem;align-items:end;flex-wrap:wrap; }
+@media(max-width:680px){ .search-row { grid-template-columns:1fr 80px; } }
+.found-bar   { display:none;margin-top:0.6rem;background:#f0f7ff;border:1px solid #bfdbfe;border-radius:0.45rem;padding:0.45rem 0.8rem;font-size:0.8rem;color:#1d4ed8; }
+.found-bar span { font-weight:600; }
+.lim-table   { width:100%;border-collapse:collapse; }
+.lim-table th{ font-size:0.67rem;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.06em;padding:0.5rem 1rem;text-align:left;border-bottom:1px solid #f0f0f0; }
+.lim-table td{ padding:0.6rem 1rem;font-size:0.83rem;color:#374151;border-bottom:1px solid #f9fafb; }
+.lim-table tr:last-child td { border-bottom:none; }
+.badge-lim   { display:inline-block;background:#eff6ff;color:#2563eb;border-radius:0.3rem;padding:0.1rem 0.55rem;font-size:0.8rem;font-weight:700; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="page-topbar">
+    <div class="page-title">Límites de Cambios</div>
+</div>
 
-                <form id="form-limite-global" autocomplete="off">
-                    <div class="mb-3">
-                        <label for="cambios_por_mes" class="form-label">Límite Global de Cambios Permitidos por Mes</label>
-                        <input type="number" class="form-control" id="cambios_por_mes" name="cambios_por_mes" value="{{ cambios_por_mes or 1 }}" required min="1" oninput="if(this.value===''||this.value<1)this.value=1;">
-                        <div class="form-text">Este es el límite por defecto para todos los clientes que no tengan un límite personalizado.</div>
-                    </div>
-                    <div class="d-grid gap-2">
-                        <button type="submit" class="btn btn-primary">Actualizar Límite Global</button>
-                    </div>
-                </form>
+<!-- Límite Global -->
+<div class="panel-card">
+    <div class="panel-title">Límite Global por Mes</div>
+    <div class="panel-body">
+        <form id="form-limite-global" autocomplete="off">
+            <div class="global-row">
+                <div>
+                    <label for="cambios_por_mes" class="field-label">Cambios permitidos por mes</label>
+                    <input type="number" class="form-control form-control-sm" id="cambios_por_mes"
+                        name="cambios_por_mes" value="{{ cambios_por_mes or 1 }}" required min="1"
+                        style="width:110px;" oninput="if(this.value===''||this.value<1)this.value=1;">
+                </div>
+                <button type="submit" class="btn btn-sm btn-primary px-4" style="margin-top:1.1rem;">Guardar</button>
             </div>
-            <!-- Límites Personalizados -->
-            <div class="card shadow p-4">
-                <h5 class="fw-bold mb-3" style="color:#2563eb;"><i class="bi bi-person-badge"></i> Límites Personalizados de Clientes</h5>
-                {% with personalizado_msgs = get_flashed_messages(category_filter=['personalizado']), error_msgs = get_flashed_messages(category_filter=['error']) %}
-                {% if personalizado_msgs %}
-                {% for message in personalizado_msgs %}
-                <div class="alert alert-info alert-dismissible fade show mb-3" role="alert">
-                    {{ message }}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
-                </div>
-                {% endfor %}
-                {% endif %}
-                {% if error_msgs %}
-                {% for message in error_msgs %}
-                <div class="alert alert-danger alert-dismissible fade show mb-3" role="alert">
-                    {{ message }}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
-                </div>
-                {% endfor %}
-                {% endif %}
-                {% endwith %}
-                <form id="form-limite-personalizado" class="mb-4" autocomplete="off">
-                    <div class="row g-2 align-items-end flex-column flex-md-row">
-                        <div class="col-12 col-md-4">
-                            <label for="busqueda" class="form-label">IP o Cédula del Cliente</label>
-                            <input type="text" class="form-control" id="busqueda" name="busqueda" required placeholder="Ej: 192.168.1.10 o 12345678">
-                            <div id="cliente-info" class="mt-2" style="display: none;">
-                                <small class="text-muted">
-                                    <strong>Cliente encontrado:</strong> <span id="cliente-nombre"></span><br>
-                                    <strong>IP:</strong> <span id="cliente-ip"></span> | 
-                                    <strong>Cédula:</strong> <span id="cliente-cedula"></span>
-                                </small>
-                            </div>
-                        </div>
-                        <div class="col-12 col-md-3">
-                            <label for="nuevo_limite" class="form-label">Nuevo Límite</label>
-                            <input type="number" class="form-control" id="nuevo_limite" name="nuevo_limite" required min="1">
-                        </div>
-                        <div class="col-12 col-md-2">
-                            <button type="button" id="btn-buscar" class="btn btn-outline-primary w-100">Buscar</button>
-                        </div>
-                        <div class="col-12 col-md-3 d-grid">
-                            <button type="submit" class="btn btn-primary" id="btn-actualizar" disabled>Actualizar Límite</button>
-                        </div>
-                    </div>
-                    <input type="hidden" id="ip" name="ip">
-                    <input type="hidden" id="cedula" name="cedula">
-                </form>
-                <div class="table-responsive">
-                    <table class="table table-striped">
-                        <thead>
-                            <tr>
-                                <th>IP</th>
-                                <th>Cédula</th>
-                                <th>Nombre</th>
-                                <th>Límite Personalizado</th>
-                                <th>Acción</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for limite in limites %}
-                            <tr>
-                                <td>{{ limite.ip }}</td>
-                                <td>{{ limite.cedula or '' }}</td>
-                                <td>{{ limite.nombre or '' }}</td>
-                                <td>{{ limite.limite_personalizado }}</td>
-                                <td>
-                                    <form id="form-eliminar-{{ limite.ip }}" class="form-eliminar-limite" autocomplete="off" style="display:inline;">
-                                        <input type="hidden" name="ip" value="{{ limite.ip }}">
-                                        <button type="submit" class="btn btn-outline-danger btn-sm" onclick="return confirm('¿Eliminar límite personalizado? El cliente quedará sujeto al límite global.')">Eliminar</button>
-                                    </form>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+            <div class="hint">Aplica a todos los clientes sin límite personalizado.</div>
+        </form>
+    </div>
+</div>
+
+<!-- Límites Personalizados -->
+<div class="panel-card">
+    <div class="panel-title">Límites Personalizados</div>
+    <div class="panel-body">
+
+        {% with personalizado_msgs = get_flashed_messages(category_filter=['personalizado']),
+                error_msgs          = get_flashed_messages(category_filter=['error']) %}
+        {% if personalizado_msgs %}{% for msg in personalizado_msgs %}
+        <div class="alert alert-info alert-dismissible fade show mb-3" role="alert" style="font-size:0.82rem;">
+            {{ msg }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
-        <div class="d-flex justify-content-center mt-3 mb-4">
-            <a href="{{ url_for('admin.dashboard') }}" class="btn btn-outline-primary btn-lg rounded-pill px-4 shadow-sm">
-                <i class="bi bi-house-door"></i> Volver al Dashboard
-            </a>
+        {% endfor %}{% endif %}
+        {% if error_msgs %}{% for msg in error_msgs %}
+        <div class="alert alert-danger alert-dismissible fade show mb-3" role="alert" style="font-size:0.82rem;">
+            {{ msg }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        {% endfor %}{% endif %}
+        {% endwith %}
+
+        <form id="form-limite-personalizado" autocomplete="off">
+            <div class="search-row">
+                <div>
+                    <label class="field-label">IP o cédula del cliente</label>
+                    <input type="text" class="form-control form-control-sm" id="busqueda" name="busqueda"
+                        placeholder="192.168.1.10 o 12345678" required>
+                </div>
+                <div>
+                    <label class="field-label">Límite</label>
+                    <input type="number" class="form-control form-control-sm" id="nuevo_limite"
+                        name="nuevo_limite" required min="1">
+                </div>
+                <button type="button" id="btn-buscar" class="btn btn-sm btn-outline-secondary px-3"
+                    style="margin-top:1.1rem;">Buscar</button>
+                <button type="submit" class="btn btn-sm btn-primary px-3" id="btn-actualizar"
+                    style="margin-top:1.1rem;" disabled>Aplicar</button>
+            </div>
+
+            <div class="found-bar" id="cliente-info">
+                Cliente: <span id="cliente-nombre"></span>
+                &nbsp;·&nbsp; IP: <span id="cliente-ip" style="font-family:monospace;"></span>
+                &nbsp;·&nbsp; Cédula: <span id="cliente-cedula" style="font-family:monospace;"></span>
+            </div>
+
+            <input type="hidden" id="ip" name="ip">
+            <input type="hidden" id="cedula" name="cedula">
+        </form>
+
+        <div style="overflow-x:auto;margin-top:1.25rem;">
+            <table class="lim-table">
+                <thead>
+                    <tr>
+                        <th>IP</th>
+                        <th>Cédula</th>
+                        <th>Nombre</th>
+                        <th>Límite</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for limite in limites %}
+                    <tr>
+                        <td style="font-family:monospace;font-size:0.8rem;">{{ limite.ip }}</td>
+                        <td style="font-size:0.82rem;">{{ limite.cedula or '—' }}</td>
+                        <td style="font-size:0.82rem;">{{ limite.nombre or '—' }}</td>
+                        <td><span class="badge-lim">{{ limite.limite_personalizado }}</span></td>
+                        <td style="text-align:right;">
+                            <form class="form-eliminar-limite" style="display:inline;">
+                                <input type="hidden" name="ip" value="{{ limite.ip }}">
+                                <button type="submit" class="btn btn-sm btn-outline-danger"
+                                    style="font-size:0.72rem;padding:0.15rem 0.6rem;">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" style="padding:2rem;text-align:center;color:#9ca3af;">
+                            Sin límites personalizados configurados.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
     </div>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script src="{{ url_for('static', filename='session-timeout.js') }}"></script>
-    <script>
-    function toggleEdit(cedula, show) {
-        const span = document.getElementById('limite-valor-' + cedula);
-        const form = document.getElementById('form-editar-' + cedula);
-        console.log('[toggleEdit] cedula:', cedula, 'show:', show, 'span:', span, 'form:', form);
-        if (show) {
-            if(span) span.style.display = 'none';
-            if(form) form.style.display = 'inline-block';
-            const input = form ? form.querySelector('input[name="nuevo_limite"]') : null;
-            if(input) input.focus();
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const btnBuscar    = document.getElementById('btn-buscar');
+const inputBusq    = document.getElementById('busqueda');
+const clienteInfo  = document.getElementById('cliente-info');
+const btnActualizar= document.getElementById('btn-actualizar');
+const inputIp      = document.getElementById('ip');
+const inputCedula  = document.getElementById('cedula');
+
+// Límite global
+document.getElementById('form-limite-global').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    Swal.fire({ title: 'Guardando...', allowOutsideClick: false, showConfirmButton: false, didOpen: () => Swal.showLoading() });
+    let data = {};
+    new FormData(this).forEach((v, k) => { data[k] = v; });
+    const res = await (await fetch("{{ url_for('admin.cambiar_config') }}", {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+    })).json();
+    if (!res.success) { Swal.fire({ icon: 'error', title: 'Error', text: res.message }); return; }
+    Swal.fire({ icon: 'success', title: 'Límite global actualizado', showConfirmButton: false, timer: 1400 });
+    setTimeout(() => location.reload(), 1400);
+});
+
+// Buscar cliente
+btnBuscar.addEventListener('click', async function() {
+    const q = inputBusq.value.trim();
+    if (!q) { Swal.fire({ icon: 'warning', title: 'Ingrese IP o cédula' }); return; }
+    Swal.fire({ title: 'Buscando...', allowOutsideClick: false, showConfirmButton: false, didOpen: () => Swal.showLoading() });
+    try {
+        const res = await (await fetch("{{ url_for('admin.buscar_cliente_limite') }}", {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ busqueda: q })
+        })).json();
+        if (res.success) {
+            document.getElementById('cliente-nombre').textContent  = res.cliente.nombre  || 'Sin nombre';
+            document.getElementById('cliente-ip').textContent      = res.cliente.ip;
+            document.getElementById('cliente-cedula').textContent  = res.cliente.cedula  || '—';
+            clienteInfo.style.display = 'block';
+            inputIp.value     = res.cliente.ip;
+            inputCedula.value = res.cliente.cedula || '';
+            btnActualizar.disabled = false;
+            Swal.close();
         } else {
-            if(span) span.style.display = '';
-            if(form) form.style.display = 'none';
+            Swal.fire({ icon: 'error', title: 'No encontrado', text: res.message || 'Cliente no encontrado' });
+            clienteInfo.style.display = 'none';
+            btnActualizar.disabled = true;
         }
-    }
+    } catch { Swal.fire({ icon: 'error', title: 'Error de conexión' }); }
+});
 
-    function ocultarTodosLosFormularios() {
-        document.querySelectorAll('form[id^="form-editar-"]').forEach(f => f.style.display = 'none');
-        document.querySelectorAll('span[id^="limite-valor-"]').forEach(s => s.style.display = '');
-        console.log('[ocultarTodosLosFormularios] Todos los formularios ocultos');
-    }
+// Aplicar límite personalizado
+document.getElementById('form-limite-personalizado').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    if (!inputIp.value) { Swal.fire({ icon: 'warning', title: 'Busque un cliente primero' }); return; }
+    Swal.fire({ title: 'Aplicando...', allowOutsideClick: false, showConfirmButton: false, didOpen: () => Swal.showLoading() });
+    let data = {};
+    new FormData(this).forEach((v, k) => { data[k] = v; });
+    const res = await (await fetch("{{ url_for('admin.editar_limite') }}", {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+    })).json();
+    if (!res.success) { Swal.fire({ icon: 'error', title: 'Error', text: res.message }); return; }
+    Swal.fire({ icon: 'success', title: 'Límite actualizado', showConfirmButton: false, timer: 1400 });
+    setTimeout(() => location.reload(), 1400);
+});
 
-    function editarLimiteAjax(event, cedula) {
-        event.preventDefault();
-        const form = document.getElementById('form-editar-' + cedula);
-        const formData = new FormData(form);
-        fetch("{{ url_for('admin.editar_limite') }}", {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                document.getElementById('limite-valor-' + cedula).textContent = data.nuevo_limite;
-                toggleEdit(cedula, false);
-            } else {
-                alert(data.message);
-            }
-        })
-        .catch((err) => {
-            alert('Error de red al actualizar el límite.');
+// Eliminar límite
+document.querySelectorAll('.form-eliminar-limite').forEach(form => {
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const { isConfirmed } = await Swal.fire({
+            title: '¿Eliminar límite?', text: 'El cliente quedará sujeto al límite global.',
+            icon: 'warning', showCancelButton: true,
+            confirmButtonText: 'Eliminar', cancelButtonText: 'Cancelar'
         });
-        return false;
-    }
-
-    // Límite global
-    const formGlobal = document.getElementById('form-limite-global');
-    if (formGlobal) {
-        formGlobal.addEventListener('submit', async function(e) {
-            e.preventDefault();
-            Swal.fire({
-                title: 'Procesando',
-                html: '<div id="swal-mensaje">Actualizando límite global...</div><div class="progress mt-3" style="height: 8px;"><div id="swal-barra" class="progress-bar bg-primary" role="progressbar" style="width: 0%"></div></div>',
-                allowOutsideClick: false,
-                allowEscapeKey: false,
-                showConfirmButton: false,
-                didOpen: () => { Swal.showLoading(); }
-            });
-            const barra = document.getElementById('swal-barra');
-            let barraInterval = null;
-            if (barra) {
-                let progreso = 0;
-                barra.style.width = '0%';
-                barraInterval = setInterval(() => {
-                    progreso += 2;
-                    barra.style.width = progreso + '%';
-                    if (progreso >= 100) clearInterval(barraInterval);
-                }, 100);
-            }
-            let formData = new FormData(formGlobal);
-            let data = {};
-            formData.forEach((value, key) => { data[key] = value; });
-            let resp = await fetch(window.location.origin + "{{ url_for('admin.cambiar_config') }}", {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
-            let res = await resp.json();
-            if (!res.success) {
-                if (barraInterval) clearInterval(barraInterval);
-                Swal.fire({ icon: 'error', title: 'Error', text: res.message || 'Error al actualizar el límite global.' });
-                return;
-            }
-            if (barra) barra.style.width = '100%';
-            await new Promise(r => setTimeout(r, 1000));
-            Swal.fire({
-                icon: 'success',
-                title: '¡Límite global actualizado!',
-                showConfirmButton: false,
-                timer: 1800
-            });
-            setTimeout(() => { window.location.reload(); }, 1800);
-        });
-    }
-    // Búsqueda de cliente
-    const btnBuscar = document.getElementById('btn-buscar');
-    const inputBusqueda = document.getElementById('busqueda');
-    const clienteInfo = document.getElementById('cliente-info');
-    const btnActualizar = document.getElementById('btn-actualizar');
-    const inputIp = document.getElementById('ip');
-    const inputCedula = document.getElementById('cedula');
-
-    if (btnBuscar) {
-        btnBuscar.addEventListener('click', async function() {
-            const busqueda = inputBusqueda.value.trim();
-            if (!busqueda) {
-                Swal.fire({ icon: 'warning', title: 'Atención', text: 'Debe ingresar una IP o cédula' });
-                return;
-            }
-
-            Swal.fire({
-                title: 'Buscando cliente...',
-                allowOutsideClick: false,
-                allowEscapeKey: false,
-                showConfirmButton: false,
-                didOpen: () => { Swal.showLoading(); }
-            });
-
-            try {
-                const resp = await fetch("{{ url_for('admin.buscar_cliente_limite') }}", {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ busqueda: busqueda })
-                });
-                const res = await resp.json();
-
-                if (res.success) {
-                    // Mostrar información del cliente
-                    document.getElementById('cliente-nombre').textContent = res.cliente.nombre || 'Sin nombre';
-                    document.getElementById('cliente-ip').textContent = res.cliente.ip;
-                    document.getElementById('cliente-cedula').textContent = res.cliente.cedula || 'Sin cédula';
-                    clienteInfo.style.display = 'block';
-                    
-                    // Llenar campos ocultos
-                    inputIp.value = res.cliente.ip;
-                    inputCedula.value = res.cliente.cedula || '';
-                    
-                    // Habilitar botón de actualizar
-                    btnActualizar.disabled = false;
-                    
-                    Swal.close();
-                } else {
-                    Swal.fire({ icon: 'error', title: 'Error', text: res.message || 'Cliente no encontrado' });
-                    clienteInfo.style.display = 'none';
-                    btnActualizar.disabled = true;
-                }
-            } catch (error) {
-                Swal.fire({ icon: 'error', title: 'Error', text: 'Error de conexión al buscar cliente' });
-                clienteInfo.style.display = 'none';
-                btnActualizar.disabled = true;
-            }
-        });
-    }
-
-    // Límite personalizado
-    const formPersonal = document.getElementById('form-limite-personalizado');
-    if (formPersonal) {
-        formPersonal.addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            if (!inputIp.value) {
-                Swal.fire({ icon: 'warning', title: 'Atención', text: 'Debe buscar un cliente primero' });
-                return;
-            }
-
-            Swal.fire({
-                title: 'Procesando',
-                html: '<div id="swal-mensaje">Actualizando límite personalizado...</div><div class="progress mt-3" style="height: 8px;"><div id="swal-barra" class="progress-bar bg-primary" role="progressbar" style="width: 0%"></div></div>',
-                allowOutsideClick: false,
-                allowEscapeKey: false,
-                showConfirmButton: false,
-                didOpen: () => { Swal.showLoading(); }
-            });
-            const barra = document.getElementById('swal-barra');
-            let barraInterval = null;
-            if (barra) {
-                let progreso = 0;
-                barra.style.width = '0%';
-                barraInterval = setInterval(() => {
-                    progreso += 2;
-                    barra.style.width = progreso + '%';
-                    if (progreso >= 100) clearInterval(barraInterval);
-                }, 100);
-            }
-            let formData = new FormData(formPersonal);
-            let data = {};
-            formData.forEach((value, key) => { data[key] = value; });
-            let resp = await fetch(window.location.origin + "{{ url_for('admin.editar_limite') }}", {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
-            let res = await resp.json();
-            if (!res.success) {
-                if (barraInterval) clearInterval(barraInterval);
-                Swal.fire({ icon: 'error', title: 'Error', text: res.message || 'Error al actualizar el límite personalizado.' });
-                return;
-            }
-            if (barra) barra.style.width = '100%';
-            await new Promise(r => setTimeout(r, 1000));
-            Swal.fire({
-                icon: 'success',
-                title: '¡Límite personalizado actualizado!',
-                showConfirmButton: false,
-                timer: 1800
-            });
-            setTimeout(() => { window.location.reload(); }, 1800);
-        });
-    }
-    // Eliminar límite personalizado
-    const formsEliminar = document.querySelectorAll('.form-eliminar-limite');
-    formsEliminar.forEach(form => {
-        form.addEventListener('submit', async function(e) {
-            e.preventDefault();
-            Swal.fire({
-                title: '¿Estás seguro?',
-                text: 'Esta acción eliminará el límite personalizado y el cliente quedará sujeto al límite global.',
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonText: 'Sí, eliminar',
-                cancelButtonText: 'Cancelar'
-            }).then(async (result) => {
-                if (result.isConfirmed) {
-                    let formData = new FormData(form);
-                    let data = {};
-                    formData.forEach((value, key) => { data[key] = value; });
-                    let resp = await fetch(window.location.origin + "{{ url_for('admin.eliminar_limite') }}", {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(data)
-                    });
-                    let res = await resp.json();
-                    if (!res.success) {
-                        Swal.fire({ icon: 'error', title: 'Error', text: res.message || 'Error al eliminar el límite.' });
-                        return;
-                    }
-                    Swal.fire({
-                        icon: 'success',
-                        title: '¡Límite eliminado!',
-                        showConfirmButton: false,
-                        timer: 1800
-                    });
-                    setTimeout(() => { window.location.reload(); }, 1800);
-                }
-            });
-        });
+        if (!isConfirmed) return;
+        let data = {};
+        new FormData(form).forEach((v, k) => { data[k] = v; });
+        const res = await (await fetch("{{ url_for('admin.eliminar_limite') }}", {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+        })).json();
+        if (!res.success) { Swal.fire({ icon: 'error', title: 'Error', text: res.message }); return; }
+        Swal.fire({ icon: 'success', title: 'Eliminado', showConfirmButton: false, timer: 1200 });
+        setTimeout(() => location.reload(), 1200);
     });
-    document.addEventListener('DOMContentLoaded', function() {
-        const formLogout = document.getElementById('form-logout-admin');
-        if (formLogout) {
-            formLogout.addEventListener('submit', async function(e) {
-                e.preventDefault();
-                let resp = await fetch("{{ url_for('admin.logout') }}", {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
-                });
-                let res = await resp.json();
-                if (res.success) {
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Sesión cerrada',
-                        showConfirmButton: false,
-                        timer: 1200
-                    });
-                    setTimeout(() => { window.location.href = res.redirect || '/admin/login'; }, 1200);
-                } else {
-                    Swal.fire({ icon: 'error', title: 'Error', text: res.message || 'No se pudo cerrar la sesión.' });
-                }
-            });
-        }
-    });
-    </script>
-</body>
-</html> 
+});
+</script>
+{% endblock %}

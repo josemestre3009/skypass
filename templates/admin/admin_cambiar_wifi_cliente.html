@@ -1,601 +1,368 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cambiar WiFi Cliente - WISP</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
-    <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.svg') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-    <style>
-        .navbar {
-            background: #fff !important;
-            border-bottom: 1px solid #e5e7eb;
-            min-height: 70px;
-            box-shadow: 0 2px 8px 0 rgba(31,38,135,0.04);
-        }
-        .navbar-brand img {
-            height: 48px !important;
-            width: auto;
-            cursor: pointer;
-        }
-        .navbar .btn {
-            border-radius: 2rem !important;
-        }
-    </style>
-</head>
-<body>
-    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm fixed-top">
-        <div class="container-fluid d-flex justify-content-between align-items-center px-3">
-            <a class="navbar-brand" href="{{ url_for('admin.dashboard') }}">
-                <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo">
-            </a>
-            <form id="form-logout-admin" class="mb-0">
-                <button type="submit" class="btn btn-outline-danger rounded-pill px-4">Cerrar Sesión</button>
-            </form>
-        </div>
-    </nav>
-    <div class="dashboard-bg">
-        <div class="dashboard-title-no-box">
-            <i class="bi bi-wifi text-danger"></i>
-            <span>Cambiar WiFi Cliente</span>
-        </div>
-        <div class="container-fluid maxw-1100">
-            <div class="card shadow p-4">
+{% extends "admin/base_admin.html" %}
+{% block title %}Cambiar WiFi{% endblock %}
+{% block nav_wifi %}active{% endblock %}
+{% block head %}
+<style>
+/* Azul más suave para esta página */
+.btn-primary          { background:#4f80f0 !important; border-color:#4f80f0 !important; }
+.btn-primary:hover    { background:#3b6de0 !important; border-color:#3b6de0 !important; }
+.btn-outline-primary  { color:#4f80f0 !important; border-color:#4f80f0 !important; }
+.btn-outline-primary:hover { background:#4f80f0 !important; color:#fff !important; }
 
-                <!-- Formulario para buscar cliente por cédula -->
-                <form id="form-buscar-cliente" method="GET" action="{{ url_for('admin.cambiar_wifi_cliente') }}" class="mb-4">
-                    <div class="mb-3">
-                        <label for="cedula" class="form-label">Cédula del Cliente</label>
-                        <input type="text" class="form-control" id="cedula" name="cedula" value="{{ request.args.get('cedula', '') }}" required>
+.panel-card   { background:#fff;border:1px solid #e5e7eb;border-radius:0.75rem;overflow:hidden;margin-bottom:1rem; }
+.panel-title  { font-size:0.8rem;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.06em;padding:0.75rem 1.1rem;border-bottom:1px solid #f0f0f0; }
+.panel-body   { padding:1.1rem; }
+
+/* Barra de búsqueda inline */
+.search-inline { display:flex;gap:0.6rem;align-items:flex-end;flex-wrap:wrap; }
+.search-inline input { min-width:220px; }
+
+/* Grid de chips de info */
+.chips-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:0.6rem;margin-bottom:0; }
+.chip { background:#f9fafb;border:1px solid #e5e7eb;border-radius:0.5rem;padding:0.6rem 0.8rem; }
+.chip .lbl { font-size:0.63rem;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.15rem; }
+.chip .val { font-size:0.88rem;font-weight:600;color:#111;line-height:1.2; }
+.chip-wide { grid-column:span 2; }
+
+/* Estado badges */
+.b-online    { background:#dcfce7;color:#15803d;border-radius:0.3rem;padding:0.12rem 0.5rem;font-size:0.75rem;font-weight:600; }
+.b-offline   { background:#f3f4f6;color:#6b7280;border-radius:0.3rem;padding:0.12rem 0.5rem;font-size:0.75rem;font-weight:600; }
+.b-activo    { background:#dcfce7;color:#15803d;border-radius:0.3rem;padding:0.12rem 0.5rem;font-size:0.75rem;font-weight:600; }
+.b-suspendido{ background:#fee2e2;color:#dc2626;border-radius:0.3rem;padding:0.12rem 0.5rem;font-size:0.75rem;font-weight:600; }
+.b-unknown   { background:#f3f4f6;color:#6b7280;border-radius:0.3rem;padding:0.12rem 0.5rem;font-size:0.75rem;font-weight:600; }
+
+/* RX quality colors */
+.rx-ok   { color:#15803d; }
+.rx-warn { color:#d97706; }
+.rx-crit { color:#dc2626; }
+
+/* Formularios WiFi */
+.wifi-grid { display:grid;grid-template-columns:1fr 1fr;gap:1rem; }
+@media(max-width:680px){ .wifi-grid { grid-template-columns:1fr; } }
+
+.field-label { font-size:0.68rem;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.25rem;display:block; }
+
+/* ONU info skeleton */
+.skel { background:linear-gradient(90deg,#f0f0f0 25%,#e0e0e0 50%,#f0f0f0 75%);background-size:200% 100%;animation:sh 1.2s infinite;border-radius:0.3rem;height:1rem;display:inline-block; }
+@keyframes sh { 0%{background-position:200% 0}100%{background-position:-200% 0} }
+
+/* ONU link */
+.onu-link { font-size:0.75rem;color:#4f80f0;text-decoration:none;display:inline-flex;align-items:center;gap:0.25rem; }
+.onu-link:hover { text-decoration:underline; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="page-topbar">
+    <div class="page-title">Cambiar WiFi Cliente</div>
+</div>
+
+<!-- ── Búsqueda ──────────────────────────────────────────────────────────── -->
+<div class="panel-card">
+    <div class="panel-title">Buscar cliente</div>
+    <div class="panel-body">
+        <form id="form-buscar-cliente" method="GET" action="{{ url_for('admin.cambiar_wifi_cliente') }}">
+            <div class="search-inline">
+                <div>
+                    <label for="cedula" class="field-label">Cédula</label>
+                    <input type="text" class="form-control form-control-sm" id="cedula" name="cedula"
+                        value="{{ request.args.get('cedula', '') }}" required placeholder="Ej: 12345678">
+                </div>
+                <button type="submit" class="btn btn-sm btn-primary px-4">Buscar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% if cliente %}
+
+{% if cliente.servicios and cliente.servicios|length > 1 and not ip_seleccionada %}
+<!-- Múltiples servicios -->
+<div class="panel-card">
+    <div class="panel-body" style="text-align:center;padding:2rem;color:#6b7280;">
+        Este cliente tiene múltiples servicios. Selecciona el que deseas modificar.
+    </div>
+</div>
+
+{% else %}
+
+<!-- ── Info del cliente (Wisphub + GenieACS async) ─────────────────────── -->
+<div class="panel-card">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:0.75rem 1.1rem;border-bottom:1px solid #f0f0f0;">
+        <span style="font-size:0.8rem;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.06em;">Información del cliente</span>
+        <a id="onu-link" href="#" class="onu-link" style="display:none;">
+            <i class="bi bi-hdd-network"></i> Ver ONU
+        </a>
+    </div>
+    <div class="panel-body">
+        <!-- Chips Wisphub -->
+        <div class="chips-grid" style="margin-bottom:0.75rem;">
+            {% if ip_seleccionada %}
+                {% for s in cliente.servicios %}{% if s.ip == ip_seleccionada %}
+                <div class="chip chip-wide"><div class="lbl">Nombre</div><div class="val">{{ s.nombre_cliente or cliente.nombre }}</div></div>
+                <div class="chip"><div class="lbl">Cédula</div><div class="val" style="font-family:monospace;">{{ cliente.cedula }}</div></div>
+                <div class="chip"><div class="lbl">IP</div><div class="val" style="font-family:monospace;">{{ s.ip }}</div></div>
+                <div class="chip">
+                    <div class="lbl">Estado servicio</div>
+                    <div class="val">
+                        {% if s.estado|lower == 'activo' %}<span class="b-activo">Activo</span>
+                        {% elif s.estado|lower == 'suspendido' %}<span class="b-suspendido">Suspendido</span>
+                        {% else %}<span class="b-unknown">{{ s.estado }}</span>{% endif %}
                     </div>
-                    <div class="d-grid gap-2">
-                        <button type="submit" class="btn btn-primary">Buscar Cliente</button>
+                </div>
+                {% endif %}{% endfor %}
+            {% else %}
+                <div class="chip chip-wide"><div class="lbl">Nombre</div><div class="val">{{ cliente.nombre }}</div></div>
+                <div class="chip"><div class="lbl">Cédula</div><div class="val" style="font-family:monospace;">{{ cliente.cedula }}</div></div>
+                <div class="chip"><div class="lbl">IP</div><div class="val" style="font-family:monospace;">{{ cliente.ip }}</div></div>
+                <div class="chip">
+                    <div class="lbl">Estado servicio</div>
+                    <div class="val">
+                        {% if estado_servicio == 'activo' %}<span class="b-activo">Activo</span>
+                        {% elif estado_servicio == 'suspendido' %}<span class="b-suspendido">Suspendido</span>
+                        {% else %}<span class="b-unknown">Desconocido</span>{% endif %}
                     </div>
-                </form>
-                {% if cliente %}
-                    {% if cliente.servicios and cliente.servicios|length > 1 and not ip_seleccionada %}
-                        <!-- No mostrar información del cliente hasta que se seleccione un servicio -->
-                        <div class="alert alert-info">
-                            <i class="fas fa-info-circle"></i>
-                            Este cliente tiene múltiples servicios. Por favor selecciona el servicio que deseas modificar.
-                        </div>
-                    {% else %}
-                        <div class="mb-4">
-                            <h6>Información del Cliente:</h6>
-                            <div class="row g-3">
-                                {% if ip_seleccionada %}
-                                    {% for servicio in cliente.servicios %}
-                                        {% if servicio.ip == ip_seleccionada %}
-                                            <div class="col-12 col-md-3"><strong>Nombre:</strong> {{ servicio.nombre_cliente or cliente.nombre }}</div>
-                                            <div class="col-12 col-md-3"><strong>Cédula:</strong> {{ cliente.cedula }}</div>
-                                            <div class="col-12 col-md-3"><strong>IP:</strong> {{ servicio.ip }}</div>
-                                            <div class="col-12 col-md-3"><strong>Estado Servicio:</strong> 
-                                                {% if servicio.estado|lower == 'activo' %}
-                                                    <span class="badge bg-success">Activo</span>
-                                                {% elif servicio.estado|lower == 'suspendido' %}
-                                                    <span class="badge bg-danger">Suspendido</span>
-                                                {% else %}
-                                                    <span class="badge bg-secondary">Desconocido</span>
-                                                {% endif %}
-                                            </div>
-                                        {% endif %}
-                                    {% endfor %}
-                                {% else %}
-                                    <div class="col-12 col-md-3"><strong>Nombre:</strong> {{ cliente.nombre }}</div>
-                                    <div class="col-12 col-md-3"><strong>Cédula:</strong> {{ cliente.cedula }}</div>
-                                    <div class="col-12 col-md-3"><strong>IP:</strong> {{ cliente.ip }}</div>
-                                    <div class="col-12 col-md-3"><strong>Estado Servicio:</strong> 
-                                        {% if estado_servicio == 'activo' %}
-                                            <span class="badge bg-success">Activo</span>
-                                        {% elif estado_servicio == 'suspendido' %}
-                                            <span class="badge bg-danger">Suspendido</span>
-                                        {% else %}
-                                            <span class="badge bg-secondary">Desconocido</span>
-                                        {% endif %}
-                                    </div>
-                                {% endif %}
-                            </div>
-                        </div>
-                    {% endif %}
-                    
-                    {% if not (cliente.servicios and cliente.servicios|length > 1 and not ip_seleccionada) %}
-                    <!-- Cambiar SSID -->
-                    <form id="form-cambiar-ssid" autocomplete="off">
-                        <input type="hidden" name="cedula" value="{{ cliente.cedula }}">
-                        <input type="hidden" name="accion" value="ssid">
-                        <input type="hidden" name="ip" value="{{ ip_seleccionada or cliente.ip }}">
-                        <div class="mb-2">
-                            <label for="nuevo_ssid" class="form-label">Nuevo Nombre de Red (SSID)</label>
-                            <input type="text" class="form-control" id="nuevo_ssid" name="nuevo_ssid" required>
-                        </div>
-                        <div class="d-grid gap-2">
-                            <button type="submit" class="btn btn-primary">Cambiar Nombre de Red</button>
-                        </div>
-                    </form>
-                    <!-- Cambiar Contraseña -->
-                    <form id="form-cambiar-password" autocomplete="off">
-                        <input type="hidden" name="cedula" value="{{ cliente.cedula }}">
-                        <input type="hidden" name="accion" value="password">
-                        <input type="hidden" name="ip" value="{{ ip_seleccionada or cliente.ip }}">
-                        <div class="mb-2">
-                            <label for="nueva_password" class="form-label">Nueva Contraseña WiFi</label>
-                            <input type="password" class="form-control" id="nueva_password" name="nueva_password" required>
-                            <div class="form-text">La contraseña debe tener al menos 8 caracteres</div>
-                            <div class="form-check mt-2">
-                                <input class="form-check-input" type="checkbox" id="mostrarPassword" onclick="togglePassword()">
-                                <label class="form-check-label" for="mostrarPassword">Mostrar contraseña</label>
-                            </div>
-                        </div>
-                        <div class="d-grid gap-2">
-                            <button type="submit" class="btn btn-primary">Cambiar Contraseña WiFi</button>
-                        </div>
-                    </form>
-                    {% endif %}
-                {% endif %}
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Chips GenieACS (cargados async) -->
+        <div style="border-top:1px solid #f0f0f0;padding-top:0.75rem;">
+            <div style="font-size:0.63rem;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.5rem;">ONU / Servidor ACS</div>
+            <div class="chips-grid" id="genie-chips">
+                <div class="chip"><div class="lbl">Estado ONU</div><div class="val"><span class="skel" style="width:60px;">&nbsp;</span></div></div>
+                <div class="chip"><div class="lbl">RX Power</div><div class="val"><span class="skel" style="width:60px;">&nbsp;</span></div></div>
+                <div class="chip"><div class="lbl">Modelo</div><div class="val"><span class="skel" style="width:80px;">&nbsp;</span></div></div>
+                <div class="chip"><div class="lbl">Uptime</div><div class="val"><span class="skel" style="width:60px;">&nbsp;</span></div></div>
+                <div class="chip"><div class="lbl">Temperatura</div><div class="val"><span class="skel" style="width:50px;">&nbsp;</span></div></div>
+                <div class="chip"><div class="lbl">Eq. Conectados</div><div class="val"><span class="skel" style="width:30px;">&nbsp;</span></div></div>
             </div>
         </div>
-        <div class="d-flex justify-content-center mt-4">
-            <a href="{{ url_for('admin.dashboard') }}" class="btn btn-outline-primary btn-lg rounded-pill px-4 shadow-sm">
-                <i class="bi bi-house-door"></i> Volver al Dashboard
-            </a>
+    </div>
+</div>
+
+<!-- ── Formularios WiFi ─────────────────────────────────────────────────── -->
+<div class="wifi-grid">
+    <!-- SSID -->
+    <div class="panel-card" style="margin-bottom:0;">
+        <div class="panel-title">Nombre de red (SSID)</div>
+        <div class="panel-body">
+            <form id="form-cambiar-ssid" autocomplete="off">
+                <input type="hidden" name="cedula" value="{{ cliente.cedula }}">
+                <input type="hidden" name="accion" value="ssid">
+                <input type="hidden" name="ip" value="{{ ip_seleccionada or cliente.ip }}">
+                <div class="mb-3">
+                    <label for="nuevo_ssid" class="field-label">Nuevo nombre</label>
+                    <input type="text" class="form-control form-control-sm" id="nuevo_ssid"
+                        name="nuevo_ssid" required placeholder="Ej: MiRedCasa">
+                </div>
+                <button type="submit" class="btn btn-sm btn-primary w-100">
+                    Cambiar nombre de red
+                </button>
+            </form>
         </div>
     </div>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <!-- SweetAlert2 CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script src="{{ url_for('static', filename='session-timeout.js') }}"></script>
-    {% if cliente_no_encontrado %}
-    <script>
+
+    <!-- Contraseña -->
+    <div class="panel-card" style="margin-bottom:0;">
+        <div class="panel-title">Contraseña WiFi</div>
+        <div class="panel-body">
+            <form id="form-cambiar-password" autocomplete="off">
+                <input type="hidden" name="cedula" value="{{ cliente.cedula }}">
+                <input type="hidden" name="accion" value="password">
+                <input type="hidden" name="ip" value="{{ ip_seleccionada or cliente.ip }}">
+                <div class="mb-2">
+                    <label for="nueva_password" class="field-label">Nueva contraseña</label>
+                    <input type="password" class="form-control form-control-sm" id="nueva_password"
+                        name="nueva_password" required placeholder="Mínimo 8 caracteres">
+                </div>
+                <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.9rem;">
+                    <input class="form-check-input" type="checkbox" id="mostrarPassword"
+                        style="margin:0;" onclick="togglePassword()">
+                    <label for="mostrarPassword" style="font-size:0.78rem;color:#6b7280;cursor:pointer;margin:0;">
+                        Mostrar contraseña
+                    </label>
+                </div>
+                <button type="submit" class="btn btn-sm btn-primary w-100">
+                    Cambiar contraseña
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endif %}
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+const serviciosData = {{ cliente.servicios | tojson | safe if cliente and cliente.servicios else '[]' }};
+const hasMultiple   = {{ (cliente.servicios and (cliente.servicios|length > 1) and (not ip_seleccionada)) | tojson if cliente else 'false' }};
+const clienteCedula = {{ cliente.cedula | tojson | safe if cliente else '""' }};
+const clienteIP     = {{ ((ip_seleccionada or cliente.ip) if cliente else '') | tojson | safe }};
+
+{% if cliente_no_encontrado %}
+Swal.fire({ icon: 'error', title: 'Cliente no encontrado', text: 'No existe ningún cliente con esa cédula.' });
+{% endif %}
+
+// ── Múltiples servicios ────────────────────────────────────────────────────
+if (hasMultiple) {
+    const opciones = serviciosData.map(s =>
+        `<option value="${s.ip}">IP: ${s.ip}${s.direccion ? ' | ' + s.direccion : ''}</option>`
+    ).join('');
     Swal.fire({
-        icon: 'error',
-        title: 'Cliente no encontrado',
-        text: 'No existe ningún cliente con esa cédula.',
-        confirmButtonColor: '#3085d6',
-        confirmButtonText: 'Aceptar'
+        title: 'Selecciona el servicio', showCancelButton: true,
+        confirmButtonText: 'Continuar', cancelButtonText: 'Cancelar',
+        html: `<select id="select-servicio" class="form-select">${opciones}</select>`,
+        preConfirm: () => document.getElementById('select-servicio').value
+    }).then(r => {
+        if (!r.isConfirmed) return;
+        Swal.fire({
+            title: 'Conectando con la ONU',
+            html: spinner('Verificando interfaces WiFi...'),
+            allowOutsideClick: false, showConfirmButton: false, timer: 2000
+        }).then(() => {
+            location.href = `/admin/cambiar_wifi_cliente?cedula=${clienteCedula}&ip=${encodeURIComponent(r.value)}`;
+        });
     });
-    </script>
-    {% endif %}
-    <script>
-        /* eslint-disable */
-        // Valores inyectados desde Jinja como JSON/boolean
-        const serviciosData = {{ cliente.servicios | tojson | safe if cliente.servicios else '[]' }};
-        const hasMultiple = {{ (cliente.servicios and (cliente.servicios|length > 1) and (not ip_seleccionada)) | tojson if cliente else 'false' }};
-        const clienteCedula = {{ cliente.cedula | tojson | safe if cliente else '""' }};
-        
-       /* eslint-enable */
+}
 
-        // Verificar si hay múltiples servicios al cargar la página
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('DOM cargado, verificando servicios...');
-            
-            // Verificar si hay formularios de cambio WiFi (indica que hay cliente)
-            const formSsid = document.getElementById('form-cambiar-ssid');
-            const formPassword = document.getElementById('form-cambiar-password');
-            
-            if (formSsid || formPassword) {
-                console.log('Formularios de cambio WiFi encontrados, cliente ya cargado...');
-                
-                // Si hay múltiples servicios, mostrar selección directamente
-                if (hasMultiple) {
-                    console.log('Mostrando popup de selección...');
-                    // Hay múltiples servicios, mostrar selección
-                    let opciones = '';
-                    
-                    serviciosData.forEach((servicio) => {
-                        const ip = servicio.ip || '';
-                        const direccion = servicio.direccion || '';
-                        let texto = `IP: ${ip}`;
-                        if (direccion) {
-                            texto += ` | Dirección: ${direccion}`;
-                        }
-                        opciones += `<option value="${ip}">${texto}</option>`;
-                    });
-                    
-                    Swal.fire({
-                        title: 'Selecciona el servicio',
-                        html: `<select id="select-servicio" class="form-select">${opciones}</select>`,
-                        confirmButtonText: 'Continuar',
-                        cancelButtonText: 'Cancelar',
-                        showCancelButton: true,
-                        preConfirm: () => {
-                            return document.getElementById('select-servicio').value;
-                        }
-                    }).then(result => {
-                        if (result.isConfirmed) {
-                            // Mostrar aviso de conectando para el servicio específico
-                            Swal.fire({
-                                title: 'Conectando con la ONU',
-                                html: `
-                                    <div class="text-center">
-                                        <div class="mb-3">
-                                            <div class="spinner-border text-primary" role="status">
-                                                <span class="visually-hidden">Cargando...</span>
-                                            </div>
-                                        </div>
-                                        <h5 class="mb-3">Verificando interfaces WiFi...</h5>
-                                        <div class="progress mb-3" style="height: 8px;">
-                                            <div class="progress-bar bg-primary progress-bar-animated" role="progressbar" style="width: 100%"></div>
-                                        </div>
-                                        <p class="mb-0">Validando dispositivo seleccionado</p>
-                                    </div>
-                                `,
-                                allowOutsideClick: false,
-                                allowEscapeKey: false,
-                                showConfirmButton: false,
-                                timer: 2000,
-                                timerProgressBar: true
-                            }).then(() => {
-                                window.location.href = `/admin/cambiar_wifi_cliente?cedula=${clienteCedula}&ip=${encodeURIComponent(result.value)}`;
-                            });
-                        } else {
-                            window.location.href = '/admin/dashboard';
-                        }
-                    });
-                }
-            } else {
-                console.log('No se encontraron formularios de cambio WiFi');
-            }
-        });
-        
-        function togglePassword() {
-            const passwordInput = document.getElementById('nueva_password');
-            const checkbox = document.getElementById('mostrarPassword');
-            passwordInput.type = checkbox.checked ? 'text' : 'password';
-        }
-        // AJAX para cambiar SSID
-        const formSsid = document.getElementById('form-cambiar-ssid');
-        if (formSsid) {
-            formSsid.addEventListener('submit', async function(e) {
-                e.preventDefault();
-                
-                // Validar SSID antes de enviar
-                const ssid = document.getElementById('nuevo_ssid').value.trim();
-                if (!ssid) {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Nombre de red inválido',
-                        text: 'Debe ingresar un nombre para la red WiFi.',
-                        confirmButtonText: 'Entendido'
-                    });
-                    return;
-                }
-                
-                // Mostrar proceso de cambio de SSID con pasos
-                let currentStep = 0;
-                const steps = [
-                    'Validando dispositivo...',
-                    'Detectando interfaces WiFi...',
-                    'Aplicando nombre a 2.4GHz...',
-                    'Aplicando nombre a 5GHz...',
-                    'Reiniciando ONU...',
-                    'Finalizando proceso...'
-                ];
-                
-                const progressInterval = setInterval(() => {
-                    currentStep++;
-                    if (currentStep < steps.length) {
-                        const progress = (currentStep / steps.length) * 100;
-                        Swal.update({
-                            html: `
-                                <div class="text-center">
-                                    <div class="mb-3">
-                                        <div class="spinner-border text-primary" role="status">
-                                            <span class="visually-hidden">Cargando...</span>
-                                        </div>
-                                    </div>
-                                    <h5 class="mb-3">Cambiando nombre de red WiFi</h5>
-                                    <div class="progress mb-3" style="height: 8px;">
-                                        <div class="progress-bar bg-primary" role="progressbar" style="width: ${progress}%"></div>
-                                    </div>
-                                    <p class="mb-0">${steps[currentStep - 1]}</p>
-                                    <small class="text-muted">Paso ${currentStep} de ${steps.length}</small>
-                                </div>
-                            `
-                        });
-                    }
-                }, 1500);
-                
-                // Mostrar alerta inicial
-                Swal.fire({
-                    title: 'Cambiando nombre de red WiFi',
-                    html: `
-                        <div class="text-center">
-                            <div class="mb-3">
-                                <div class="spinner-border text-primary" role="status">
-                                    <span class="visually-hidden">Cargando...</span>
-                                </div>
-                            </div>
-                            <h5 class="mb-3">Iniciando proceso...</h5>
-                            <div class="progress mb-3" style="height: 8px;">
-                                <div class="progress-bar bg-primary" role="progressbar" style="width: 0%"></div>
-                            </div>
-                            <p class="mb-0">Preparando cambio de nombre...</p>
-                            <small class="text-muted">Paso 0 de ${steps.length}</small>
-                        </div>
-                    `,
-                    allowOutsideClick: false,
-                    allowEscapeKey: false,
-                    showConfirmButton: false,
-                    didOpen: () => {
-                        // Procesar la solicitud después de mostrar la alerta
-                        setTimeout(async () => {
-                            try {
-                                // Procesar la solicitud
-                                let formData = new FormData(formSsid);
-                                let data = {};
-                                formData.forEach((value, key) => { data[key] = value; });
-                                
-                                let resp = await fetch(window.location.pathname, {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify(data)
-                                });
-                                let res = await resp.json();
-                                
-                                // Limpiar intervalo
-                                clearInterval(progressInterval);
-                                
-                                if (!res.success) {
-                                    Swal.fire({
-                                        icon: 'error',
-                                        title: 'Error al cambiar nombre de red',
-                                        text: res.message || 'Error al cambiar el nombre de la red.',
-                                        confirmButtonText: 'Entendido'
-                                    });
-                                    return;
-                                }
-                                
-                                // Mostrar resultado exitoso con animación
-                                Swal.fire({
-                                    icon: 'success',
-                                    title: '¡Nombre de red actualizado!',
-                                    html: `
-                                        <div class="text-center">
-                                            <div class="mb-3">
-                                                <i class="bi bi-wifi text-success" style="font-size: 3rem;"></i>
-                                            </div>
-                                            <p class="mb-3">${res.message || 'La ONU se reiniciará automáticamente para aplicar los cambios.'}</p>
-                                            <div class="alert alert-info">
-                                                <i class="bi bi-info-circle me-2"></i>
-                                                <strong>Importante:</strong> Los dispositivos se reconectarán automáticamente.
-                                            </div>
-                                        </div>
-                                    `,
-                                    showConfirmButton: true,
-                                    confirmButtonText: 'Entendido',
-                                    confirmButtonColor: '#28a745'
-                                }).then(() => {
-                                    window.location.reload();
-                                });
-                                
-                            } catch (error) {
-                                clearInterval(progressInterval);
-                                Swal.fire({
-                                    icon: 'error',
-                                    title: 'Error de conexión',
-                                    text: 'No se pudo procesar la solicitud. Verifique su conexión.',
-                                    confirmButtonText: 'Entendido'
-                                });
-                            }
-                        }, 2000);
-                    }
-                });
-            });
-        }
-        // AJAX para cambiar contraseña
-        const formPass = document.getElementById('form-cambiar-password');
-        if (formPass) {
-            formPass.addEventListener('submit', async function(e) {
-                e.preventDefault();
-                
-                // Validar contraseña antes de enviar
-                const password = document.getElementById('nueva_password').value;
-                if (password.length < 8) {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Contraseña inválida',
-                        text: 'La contraseña debe tener al menos 8 caracteres.',
-                        confirmButtonText: 'Entendido'
-                    });
-                    return;
-                }
-                
-                // Mostrar proceso de cambio de contraseña con pasos
-                let currentStep = 0;
-                const steps = [
-                    'Validando dispositivo...',
-                    'Detectando interfaces WiFi...',
-                    'Aplicando contraseña a 2.4GHz...',
-                    'Aplicando contraseña a 5GHz...',
-                    'Reiniciando ONU...',
-                    'Finalizando proceso...'
-                ];
-                
-                const progressInterval = setInterval(() => {
-                    currentStep++;
-                    if (currentStep < steps.length) {
-                        const progress = (currentStep / steps.length) * 100;
-                        Swal.update({
-                            html: `
-                                <div class="text-center">
-                                    <div class="mb-3">
-                                        <div class="spinner-border text-primary" role="status">
-                                            <span class="visually-hidden">Cargando...</span>
-                                        </div>
-                                    </div>
-                                    <h5 class="mb-3">Cambiando contraseña WiFi</h5>
-                                    <div class="progress mb-3" style="height: 8px;">
-                                        <div class="progress-bar bg-primary" role="progressbar" style="width: ${progress}%"></div>
-                                    </div>
-                                    <p class="mb-0">${steps[currentStep - 1]}</p>
-                                    <small class="text-muted">Paso ${currentStep} de ${steps.length}</small>
-                                </div>
-                            `
-                        });
-                    }
-                }, 1500);
-                
-                // Mostrar alerta inicial
-                Swal.fire({
-                    title: 'Cambiando contraseña WiFi',
-                    html: `
-                        <div class="text-center">
-                            <div class="mb-3">
-                                <div class="spinner-border text-primary" role="status">
-                                    <span class="visually-hidden">Cargando...</span>
-                                </div>
-                            </div>
-                            <h5 class="mb-3">Iniciando proceso...</h5>
-                            <div class="progress mb-3" style="height: 8px;">
-                                <div class="progress-bar bg-primary" role="progressbar" style="width: 0%"></div>
-                            </div>
-                            <p class="mb-0">Preparando cambio de contraseña...</p>
-                            <small class="text-muted">Paso 0 de ${steps.length}</small>
-                        </div>
-                    `,
-                    allowOutsideClick: false,
-                    allowEscapeKey: false,
-                    showConfirmButton: false,
-                    didOpen: () => {
-                        // Procesar la solicitud después de mostrar la alerta
-                        setTimeout(async () => {
-                            try {
-                                // Procesar la solicitud
-                                let formData = new FormData(formPass);
-                                let data = {};
-                                formData.forEach((value, key) => { data[key] = value; });
-                                
-                                let resp = await fetch(window.location.pathname, {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify(data)
-                                });
-                                let res = await resp.json();
-                                
-                                // Limpiar intervalo
-                                clearInterval(progressInterval);
-                                
-                                if (!res.success) {
-                                    Swal.fire({
-                                        icon: 'error',
-                                        title: 'Error al cambiar contraseña',
-                                        text: res.message || 'Error al cambiar la contraseña.',
-                                        confirmButtonText: 'Entendido'
-                                    });
-                                    return;
-                                }
-                                
-                                // Mostrar resultado exitoso con animación
-                                Swal.fire({
-                                    icon: 'success',
-                                    title: '¡Contraseña cambiada exitosamente!',
-                                    html: `
-                                        <div class="text-center">
-                                            <div class="mb-3">
-                                                <i class="bi bi-check-circle-fill text-success" style="font-size: 3rem;"></i>
-                                            </div>
-                                            <p class="mb-3">${res.message || 'La ONU se reiniciará automáticamente para aplicar los cambios.'}</p>
-                                            <div class="alert alert-info">
-                                                <i class="bi bi-info-circle me-2"></i>
-                                                <strong>Importante:</strong> El cliente debe reconectarse con la nueva contraseña.
-                                            </div>
-                                        </div>
-                                    `,
-                                    showConfirmButton: true,
-                                    confirmButtonText: 'Entendido',
-                                    confirmButtonColor: '#28a745'
-                                }).then(() => {
-                                    window.location.reload();
-                                });
-                                
-                            } catch (error) {
-                                clearInterval(progressInterval);
-                                Swal.fire({
-                                    icon: 'error',
-                                    title: 'Error de conexión',
-                                    text: 'No se pudo procesar la solicitud. Verifique su conexión.',
-                                    confirmButtonText: 'Entendido'
-                                });
-                            }
-                        }, 2000);
-                    }
-                });
-            });
-        }
-        // AJAX para buscar cliente
-        const formBuscarCliente = document.getElementById('form-buscar-cliente');
-        if (formBuscarCliente) {
-            formBuscarCliente.addEventListener('submit', function(e) {
-                e.preventDefault();
-                
-                const cedula = document.getElementById('cedula').value.trim();
-                if (!cedula) {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Cédula requerida',
-                        text: 'Debe ingresar la cédula del cliente.',
-                        confirmButtonText: 'Entendido'
-                    });
-                    return;
-                }
-                
-                // Mostrar proceso de búsqueda con conexión a ONU
-                Swal.fire({
-                    title: 'Conectando con la ONU',
-                    html: `
-                        <div class="text-center">
-                            <div class="mb-3">
-                                <div class="spinner-border text-primary" role="status">
-                                    <span class="visually-hidden">Cargando...</span>
-                                </div>
-                            </div>
-                            <h5 class="mb-3">Validando dispositivo y detectando interfaces WiFi...</h5>
-                            <div class="progress mb-3" style="height: 8px;">
-                                <div class="progress-bar bg-primary progress-bar-animated" role="progressbar" style="width: 100%"></div>
-                            </div>
-                            <p class="mb-0">Consultando información del cliente y verificando ONU</p>
-                        </div>
-                    `,
-                    allowOutsideClick: false,
-                    allowEscapeKey: false,
-                    showConfirmButton: false,
-                    timer: 3000,
-                    timerProgressBar: true
-                }).then(() => {
-                    // Enviar formulario después de mostrar la carga
-                    formBuscarCliente.submit();
-                });
-            });
-        }
-        
-        // AJAX para cerrar sesión
-        document.addEventListener('DOMContentLoaded', function() {
-            const formLogout = document.getElementById('form-logout-admin');
-            if (formLogout) {
-                formLogout.addEventListener('submit', async function(e) {
-                    e.preventDefault();
-                    let resp = await fetch("{{ url_for('admin.logout') }}", {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' }
-                    });
-                    let res = await resp.json();
-                    if (res.success) {
-                        Swal.fire({
-                            icon: 'success',
-                            title: 'Sesión cerrada',
-                            showConfirmButton: false,
-                            timer: 1200
-                        });
-                        setTimeout(() => { window.location.href = res.redirect || '/admin/login'; }, 1200);
-                    } else {
-                        Swal.fire({ icon: 'error', title: 'Error', text: res.message || 'No se pudo cerrar la sesión.' });
-                    }
-                });
-            }
-        });
-    </script>
-</body>
-</html>
+// ── Búsqueda con loading ───────────────────────────────────────────────────
+const formBuscar = document.getElementById('form-buscar-cliente');
+if (formBuscar) {
+    formBuscar.addEventListener('submit', function(e) {
+        const cedula = document.getElementById('cedula').value.trim();
+        if (!cedula) { e.preventDefault(); Swal.fire({ icon: 'warning', title: 'Ingrese la cédula' }); return; }
+        Swal.fire({ title: 'Buscando cliente...', html: spinner('Consultando Wisphub y verificando ONU'),
+            allowOutsideClick: false, showConfirmButton: false, timer: 2500
+        }).then(() => formBuscar.submit());
+        e.preventDefault();
+    });
+}
 
+// ── Cargar info GenieACS async ─────────────────────────────────────────────
+if (clienteIP) {
+    fetch(`/admin/api/device_id_por_ip?ip=${encodeURIComponent(clienteIP)}`)
+        .then(r => r.json())
+        .then(d => {
+            if (!d.found) { renderGenieNA(); return; }
+            const devId = d.device_id;
+
+            // Mostrar enlace Ver ONU
+            const onuLink = document.getElementById('onu-link');
+            if (onuLink) {
+                onuLink.href = `/admin/dispositivo/${encodeURIComponent(devId)}`;
+                onuLink.style.display = 'inline-flex';
+            }
+
+            return fetch(`/admin/api/dispositivo/${encodeURIComponent(devId)}`);
+        })
+        .then(r => r && r.json())
+        .then(data => {
+            if (!data || !data.success) { renderGenieNA(); return; }
+            const d = data.device;
+            const rxClass = d.rx_calidad === 'ok' ? 'rx-ok' : d.rx_calidad === 'warning' ? 'rx-warn' : d.rx_calidad === 'critical' ? 'rx-crit' : '';
+            const rxVal = d.rx_power !== null && d.rx_power !== undefined
+                ? `<span class="${rxClass}">${d.rx_power} dBm</span>` : '—';
+            const tempVal = d.temperatura !== null && d.temperatura !== undefined
+                ? `<span style="color:${d.temperatura > 70 ? '#dc2626' : d.temperatura > 55 ? '#d97706' : '#111'}">${d.temperatura}°C</span>` : '—';
+            const onlineHtml = d.online
+                ? '<span class="b-online">Online</span>'
+                : '<span class="b-offline">Offline</span>';
+
+            document.getElementById('genie-chips').innerHTML = `
+                <div class="chip"><div class="lbl">Estado ONU</div><div class="val">${onlineHtml}<br><span style="font-size:0.72rem;color:#9ca3af;font-weight:400;">${d.tiempo || ''}</span></div></div>
+                <div class="chip"><div class="lbl">RX Power</div><div class="val">${rxVal}</div></div>
+                <div class="chip chip-wide"><div class="lbl">Modelo</div><div class="val" style="font-size:0.82rem;">${d.modelo || d.fabricante || '—'}</div></div>
+                <div class="chip"><div class="lbl">Uptime</div><div class="val" style="font-size:0.82rem;">${d.uptime || '—'}</div></div>
+                <div class="chip"><div class="lbl">Temperatura</div><div class="val">${tempVal}</div></div>
+                <div class="chip"><div class="lbl">Eq. Conectados</div><div class="val" style="color:#4f80f0;">${d.hosts_count ?? '—'}</div></div>
+            `;
+        })
+        .catch(() => renderGenieNA());
+}
+
+function renderGenieNA() {
+    const el = document.getElementById('genie-chips');
+    if (el) el.innerHTML = `<div style="color:#9ca3af;font-size:0.82rem;padding:0.25rem 0;">No se encontró la ONU en el servidor ACS.</div>`;
+}
+
+// ── Toggle password ────────────────────────────────────────────────────────
+function togglePassword() {
+    const pwd = document.getElementById('nueva_password');
+    pwd.type = document.getElementById('mostrarPassword').checked ? 'text' : 'password';
+}
+
+// ── Cambiar SSID ───────────────────────────────────────────────────────────
+const formSsid = document.getElementById('form-cambiar-ssid');
+if (formSsid) {
+    formSsid.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const ssid = document.getElementById('nuevo_ssid').value.trim();
+        if (!ssid) { Swal.fire({ icon: 'warning', title: 'Ingrese un nombre de red' }); return; }
+        await procesarCambio(formSsid, 'Cambiando nombre de red WiFi');
+    });
+}
+
+// ── Cambiar contraseña ────────────────────────────────────────────────────
+const formPass = document.getElementById('form-cambiar-password');
+if (formPass) {
+    formPass.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const pwd = document.getElementById('nueva_password').value;
+        if (pwd.length < 8) { Swal.fire({ icon: 'error', title: 'Contraseña muy corta', text: 'Mínimo 8 caracteres.' }); return; }
+        await procesarCambio(formPass, 'Cambiando contraseña WiFi');
+    });
+}
+
+async function procesarCambio(form, titulo) {
+    const steps = ['Validando dispositivo...','Detectando interfaces WiFi...','Aplicando a 2.4 GHz...','Aplicando a 5 GHz...','Reiniciando ONU...','Finalizando...'];
+    let step = 0;
+    const iv = setInterval(() => {
+        step++;
+        if (step < steps.length) Swal.update({ html: progressHtml(titulo, steps[step - 1], step, steps.length) });
+    }, 1500);
+
+    Swal.fire({
+        title: 'Procesando', html: progressHtml(titulo, 'Iniciando...', 0, steps.length),
+        allowOutsideClick: false, allowEscapeKey: false, showConfirmButton: false,
+        didOpen: async () => {
+            await new Promise(r => setTimeout(r, 1600));
+            try {
+                let data = {};
+                new FormData(form).forEach((v, k) => { data[k] = v; });
+                const res = await (await fetch(location.pathname, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                })).json();
+                clearInterval(iv);
+                if (!res.success) { Swal.fire({ icon: 'error', title: 'Error', text: res.message || 'No se pudo aplicar el cambio.' }); return; }
+                Swal.fire({
+                    icon: 'success', title: '¡Cambio aplicado!',
+                    text: res.message || 'Los cambios se aplicaron correctamente.',
+                    confirmButtonText: 'Listo'
+                }).then(() => location.reload());
+            } catch { clearInterval(iv); Swal.fire({ icon: 'error', title: 'Error de conexión' }); }
+        }
+    });
+}
+
+function spinner(msg) {
+    return `<div class="text-center">
+        <div class="spinner-border text-primary mb-3" style="width:1.8rem;height:1.8rem;"></div>
+        <p class="mb-0" style="font-size:0.85rem;color:#6b7280;">${msg}</p>
+    </div>`;
+}
+
+function progressHtml(titulo, msg, step, total) {
+    const pct = total > 0 ? Math.round(step / total * 100) : 0;
+    return `<div class="text-center">
+        <div class="spinner-border mb-3" style="color:#4f80f0;width:1.8rem;height:1.8rem;"></div>
+        <p style="font-weight:600;margin-bottom:0.5rem;">${titulo}</p>
+        <div class="progress mb-2" style="height:5px;border-radius:99px;">
+            <div class="progress-bar" style="width:${pct}%;background:#4f80f0;"></div>
+        </div>
+        <small style="color:#9ca3af;">${msg} &nbsp;(${step}/${total})</small>
+    </div>`;
+}
+</script>
+{% endblock %}

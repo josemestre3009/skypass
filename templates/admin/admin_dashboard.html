@@ -1,313 +1,319 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Administrativo - WISP</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
-    <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.svg') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-    <style>
-        .navbar {
-            background: #fff !important;
-            border-bottom: 1px solid #e5e7eb;
-            min-height: 70px;
-            box-shadow: 0 2px 8px 0 rgba(31,38,135,0.04);
-        }
-        .navbar-brand img {
-            height: 48px !important;
-            width: auto;
-            cursor: pointer;
-        }
-        .navbar .btn {
-            border-radius: 2rem !important;
-        }
-        .dashboard-bg {
-            min-height: 100vh;
-            padding-top: 90px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding-left: 10px;
-            padding-right: 10px;
-        }
-        .dashboard-title-no-box {
-            font-size: 2.2rem;
-            font-weight: 700;
-            color: #2563eb;
-            display: flex;
-            align-items: center;
-            gap: 0.7rem;
-            margin-bottom: 2.2rem;
-            justify-content: center;
-        }
-        .option-cards-big {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 1.1rem;
-            margin-bottom: 1.1rem;
-        }
-        .option-card-big {
-            background: #fff;
-            border-radius: 1rem;
-            box-shadow: 0 2px 12px 0 rgba(31,38,135,0.07);
-            padding: 1rem 0.5rem 1rem 0.5rem;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-            transition: box-shadow 0.2s, color 0.2s;
-            text-decoration: none;
-        }
-        .option-card-big:hover {
-            color: #2563eb;
-            box-shadow: 0 8px 32px 0 rgba(31,38,135,0.13);
-        }
-        .option-icon {
-            font-size: 1.7rem;
-            margin-bottom: 0.4rem;
-        }
-        .option-icon.text-primary { color: #2563eb; }
-        .option-icon.text-warning { color: #ffc107; }
-        .option-icon.text-info { color: #00bcd4; }
-        .option-icon.text-danger { color: #ff3b3b; }
-        .option-icon.text-success { color: #28a745; }
-        .option-icon.text-blue { color: #2563eb; }
-        .option-label {
-            font-size: 1.18rem;
-            font-weight: 500;
-        }
-        @media (max-width: 900px) {
-            .option-cards-big { grid-template-columns: 1fr; }
-            .dashboard-bg { padding-left: 4vw; padding-right: 4vw; }
-        }
-        .estado-bot-badge {
-            font-size: 0.98rem;
-            padding: 0.45em 1.1em;
-            display: flex;
-            align-items: center;
-            gap: 0.7em;
-            border-radius: 1.5em;
-            border: 2px solid #43d17a;
-            background: rgba(255,255,255,0.10);
-            font-weight: 600;
-            min-width: 120px;
-            justify-content: center;
-            margin-bottom: 0.5em;
-            box-shadow: 0 1px 6px 0 rgba(67,209,122,0.07);
-            transition: border-color 0.3s, color 0.3s;
-            color: #43d17a;
-        }
-        .estado-bot-badge.red {
-            border-color: #dc3545;
-            color: #dc3545;
-            box-shadow: 0 1px 6px 0 rgba(220,53,69,0.07);
-        }
-        .estado-bot-badge.yellow {
-            border-color: #ffc107;
-            color: #ffc107;
-            box-shadow: 0 1px 6px 0 rgba(255,193,7,0.07);
-        }
-        .estado-bot-dot {
-            display: inline-block;
-            width: 11px;
-            height: 11px;
-            border-radius: 50%;
-            margin-right: 0.3em;
-            box-shadow: 0 0 0 0 rgba(67,209,122,0.18);
-            position: relative;
-            background: #43d17a;
-        }
-        .estado-bot-dot.pulse {
-            animation: estadoPulse 1.2s infinite;
-        }
-        @keyframes estadoPulse {
-            0% { box-shadow: 0 0 0 0 rgba(67,209,122,0.22); }
-            70% { box-shadow: 0 0 0 6px rgba(67,209,122,0); }
-            100% { box-shadow: 0 0 0 0 rgba(67,209,122,0); }
-        }
-        .estado-bot-dot.red {
-            background: #dc3545;
-            box-shadow: 0 0 0 0 rgba(220,53,69,0.18);
-            animation: estadoPulseRed 1.2s infinite;
-        }
-        @keyframes estadoPulseRed {
-            0% { box-shadow: 0 0 0 0 rgba(220,53,69,0.22); }
-            70% { box-shadow: 0 0 0 6px rgba(220,53,69,0); }
-            100% { box-shadow: 0 0 0 0 rgba(220,53,69,0); }
-        }
-        .estado-bot-dot.yellow {
-            background: #ffc107;
-            box-shadow: 0 0 0 0 rgba(255,193,7,0.18);
-            animation: estadoPulseYellow 1.2s infinite;
-        }
-        @keyframes estadoPulseYellow {
-            0% { box-shadow: 0 0 0 0 rgba(255,193,7,0.22); }
-            70% { box-shadow: 0 0 0 6px rgba(255,193,7,0); }
-            100% { box-shadow: 0 0 0 0 rgba(255,193,7,0); }
-        }
-        .estado-bot-badge .wa-icon {
-            font-size: 1.1em;
-            margin-right: 0.15em;
-            vertical-align: -0.2em;
-        }
-        .estado-bot-text {
-            font-size: 1em;
-            font-weight: 700;
-            letter-spacing: 0.2px;
-            font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
-        }
-        @media (max-width: 500px) {
-            .estado-bot-badge { font-size: 0.92rem; padding: 0.3em 0.5em; min-width: 0; }
-            .estado-bot-text { font-size: 0.93em; }
-        }
-    </style>
-</head>
-<body>
-    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm fixed-top">
-        <div class="container-fluid d-flex justify-content-between align-items-center px-3">
-            <a class="navbar-brand" href="{{ url_for('admin.dashboard') }}">
-                <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo">
-            </a>
-            <form id="form-logout-admin" class="mb-0">
-                <button type="submit" class="btn btn-outline-danger rounded-pill px-4">Cerrar Sesión</button>
-            </form>
-        </div>
-    </nav>
+{% extends "admin/base_admin.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block nav_dashboard %}active{% endblock %}
+{% block head %}
+<style>
+.stat-card {
+    background: #fff;
+    border-radius: 0.75rem;
+    border: 1px solid #e5e7eb;
+    padding: 1.1rem 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+.stat-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #9ca3af;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+}
+.stat-value {
+    font-size: 1.8rem;
+    font-weight: 800;
+    color: #111;
+    line-height: 1.1;
+}
+.stat-sub {
+    font-size: 0.78rem;
+    color: #6b7280;
+    margin-top: 0.1rem;
+}
+.stat-top-bar {
+    height: 3px;
+    border-radius: 2px 2px 0 0;
+    margin: -1.1rem -1.25rem 0.8rem;
+    border-radius: 0.75rem 0.75rem 0 0;
+}
+.panel-card {
+    background: #fff;
+    border-radius: 0.75rem;
+    border: 1px solid #e5e7eb;
+    overflow: hidden;
+}
+.panel-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.85rem 1.1rem;
+    border-bottom: 1px solid #f0f0f0;
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: #111;
+}
+.panel-card-header a {
+    font-size: 0.78rem;
+    color: #6b7280;
+    text-decoration: none;
+    font-weight: 500;
+}
+.panel-card-header a:hover { color: var(--color-primary); }
+.activity-table { width: 100%; border-collapse: collapse; }
+.activity-table th {
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: #9ca3af;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 0.5rem 1rem;
+    text-align: left;
+    border-bottom: 1px solid #f0f0f0;
+}
+.activity-table td {
+    padding: 0.6rem 1rem;
+    font-size: 0.83rem;
+    color: #374151;
+    border-bottom: 1px solid #f9fafb;
+}
+.activity-table tr:last-child td { border-bottom: none; }
+.badge-online {
+    display: inline-flex; align-items: center; gap: 0.3rem;
+    background: #dcfce7; color: #15803d;
+    border-radius: 99px; padding: 0.15rem 0.6rem;
+    font-size: 0.75rem; font-weight: 600;
+}
+.badge-offline {
+    display: inline-flex; align-items: center; gap: 0.3rem;
+    background: #f3f4f6; color: #6b7280;
+    border-radius: 99px; padding: 0.15rem 0.6rem;
+    font-size: 0.75rem; font-weight: 600;
+}
+.dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+.dot-green { background: #22c55e; }
+.dot-gray  { background: #9ca3af; }
+.rx-ok   { color: #15803d; font-weight: 600; }
+.rx-warn { color: #d97706; font-weight: 600; }
+.rx-crit { color: #dc2626; font-weight: 600; }
+.device-id-link {
+    color: var(--color-primary);
+    text-decoration: none;
+    font-family: monospace;
+    font-size: 0.8rem;
+}
+.device-id-link:hover { text-decoration: underline; }
+.signal-bar-wrap {
+    display: flex;
+    gap: 3px;
+    align-items: center;
+    height: 12px;
+    margin-top: 0.4rem;
+}
+.signal-seg {
+    height: 100%;
+    border-radius: 2px;
+    flex: 1;
+}
+.skeleton {
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.2s infinite;
+    border-radius: 0.3rem;
+}
+@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+.skeleton-val { height: 2rem; width: 3rem; display: inline-block; }
+.skeleton-row { height: 1rem; border-radius: 4px; margin: 0.4rem 0; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="page-topbar">
+    <div class="page-title">Dashboard</div>
+    <button class="btn btn-sm btn-outline-secondary rounded-pill" onclick="cargarStats()">
+        <i class="bi bi-arrow-clockwise"></i> Refrescar
+    </button>
+</div>
 
-    <div class="dashboard-bg">
-        <div class="dashboard-title-no-box">
-            <i class="bi bi-clipboard-check text-warning"></i>
-            <span>Panel de Opciones</span>
-        </div>
-        <div class="d-flex justify-content-center mb-3">
-            <div id="estado-bot-ajax" style="min-width:320px;"></div>
-        </div>
-
-        <div class="option-cards option-cards-big">
-            <a href="{{ url_for('admin.buscar_cliente') }}" class="option-card option-card-big">
-                <span class="option-icon text-blue"><i class="bi bi-search"></i></span>
-                <span class="option-label">Buscar Cliente</span>
-            </a>
-            <a href="{{ url_for('admin.historial') }}" class="option-card option-card-big">
-                <span class="option-icon text-primary"><i class="bi bi-clock-history"></i></span>
-                <span class="option-label">Historial de Cambios</span>
-            </a>
-            <a href="{{ url_for('admin.limites') }}" class="option-card option-card-big">
-                <span class="option-icon text-warning"><i class="bi bi-sliders"></i></span>
-                <span class="option-label">Límites de Clientes</span>
-            </a>
-            <a href="{{ url_for('admin.configuracion') }}" class="option-card option-card-big">
-                <span class="option-icon text-info"><i class="bi bi-gear"></i></span>
-                <span class="option-label">Configuración Admin</span>
-            </a>
-            <a href="{{ url_for('admin.cambiar_wifi_cliente') }}" class="option-card option-card-big">
-                <span class="option-icon text-danger"><i class="bi bi-wifi"></i></span>
-                <span class="option-label">Cambiar WiFi Cliente</span>
-            </a>
-            <a href="{{ url_for('admin.conectar_whatsapp') }}" class="option-card option-card-big">
-                <span class="option-icon text-success"><i class="bi bi-whatsapp"></i></span>
-                <span class="option-label">Conectar WhatsApp</span>
-            </a>
-            <a href="{{ url_for('admin.admin_dispositivos_conectados') }}" class="option-card option-card-big">
-                <span class="option-icon text-success"><i class="bi bi-hdd-network"></i></span>
-                <span class="option-label">Dispositivos Conectados</span>
-            </a>
-        </div>
+<!-- Stat cards -->
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.25rem;" id="stats-row">
+    <div class="stat-card">
+        <div class="stat-top-bar" style="background:#3b82f6;"></div>
+        <div class="stat-label">Cambios este mes</div>
+        <div class="stat-value" id="stat-cambios"><span class="skeleton skeleton-val">&nbsp;&nbsp;&nbsp;&nbsp;</span></div>
+        <div class="stat-sub" id="stat-cambios-sub">Contraseñas + SSIDs</div>
     </div>
+    <div class="stat-card">
+        <div class="stat-top-bar" style="background:#8b5cf6;"></div>
+        <div class="stat-label">Estado de red</div>
+        <div class="stat-value" id="stat-red"><span class="skeleton skeleton-val">&nbsp;&nbsp;&nbsp;&nbsp;</span></div>
+        <div class="stat-sub" id="stat-red-sub">online</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-top-bar" style="background:#10b981;"></div>
+        <div class="stat-label">Uptime promedio</div>
+        <div class="stat-value" id="stat-uptime"><span class="skeleton skeleton-val">&nbsp;&nbsp;&nbsp;&nbsp;</span></div>
+        <div class="stat-sub">Dispositivos activos</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-top-bar" style="background:#f59e0b;"></div>
+        <div class="stat-label">Calidad señal óptica</div>
+        <div id="stat-senal-bar" class="signal-bar-wrap"></div>
+        <div class="stat-sub" id="stat-senal-sub"><span class="skeleton skeleton-row" style="width:80%;">&nbsp;</span></div>
+    </div>
+</div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script src="{{ url_for('static', filename='session-timeout.js') }}"></script>
-    <script>
-    function actualizarEstadoBot() {
-        let estadoDiv = document.getElementById('estado-bot-ajax');
-        if (!estadoDiv) return;
-        fetch("{{ url_for('admin.estado_bot') }}")
-            .then(res => {
-                // Si la respuesta es 302 (redirección), significa que la sesión expiró
-                if (res.status === 302) {
-                    window.location.href = '/admin/login';
-                    return;
-                }
-                return res.json();
-            })
-            .then(data => {
-                if (!data) return; // Si no hay datos, no actualizar
-                
-                let html = '';
-                if (data.conectado && data.estado === 'conectado') {
-                    html = `<div class='estado-bot-badge'>
-                        <span class='estado-bot-dot pulse'></span>
-                        <i class="bi bi-whatsapp wa-icon"></i>
-                        <span class='estado-bot-text'>WhatsApp <span style='font-weight:900;'>EN LÍNEA</span></span>
-                    </div>`;
-                } else if (data.error || data.estado === 'error') {
-                    html = `<div class='estado-bot-badge yellow'>
-                        <span class='estado-bot-dot yellow'></span>
-                        <i class="bi bi-whatsapp wa-icon"></i>
-                        <span class='estado-bot-text'>WhatsApp <span style='font-weight:900;'>ERROR</span></span>
-                    </div>`;
-                } else {
-                    html = `<div class='estado-bot-badge red'>
-                        <span class='estado-bot-dot red'></span>
-                        <i class="bi bi-whatsapp wa-icon"></i>
-                        <span class='estado-bot-text'>WhatsApp <span style='font-weight:900;'>DESCONECTADO</span></span>
-                    </div>`;
-                }
-                estadoDiv.innerHTML = html;
-            })
-            .catch(() => {
-                // En caso de error de red, no mostrar error de WhatsApp
-                console.log('Error al actualizar estado del bot');
-            });
-    }
-    setInterval(actualizarEstadoBot, 10000);
-    window.onload = actualizarEstadoBot;
+<!-- Responsive 2-col -->
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:1rem;" id="main-panels">
+    <!-- Actividad reciente red -->
+    <div class="panel-card">
+        <div class="panel-card-header">
+            Actividad Reciente (Red)
+            <a href="{{ url_for('admin.admin_dispositivos_conectados') }}">Ver todos</a>
+        </div>
+        <table class="activity-table">
+            <thead>
+                <tr>
+                    <th>Dispositivo</th>
+                    <th>IP</th>
+                    <th>RX (dBm)</th>
+                    <th>Estado</th>
+                </tr>
+            </thead>
+            <tbody id="tbody-red">
+                <tr><td colspan="4" style="padding:1.5rem;color:#9ca3af;text-align:center;">Cargando...</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <!-- Cambios portal clientes -->
+    <div class="panel-card">
+        <div class="panel-card-header">
+            Cambios en Portal Clientes
+            <a href="{{ url_for('admin.historial') }}">Historial</a>
+        </div>
+        <table class="activity-table">
+            <thead>
+                <tr>
+                    <th>Cédula</th>
+                    <th>Tipo</th>
+                    <th>IP</th>
+                </tr>
+            </thead>
+            <tbody id="tbody-cambios">
+                <tr><td colspan="3" style="padding:1.5rem;color:#9ca3af;text-align:center;">Cargando...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
 
-    // Verificación de sesión automática
-    function verificarSesionAdmin() {
-        fetch('/admin/verificar-sesion', {method: 'POST'})
-            .then(res => {
-                if (res.status === 401) {
-                    window.location.href = '/admin/login';
-                }
-                return res.json();
-            })
-            .catch(() => {
-                window.location.href = '/admin/login';
-            });
-    }
+{% endblock %}
+{% block scripts %}
+<script>
+function cargarStats() {
+    fetch("{{ url_for('admin.api_dashboard_stats') }}")
+    .then(r => r.json())
+    .then(data => {
+        // Cambios mes
+        document.getElementById('stat-cambios').textContent = data.cambios_mes ?? 0;
 
-    // Verificar sesión cada 20 segundos
-    setInterval(verificarSesionAdmin, 20000);
+        // Red
+        const on = data.devices_online ?? 0;
+        const off = data.devices_offline ?? 0;
+        document.getElementById('stat-red').textContent = on;
+        document.getElementById('stat-red-sub').textContent = `${on} online · ${off} offline`;
 
-    document.addEventListener('DOMContentLoaded', function() {
-        const formLogout = document.getElementById('form-logout-admin');
-        if (formLogout) {
-            formLogout.addEventListener('submit', async function(e) {
-                e.preventDefault();
-                let resp = await fetch("{{ url_for('admin.logout') }}", {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
-                });
-                let res = await resp.json();
-                if (res.success) {
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Sesión cerrada',
-                        showConfirmButton: false,
-                        timer: 1200
-                    });
-                    setTimeout(() => { window.location.href = res.redirect || '/admin/login'; }, 1200);
-                } else {
-                    Swal.fire({ icon: 'error', title: 'Error', text: res.message || 'No se pudo cerrar la sesión.' });
-                }
-            });
+        // Uptime
+        const uph = data.uptime_promedio_h;
+        document.getElementById('stat-uptime').textContent = uph !== null && uph !== undefined ? uph + ' h' : '--';
+
+        // Señal
+        const ok = data.rx_ok ?? 0;
+        const warn = data.rx_warn ?? 0;
+        const crit = data.rx_crit ?? 0;
+        const total = data.rx_total ?? (ok + warn + crit);
+        const bar = document.getElementById('stat-senal-bar');
+        if (total > 0) {
+            bar.innerHTML = `
+                <div class="signal-seg" style="background:#22c55e;flex:${ok}" title="${ok} OK"></div>
+                <div class="signal-seg" style="background:#f59e0b;flex:${warn}" title="${warn} Warning"></div>
+                <div class="signal-seg" style="background:#ef4444;flex:${crit}" title="${crit} Crítico"></div>
+            `;
+            document.getElementById('stat-senal-sub').textContent = `${ok} OK · ${warn} warn · ${crit} crítico`;
+        } else {
+            bar.innerHTML = '<div class="signal-seg" style="background:#e5e7eb;flex:1"></div>';
+            document.getElementById('stat-senal-sub').textContent = 'Sin datos ópticos';
         }
-    });
-    </script>
-</body>
-</html>
+
+        // Tabla red
+        const tbody = document.getElementById('tbody-red');
+        if (data.recent_devices && data.recent_devices.length) {
+            tbody.innerHTML = data.recent_devices.map(d => {
+                const rxHtml = d.rx !== null && d.rx !== undefined
+                    ? `<span class="${d.rx >= -24 ? 'rx-ok' : d.rx >= -27 ? 'rx-warn' : 'rx-crit'}">${d.rx}</span>`
+                    : '<span style="color:#9ca3af;">N/A</span>';
+                const modelo = (d.modelo || '').split(/[-_]/)[0] || '';
+                const link = '/admin/dispositivo/' + encodeURIComponent(d.device_id);
+                return `<tr>
+                    <td>
+                        <a class="device-id-link" href="${link}">${shortId(d.device_id)}</a>
+                        ${modelo ? `<br><span style="font-size:0.72rem;color:#9ca3af;">${modelo}</span>` : ''}
+                    </td>
+                    <td><span style="font-family:monospace;font-size:0.8rem;">${d.ip || '—'}</span></td>
+                    <td>${rxHtml}</td>
+                    <td>${d.online
+                        ? `<span class="badge-online"><span class="dot dot-green"></span>Online</span>`
+                        : `<span class="badge-offline"><span class="dot dot-gray"></span>Offline</span>`
+                    }</td>
+                </tr>`;
+            }).join('');
+        } else {
+            tbody.innerHTML = '<tr><td colspan="4" style="padding:1.5rem;color:#9ca3af;text-align:center;">Sin dispositivos</td></tr>';
+        }
+
+        // Tabla cambios
+        const tbodyC = document.getElementById('tbody-cambios');
+        if (data.cambios_recientes && data.cambios_recientes.length) {
+            tbodyC.innerHTML = data.cambios_recientes.map(c => {
+                const tipo = c.tipo_cambio === 'Password' ? '<span style="background:#dbeafe;color:#1d4ed8;border-radius:99px;padding:0.1rem 0.5rem;font-size:0.72rem;">Pass</span>'
+                                                          : '<span style="background:#fef9c3;color:#854d0e;border-radius:99px;padding:0.1rem 0.5rem;font-size:0.72rem;">SSID</span>';
+                return `<tr>
+                    <td style="font-family:monospace;font-size:0.8rem;">${c.cedula}</td>
+                    <td>${tipo}</td>
+                    <td style="color:#9ca3af;font-size:0.75rem;">${c.ip_onu || '—'}</td>
+                </tr>`;
+            }).join('');
+        } else {
+            tbodyC.innerHTML = '<tr><td colspan="3" style="padding:1.5rem;color:#9ca3af;text-align:center;">Sin cambios</td></tr>';
+        }
+
+    })
+    .catch(err => console.error('Error cargando stats:', err));
+}
+
+function shortId(id) {
+    if (!id) return 'N/A';
+    const parts = id.split('-');
+    return parts.length >= 3 ? parts[2] : id;
+}
+
+// Responsive grid
+function ajustarGrid() {
+    const panels = document.getElementById('main-panels');
+    const stats  = document.getElementById('stats-row');
+    if (!panels || !stats) return;
+    if (window.innerWidth < 1100) {
+        panels.style.gridTemplateColumns = '1fr';
+        stats.style.gridTemplateColumns = 'repeat(2,1fr)';
+    } else {
+        panels.style.gridTemplateColumns = '2fr 1fr';
+        stats.style.gridTemplateColumns = 'repeat(4,1fr)';
+    }
+    if (window.innerWidth < 600) {
+        stats.style.gridTemplateColumns = '1fr 1fr';
+    }
+}
+
+window.addEventListener('resize', ajustarGrid);
+ajustarGrid();
+cargarStats();
+setInterval(cargarStats, 60000);
+</script>
+{% endblock %}
