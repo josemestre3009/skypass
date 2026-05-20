@@ -3,40 +3,200 @@
 {% block nav_dispositivos %}active{% endblock %}
 {% block head %}
 <style>
-.rx-ok   { color: #15803d; font-weight: 600; font-size: 0.82rem; }
-.rx-warn { color: #d97706; font-weight: 600; font-size: 0.82rem; }
-.rx-crit { color: #dc2626; font-weight: 600; font-size: 0.82rem; }
-.rx-na   { color: #9ca3af; font-size: 0.82rem; }
-.bulk-bar { display:none;align-items:center;gap:0.6rem;padding:0.6rem 1rem;background:#fff3cd;border-bottom:1px solid #fde68a; }
-.bulk-bar-text { font-size:0.83rem;color:#92400e;font-weight:600; }
-.chk-col { width:36px;padding-left:0.85rem !important;padding-right:0.25rem !important; }
-.badge-online  { background:#dcfce7;color:#15803d;border-radius:99px;padding:0.15rem 0.6rem;font-size:0.75rem;font-weight:600;display:inline-flex;align-items:center;gap:0.3rem; }
-.badge-offline { background:#f3f4f6;color:#6b7280;border-radius:99px;padding:0.15rem 0.6rem;font-size:0.75rem;font-weight:600;display:inline-flex;align-items:center;gap:0.3rem; }
-.dot { width:7px;height:7px;border-radius:50%;display:inline-block; }
-.dot-g { background:#22c55e; }
-.dot-gray { background:#9ca3af; }
-.summary-cards { display:grid;grid-template-columns:repeat(3,1fr);gap:0.75rem;margin-bottom:1rem; }
-.sc { background:#fff;border:1px solid #e5e7eb;border-radius:0.65rem;padding:0.75rem 1rem;display:flex;align-items:center;justify-content:space-between; }
-.sc-val { font-size:1.4rem;font-weight:800;color:#111; }
-.sc-label { font-size:0.72rem;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em; }
-.main-card { background:#fff;border:1px solid #e5e7eb;border-radius:0.75rem;overflow:hidden; }
-.card-toolbar { display:flex;align-items:center;gap:0.75rem;padding:0.85rem 1rem;border-bottom:1px solid #f0f0f0;flex-wrap:wrap; }
-.devices-table { width:100%;border-collapse:collapse; }
-.devices-table th {
-    font-size:0.68rem;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.06em;
-    padding:0.55rem 0.75rem;text-align:left;border-bottom:1px solid #f0f0f0;
-    cursor:pointer;white-space:nowrap;
-}
-.devices-table td { padding:0.55rem 0.75rem;font-size:0.82rem;color:#374151;border-bottom:1px solid #f9fafb;vertical-align:middle; }
-.devices-table tr:last-child td { border-bottom:none; }
-.serial-link { color:var(--color-primary);text-decoration:none;font-family:monospace;font-size:0.78rem;font-weight:600; }
-.serial-link:hover { text-decoration:underline; }
-.ip-chip { font-family:monospace;font-size:0.78rem;background:#f3f4f6;padding:0.1rem 0.45rem;border-radius:0.3rem; }
-@media(max-width:900px) {
-    .summary-cards { grid-template-columns:1fr 1fr; }
-    .col-hide { display:none; }
-}
-@media(max-width:600px) { .summary-cards { grid-template-columns:1fr 1fr; } }
+    .rx-ok {
+        color: #15803d;
+        font-weight: 600;
+        font-size: 0.82rem;
+    }
+
+    .rx-warn {
+        color: #d97706;
+        font-weight: 600;
+        font-size: 0.82rem;
+    }
+
+    .rx-crit {
+        color: #dc2626;
+        font-weight: 600;
+        font-size: 0.82rem;
+    }
+
+    .rx-na {
+        color: #9ca3af;
+        font-size: 0.82rem;
+    }
+
+    .bulk-bar {
+        display: none;
+        align-items: center;
+        gap: 0.6rem;
+        padding: 0.6rem 1rem;
+        background: #fff3cd;
+        border-bottom: 1px solid #fde68a;
+    }
+
+    .bulk-bar-text {
+        font-size: 0.83rem;
+        color: #92400e;
+        font-weight: 600;
+    }
+
+    .chk-col {
+        width: 36px;
+        padding-left: 0.85rem !important;
+        padding-right: 0.25rem !important;
+    }
+
+    .badge-online {
+        background: #dcfce7;
+        color: #15803d;
+        border-radius: 99px;
+        padding: 0.15rem 0.6rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+    }
+
+    .badge-offline {
+        background: #f3f4f6;
+        color: #6b7280;
+        border-radius: 99px;
+        padding: 0.15rem 0.6rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+    }
+
+    .dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        display: inline-block;
+    }
+
+    .dot-g {
+        background: #22c55e;
+    }
+
+    .dot-gray {
+        background: #9ca3af;
+    }
+
+    .summary-cards {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+    }
+
+    .sc {
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 0.65rem;
+        padding: 0.75rem 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .sc-val {
+        font-size: 1.4rem;
+        font-weight: 800;
+        color: #111;
+    }
+
+    .sc-label {
+        font-size: 0.72rem;
+        color: #9ca3af;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .main-card {
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 0.75rem;
+        overflow: hidden;
+    }
+
+    .card-toolbar {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.85rem 1rem;
+        border-bottom: 1px solid #f0f0f0;
+        flex-wrap: wrap;
+    }
+
+    .devices-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .devices-table th {
+        font-size: 0.68rem;
+        font-weight: 700;
+        color: #9ca3af;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        padding: 0.55rem 0.75rem;
+        text-align: left;
+        border-bottom: 1px solid #f0f0f0;
+        cursor: pointer;
+        white-space: nowrap;
+    }
+
+    .devices-table td {
+        padding: 0.55rem 0.75rem;
+        font-size: 0.82rem;
+        color: #374151;
+        border-bottom: 1px solid #f9fafb;
+        vertical-align: middle;
+    }
+
+    .devices-table tr:last-child td {
+        border-bottom: none;
+    }
+
+    .serial-link {
+        color: var(--color-primary);
+        text-decoration: none;
+        font-family: monospace;
+        font-size: 0.78rem;
+        font-weight: 600;
+    }
+
+    .serial-link:hover {
+        text-decoration: underline;
+    }
+
+    .ip-chip {
+        font-family: monospace;
+        font-size: 0.78rem;
+        background: #f3f4f6;
+        padding: 0.1rem 0.45rem;
+        border-radius: 0.3rem;
+    }
+
+    @media(max-width:900px) {
+        .summary-cards {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .col-hide {
+            display: none;
+        }
+    }
+
+    @media(max-width:600px) {
+        .summary-cards {
+            grid-template-columns: 1fr 1fr;
+        }
+    }
 </style>
 {% endblock %}
 {% block content %}
@@ -49,22 +209,32 @@
 
 <div class="summary-cards">
     <div class="sc">
-        <div><div class="sc-label">Total</div><div class="sc-val" id="cnt-total">—</div></div>
+        <div>
+            <div class="sc-label">Total</div>
+            <div class="sc-val" id="cnt-total">—</div>
+        </div>
         <i class="bi bi-hdd-network" style="font-size:1.4rem;color:#9ca3af;"></i>
     </div>
     <div class="sc">
-        <div><div class="sc-label">Online</div><div class="sc-val" id="cnt-online" style="color:#15803d;">—</div></div>
+        <div>
+            <div class="sc-label">Online</div>
+            <div class="sc-val" id="cnt-online" style="color:#15803d;">—</div>
+        </div>
         <i class="bi bi-wifi" style="font-size:1.4rem;color:#22c55e;"></i>
     </div>
     <div class="sc">
-        <div><div class="sc-label">Offline</div><div class="sc-val" id="cnt-offline" style="color:#dc2626;">—</div></div>
+        <div>
+            <div class="sc-label">Offline</div>
+            <div class="sc-val" id="cnt-offline" style="color:#dc2626;">—</div>
+        </div>
         <i class="bi bi-wifi-off" style="font-size:1.4rem;color:#ef4444;"></i>
     </div>
 </div>
 
 <div class="main-card">
     <div class="card-toolbar">
-        <input type="text" id="filtro-busqueda" class="form-control form-control-sm" placeholder="Buscar SN, IP, SS..." style="max-width:200px;">
+        <input type="text" id="filtro-busqueda" class="form-control form-control-sm" placeholder="Buscar SN, IP, SS..."
+            style="max-width:200px;">
         <select class="form-select form-select-sm" id="filtro-estado" style="max-width:110px;">
             <option value="">Todos</option>
             <option value="online">Online</option>
@@ -92,7 +262,8 @@
             <thead>
                 <tr>
                     <th class="chk-col"><input type="checkbox" id="chk-all" title="Seleccionar todo"></th>
-                    <th onclick="sortTable('serial')">SERIAL / ID <i class="bi bi-arrow-down-up" style="font-size:0.65rem;"></i></th>
+                    <th onclick="sortTable('serial')">SERIAL / ID <i class="bi bi-arrow-down-up"
+                            style="font-size:0.65rem;"></i></th>
                     <th onclick="sortTable('mac')" class="col-hide">MAC</th>
                     <th onclick="sortTable('modelo')">MODELO</th>
                     <th onclick="sortTable('ip')">IP WAN</th>
@@ -106,7 +277,9 @@
                 </tr>
             </thead>
             <tbody id="tbody-dispositivos">
-                <tr><td colspan="12" style="padding:2rem;color:#9ca3af;text-align:center;">Cargando dispositivos...</td></tr>
+                <tr>
+                    <td colspan="12" style="padding:2rem;color:#9ca3af;text-align:center;">Cargando dispositivos...</td>
+                </tr>
             </tbody>
         </table>
     </div>
@@ -116,76 +289,76 @@
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
-let dispositivosData = [];
-let currentPage = 1;
-let itemsPerPage = 10;
-let sortColumn = 'online';
-let sortDirection = 'desc';
+    let dispositivosData = [];
+    let currentPage = 1;
+    let itemsPerPage = 10;
+    let sortColumn = 'online';
+    let sortDirection = 'desc';
 
-function rxHtml(d) {
-    if (d.rx === null || d.rx === undefined) return '<span class="rx-na">—</span>';
-    const cls = d.rx_calidad === 'ok' ? 'rx-ok' : d.rx_calidad === 'warning' ? 'rx-warn' : 'rx-crit';
-    return `<span class="${cls}">${d.rx} dBm</span>`;
-}
-function tempHtml(d) {
-    if (d.temp === null || d.temp === undefined) return '<span class="rx-na">—</span>';
-    const color = d.temp > 70 ? '#dc2626' : d.temp > 55 ? '#d97706' : '#374151';
-    return `<span style="color:${color};font-size:0.82rem;">${d.temp}°C</span>`;
-}
-function estadoHtml(d) {
-    return d.online
-        ? `<span class="badge-online"><span class="dot dot-g"></span>Online</span>`
-        : `<span class="badge-offline"><span class="dot dot-gray"></span>Offline</span>`;
-}
+    function rxHtml(d) {
+        if (d.rx === null || d.rx === undefined) return '<span class="rx-na">—</span>';
+        const cls = d.rx_calidad === 'ok' ? 'rx-ok' : d.rx_calidad === 'warning' ? 'rx-warn' : 'rx-crit';
+        return `<span class="${cls}">${d.rx} dBm</span>`;
+    }
+    function tempHtml(d) {
+        if (d.temp === null || d.temp === undefined) return '<span class="rx-na">—</span>';
+        const color = d.temp > 70 ? '#dc2626' : d.temp > 55 ? '#d97706' : '#374151';
+        return `<span style="color:${color};font-size:0.82rem;">${d.temp}°C</span>`;
+    }
+    function estadoHtml(d) {
+        return d.online
+            ? `<span class="badge-online"><span class="dot dot-g"></span>Online</span>`
+            : `<span class="badge-offline"><span class="dot dot-gray"></span>Offline</span>`;
+    }
 
-function renderTabla() {
-    const filtro = (document.getElementById('filtro-busqueda').value || '').toLowerCase();
-    const filtroEstado = document.getElementById('filtro-estado').value;
-    let datos = dispositivosData.filter(d => {
-        if (filtroEstado === 'online' && !d.online) return false;
-        if (filtroEstado === 'offline' && d.online) return false;
-        if (!filtro) return true;
-        return (d.serial||'').toLowerCase().includes(filtro)
-            || (d.ip||'').includes(filtro)
-            || (d.ssid||'').toLowerCase().includes(filtro)
-            || (d.modelo||'').toLowerCase().includes(filtro)
-            || (d.mac||'').toLowerCase().includes(filtro);
-    });
+    function renderTabla() {
+        const filtro = (document.getElementById('filtro-busqueda').value || '').toLowerCase();
+        const filtroEstado = document.getElementById('filtro-estado').value;
+        let datos = dispositivosData.filter(d => {
+            if (filtroEstado === 'online' && !d.online) return false;
+            if (filtroEstado === 'offline' && d.online) return false;
+            if (!filtro) return true;
+            return (d.serial || '').toLowerCase().includes(filtro)
+                || (d.ip || '').includes(filtro)
+                || (d.ssid || '').toLowerCase().includes(filtro)
+                || (d.modelo || '').toLowerCase().includes(filtro)
+                || (d.mac || '').toLowerCase().includes(filtro);
+        });
 
-    datos.sort((a, b) => {
-        let av = a[sortColumn], bv = b[sortColumn];
-        if (sortColumn === 'online') { av = a.online ? 1 : 0; bv = b.online ? 1 : 0; }
-        if (sortColumn === 'rx')     { av = a.rx ?? -999; bv = b.rx ?? -999; }
-        if (sortColumn === 'hosts')  { av = a.hosts ?? -1; bv = b.hosts ?? -1; }
-        if (sortColumn === 'temp')   { av = a.temp ?? -999; bv = b.temp ?? -999; }
-        if (av === null || av === undefined) av = '';
-        if (bv === null || bv === undefined) bv = '';
-        if (typeof av === 'number') return sortDirection === 'asc' ? av - bv : bv - av;
-        return sortDirection === 'asc'
-            ? String(av).localeCompare(String(bv))
-            : String(bv).localeCompare(String(av));
-    });
+        datos.sort((a, b) => {
+            let av = a[sortColumn], bv = b[sortColumn];
+            if (sortColumn === 'online') { av = a.online ? 1 : 0; bv = b.online ? 1 : 0; }
+            if (sortColumn === 'rx') { av = a.rx ?? -999; bv = b.rx ?? -999; }
+            if (sortColumn === 'hosts') { av = a.hosts ?? -1; bv = b.hosts ?? -1; }
+            if (sortColumn === 'temp') { av = a.temp ?? -999; bv = b.temp ?? -999; }
+            if (av === null || av === undefined) av = '';
+            if (bv === null || bv === undefined) bv = '';
+            if (typeof av === 'number') return sortDirection === 'asc' ? av - bv : bv - av;
+            return sortDirection === 'asc'
+                ? String(av).localeCompare(String(bv))
+                : String(bv).localeCompare(String(av));
+        });
 
-    // summary
-    const tot = dispositivosData.length;
-    const on  = dispositivosData.filter(d => d.online).length;
-    document.getElementById('cnt-total').textContent  = tot;
-    document.getElementById('cnt-online').textContent = on;
-    document.getElementById('cnt-offline').textContent = tot - on;
+        // summary
+        const tot = dispositivosData.length;
+        const on = dispositivosData.filter(d => d.online).length;
+        document.getElementById('cnt-total').textContent = tot;
+        document.getElementById('cnt-online').textContent = on;
+        document.getElementById('cnt-offline').textContent = tot - on;
 
-    const total = datos.length;
-    const start = (currentPage - 1) * itemsPerPage;
-    const page  = datos.slice(start, start + itemsPerPage);
+        const total = datos.length;
+        const start = (currentPage - 1) * itemsPerPage;
+        const page = datos.slice(start, start + itemsPerPage);
 
-    const tbody = document.getElementById('tbody-dispositivos');
-    if (!page.length) {
-        tbody.innerHTML = '<tr><td colspan="12" style="padding:2rem;color:#9ca3af;text-align:center;">Sin resultados</td></tr>';
-    } else {
-        tbody.innerHTML = page.map(d => {
-            const detailUrl = '/admin/dispositivo/' + encodeURIComponent(d.device_id);
-            const safeId = (d.device_id || '').replace(/'/g, "\\'");
-            const safeIp = (d.ip || '').replace(/'/g, "\\'");
-            return `<tr>
+        const tbody = document.getElementById('tbody-dispositivos');
+        if (!page.length) {
+            tbody.innerHTML = '<tr><td colspan="12" style="padding:2rem;color:#9ca3af;text-align:center;">Sin resultados</td></tr>';
+        } else {
+            tbody.innerHTML = page.map(d => {
+                const detailUrl = '/admin/dispositivo/' + encodeURIComponent(d.device_id);
+                const safeId = (d.device_id || '').replace(/'/g, "\\'");
+                const safeIp = (d.ip || '').replace(/'/g, "\\'");
+                return `<tr>
                 <td class="chk-col"><input type="checkbox" class="chk-row" data-id="${safeId}" data-ip="${safeIp}"></td>
                 <td>
                     <a class="serial-link" href="${detailUrl}">${d.serial || d.device_id}</a>
@@ -193,7 +366,7 @@ function renderTabla() {
                 <td class="col-hide" style="font-family:monospace;font-size:0.75rem;color:#6b7280;">${d.mac || '—'}</td>
                 <td style="font-size:0.8rem;">${d.modelo || '—'}</td>
                 <td><span class="ip-chip">${d.ip || '—'}</span></td>
-                <td class="col-hide" style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${d.ssid||''}">${d.ssid || '—'}</td>
+                <td class="col-hide" style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${d.ssid || ''}">${d.ssid || '—'}</td>
                 <td>${rxHtml(d)}</td>
                 <td><span style="font-weight:600;color:#4f46e5;">${d.hosts !== null && d.hosts !== undefined ? d.hosts : '—'}</span></td>
                 <td class="col-hide">${tempHtml(d)}</td>
@@ -213,192 +386,197 @@ function renderTabla() {
                     </div>
                 </td>
             </tr>`;
-        }).join('');
+            }).join('');
+        }
+
+        renderPagination(Math.ceil(total / itemsPerPage), total);
     }
 
-    renderPagination(Math.ceil(total / itemsPerPage), total);
-}
-
-function renderPagination(totalPages, totalItems) {
-    const c = document.getElementById('pagination-container');
-    if (!totalPages) { c.innerHTML = ''; return; }
-    const start = Math.max(1, currentPage - 2), end = Math.min(totalPages, currentPage + 2);
-    let pages = '';
-    for (let i = start; i <= end; i++) {
-        pages += `<li class="page-item ${i===currentPage?'active':''}"><a class="page-link" href="#" onclick="event.preventDefault();changePage(${i})">${i}</a></li>`;
-    }
-    const shown = Math.min(currentPage * itemsPerPage, totalItems);
-    c.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;font-size:0.8rem;color:#6b7280;">
-        <span>Mostrando ${(currentPage-1)*itemsPerPage+1}–${shown} de ${totalItems}</span>
+    function renderPagination(totalPages, totalItems) {
+        const c = document.getElementById('pagination-container');
+        if (!totalPages) { c.innerHTML = ''; return; }
+        const start = Math.max(1, currentPage - 2), end = Math.min(totalPages, currentPage + 2);
+        let pages = '';
+        for (let i = start; i <= end; i++) {
+            pages += `<li class="page-item ${i === currentPage ? 'active' : ''}"><a class="page-link" href="#" onclick="event.preventDefault();changePage(${i})">${i}</a></li>`;
+        }
+        const shown = Math.min(currentPage * itemsPerPage, totalItems);
+        c.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;font-size:0.8rem;color:#6b7280;">
+        <span>Mostrando ${(currentPage - 1) * itemsPerPage + 1}–${shown} de ${totalItems}</span>
         <nav><ul class="pagination pagination-sm mb-0">
-            <li class="page-item ${currentPage===1?'disabled':''}"><a class="page-link" href="#" onclick="event.preventDefault();changePage(${currentPage-1})"><i class="bi bi-chevron-left"></i></a></li>
+            <li class="page-item ${currentPage === 1 ? 'disabled' : ''}"><a class="page-link" href="#" onclick="event.preventDefault();changePage(${currentPage - 1})"><i class="bi bi-chevron-left"></i></a></li>
             ${pages}
-            <li class="page-item ${currentPage===totalPages?'disabled':''}"><a class="page-link" href="#" onclick="event.preventDefault();changePage(${currentPage+1})"><i class="bi bi-chevron-right"></i></a></li>
+            <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}"><a class="page-link" href="#" onclick="event.preventDefault();changePage(${currentPage + 1})"><i class="bi bi-chevron-right"></i></a></li>
         </ul></nav>
     </div>`;
-}
+    }
 
-function changePage(p) { currentPage = p; renderTabla(); }
+    function changePage(p) { currentPage = p; renderTabla(); }
 
-function sortTable(col) {
-    sortDirection = sortColumn === col ? (sortDirection === 'asc' ? 'desc' : 'asc') : 'desc';
-    sortColumn = col; currentPage = 1; renderTabla();
-}
+    function sortTable(col) {
+        sortDirection = sortColumn === col ? (sortDirection === 'asc' ? 'desc' : 'asc') : 'desc';
+        sortColumn = col; currentPage = 1; renderTabla();
+    }
 
-function cargarDispositivos() {
-    document.getElementById('tbody-dispositivos').innerHTML =
-        '<tr><td colspan="12" style="padding:2rem;color:#9ca3af;text-align:center;">Cargando...</td></tr>';
-    fetch("{{ url_for('admin.api_dispositivos_conectados') }}")
-    .then(r => r.json())
-    .then(data => {
-        dispositivosData = data.dispositivos || [];
-        currentPage = 1;
-        renderTabla();
-    })
-    .catch(() => {
+    function cargarDispositivos() {
         document.getElementById('tbody-dispositivos').innerHTML =
-            '<tr><td colspan="12" style="padding:2rem;color:#dc2626;text-align:center;">Error al cargar dispositivos.</td></tr>';
-    });
-}
-
-function verDetalle(deviceId) {
-    window.location.href = '/admin/dispositivo/' + encodeURIComponent(deviceId);
-}
-
-function eliminarDevice(deviceId, ip) {
-    Swal.fire({
-        title: 'Eliminar dispositivo',
-        text: `¿Eliminar ${deviceId}?`,
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#dc2626',
-        confirmButtonText: 'Eliminar',
-        cancelButtonText: 'Cancelar',
-    }).then(result => {
-        if (!result.isConfirmed) return;
-        fetch("{{ url_for('admin.eliminar_device') }}", {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({device_id: deviceId, ip})
-        }).then(r => r.json()).then(data => {
-            if (data.success) {
-                dispositivosData = dispositivosData.filter(d => d.device_id !== deviceId);
+            '<tr><td colspan="12" style="padding:2rem;color:#9ca3af;text-align:center;">Cargando...</td></tr>';
+        fetch("{{ url_for('admin.api_dispositivos_conectados') }}")
+            .then(r => r.json())
+            .then(data => {
+                if (!data.success) {
+                    document.getElementById('tbody-dispositivos').innerHTML =
+                        `<tr><td colspan="12" style="padding:2rem;color:#dc2626;text-align:center;">Error al cargar dispositivos</td></tr>`;
+                    return;
+                }
+                dispositivosData = data.dispositivos || [];
+                currentPage = 1;
                 renderTabla();
-                Swal.fire({icon:'success', title:'Eliminado', timer:1500, showConfirmButton:false});
-            } else {
-                Swal.fire({icon:'error', title:'Error', text: data.message});
-            }
-        });
-    });
-}
-
-function summonDevice(deviceId) {
-    Swal.fire({
-        title: 'Forzando conexión...',
-        text: 'Enviando petición de Summon al dispositivo',
-        allowOutsideClick: false,
-        didOpen: () => { Swal.showLoading(); }
-    });
-    fetch("{{ url_for('admin.summon_device') }}", {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({device_id: deviceId})
-    }).then(r => r.json()).then(data => {
-        if (data.success) {
-            Swal.fire({
-                icon: 'success',
-                title: 'Summon enviado',
-                text: 'El dispositivo debería reportarse en breve.',
-                timer: 2000,
-                showConfirmButton: false
+            })
+            .catch(() => {
+                document.getElementById('tbody-dispositivos').innerHTML =
+                    '<tr><td colspan="12" style="padding:2rem;color:#dc2626;text-align:center;">Error al cargar dispositivos.</td></tr>';
             });
-            // Opcional: recargar para ver si el status/uptime cambió
-            setTimeout(cargarDispositivos, 2000);
-        } else {
-            Swal.fire({icon: 'error', title: 'Error', text: data.message || 'No se pudo contactar al dispositivo'});
-        }
-    }).catch(e => {
-        Swal.fire({icon: 'error', title: 'Error de red', text: 'Falló la petición al servidor.'});
-    });
-}
+    }
 
-document.getElementById('btn-refrescar').addEventListener('click', cargarDispositivos);
-document.getElementById('filtro-busqueda').addEventListener('input', () => { currentPage=1; renderTabla(); });
-document.getElementById('filtro-estado').addEventListener('change', () => { currentPage=1; renderTabla(); });
-document.getElementById('items-per-page').addEventListener('change', function() {
-    itemsPerPage = parseInt(this.value); currentPage = 1; renderTabla();
-});
+    function verDetalle(deviceId) {
+        window.location.href = '/admin/dispositivo/' + encodeURIComponent(deviceId);
+    }
 
-// ── Bulk select ───────────────────────────────────────────────────────────────
-function updateBulkBar() {
-    const checked = document.querySelectorAll('.chk-row:checked');
-    const bar = document.getElementById('bulk-bar');
-    document.getElementById('sel-count').textContent = checked.length;
-    bar.style.display = checked.length > 0 ? 'flex' : 'none';
-    const chkAll = document.getElementById('chk-all');
-    const all = document.querySelectorAll('.chk-row');
-    chkAll.indeterminate = checked.length > 0 && checked.length < all.length;
-    chkAll.checked = all.length > 0 && checked.length === all.length;
-}
-
-document.getElementById('chk-all').addEventListener('change', function() {
-    document.querySelectorAll('.chk-row').forEach(c => c.checked = this.checked);
-    updateBulkBar();
-});
-
-document.getElementById('tbody-dispositivos').addEventListener('change', function(e) {
-    if (e.target.classList.contains('chk-row')) updateBulkBar();
-});
-
-function deseleccionarTodo() {
-    document.querySelectorAll('.chk-row').forEach(c => c.checked = false);
-    document.getElementById('chk-all').checked = false;
-    updateBulkBar();
-}
-
-async function eliminarSeleccionados() {
-    const checked = [...document.querySelectorAll('.chk-row:checked')];
-    if (!checked.length) return;
-    const ids = checked.map(c => ({ id: c.dataset.id, ip: c.dataset.ip }));
-
-    const { isConfirmed } = await Swal.fire({
-        title: `Eliminar ${ids.length} dispositivo${ids.length > 1 ? 's' : ''}`,
-        text: 'Esta acción no se puede deshacer.',
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#dc2626',
-        confirmButtonText: 'Eliminar',
-        cancelButtonText: 'Cancelar',
-    });
-    if (!isConfirmed) return;
-
-    Swal.fire({ title: 'Eliminando...', allowOutsideClick: false, showConfirmButton: false, didOpen: () => Swal.showLoading() });
-
-    let errors = 0;
-    for (const { id, ip } of ids) {
-        try {
-            const res = await fetch("{{ url_for('admin.eliminar_device') }}", {
+    function eliminarDevice(deviceId, ip) {
+        Swal.fire({
+            title: 'Eliminar dispositivo',
+            text: `¿Eliminar ${deviceId}?`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc2626',
+            confirmButtonText: 'Eliminar',
+            cancelButtonText: 'Cancelar',
+        }).then(result => {
+            if (!result.isConfirmed) return;
+            fetch("{{ url_for('admin.eliminar_device') }}", {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ device_id: id, ip })
-            }).then(r => r.json());
-            if (res.success) {
-                dispositivosData = dispositivosData.filter(d => d.device_id !== id);
+                body: JSON.stringify({ device_id: deviceId, ip })
+            }).then(r => r.json()).then(data => {
+                if (data.success) {
+                    dispositivosData = dispositivosData.filter(d => d.device_id !== deviceId);
+                    renderTabla();
+                    Swal.fire({ icon: 'success', title: 'Eliminado', timer: 1500, showConfirmButton: false });
+                } else {
+                    Swal.fire({ icon: 'error', title: 'Error', text: data.message });
+                }
+            });
+        });
+    }
+
+    function summonDevice(deviceId) {
+        Swal.fire({
+            title: 'Forzando conexión...',
+            text: 'Enviando petición de Summon al dispositivo',
+            allowOutsideClick: false,
+            didOpen: () => { Swal.showLoading(); }
+        });
+        fetch("{{ url_for('admin.summon_device') }}", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ device_id: deviceId })
+        }).then(r => r.json()).then(data => {
+            if (data.success) {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Summon enviado',
+                    text: 'El dispositivo debería reportarse en breve.',
+                    timer: 2000,
+                    showConfirmButton: false
+                });
+                // Opcional: recargar para ver si el status/uptime cambió
+                setTimeout(cargarDispositivos, 2000);
             } else {
-                errors++;
+                Swal.fire({ icon: 'error', title: 'Error', text: data.message || 'No se pudo contactar al dispositivo' });
             }
-        } catch { errors++; }
+        }).catch(e => {
+            Swal.fire({ icon: 'error', title: 'Error de red', text: 'Falló la petición al servidor.' });
+        });
     }
 
-    if (errors === 0) {
-        Swal.fire({ icon: 'success', title: `${ids.length} eliminado${ids.length > 1 ? 's' : ''}`, timer: 1500, showConfirmButton: false });
-    } else {
-        Swal.fire({ icon: 'warning', title: 'Completado con errores', text: `${ids.length - errors} eliminados, ${errors} con error.` });
-    }
-    renderTabla();
-    updateBulkBar();
-}
+    document.getElementById('btn-refrescar').addEventListener('click', cargarDispositivos);
+    document.getElementById('filtro-busqueda').addEventListener('input', () => { currentPage = 1; renderTabla(); });
+    document.getElementById('filtro-estado').addEventListener('change', () => { currentPage = 1; renderTabla(); });
+    document.getElementById('items-per-page').addEventListener('change', function () {
+        itemsPerPage = parseInt(this.value); currentPage = 1; renderTabla();
+    });
 
-cargarDispositivos();
+    // ── Bulk select ───────────────────────────────────────────────────────────────
+    function updateBulkBar() {
+        const checked = document.querySelectorAll('.chk-row:checked');
+        const bar = document.getElementById('bulk-bar');
+        document.getElementById('sel-count').textContent = checked.length;
+        bar.style.display = checked.length > 0 ? 'flex' : 'none';
+        const chkAll = document.getElementById('chk-all');
+        const all = document.querySelectorAll('.chk-row');
+        chkAll.indeterminate = checked.length > 0 && checked.length < all.length;
+        chkAll.checked = all.length > 0 && checked.length === all.length;
+    }
+
+    document.getElementById('chk-all').addEventListener('change', function () {
+        document.querySelectorAll('.chk-row').forEach(c => c.checked = this.checked);
+        updateBulkBar();
+    });
+
+    document.getElementById('tbody-dispositivos').addEventListener('change', function (e) {
+        if (e.target.classList.contains('chk-row')) updateBulkBar();
+    });
+
+    function deseleccionarTodo() {
+        document.querySelectorAll('.chk-row').forEach(c => c.checked = false);
+        document.getElementById('chk-all').checked = false;
+        updateBulkBar();
+    }
+
+    async function eliminarSeleccionados() {
+        const checked = [...document.querySelectorAll('.chk-row:checked')];
+        if (!checked.length) return;
+        const ids = checked.map(c => ({ id: c.dataset.id, ip: c.dataset.ip }));
+
+        const { isConfirmed } = await Swal.fire({
+            title: `Eliminar ${ids.length} dispositivo${ids.length > 1 ? 's' : ''}`,
+            text: 'Esta acción no se puede deshacer.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc2626',
+            confirmButtonText: 'Eliminar',
+            cancelButtonText: 'Cancelar',
+        });
+        if (!isConfirmed) return;
+
+        Swal.fire({ title: 'Eliminando...', allowOutsideClick: false, showConfirmButton: false, didOpen: () => Swal.showLoading() });
+
+        let errors = 0;
+        for (const { id, ip } of ids) {
+            try {
+                const res = await fetch("{{ url_for('admin.eliminar_device') }}", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ device_id: id, ip })
+                }).then(r => r.json());
+                if (res.success) {
+                    dispositivosData = dispositivosData.filter(d => d.device_id !== id);
+                } else {
+                    errors++;
+                }
+            } catch { errors++; }
+        }
+
+        if (errors === 0) {
+            Swal.fire({ icon: 'success', title: `${ids.length} eliminado${ids.length > 1 ? 's' : ''}`, timer: 1500, showConfirmButton: false });
+        } else {
+            Swal.fire({ icon: 'warning', title: 'Completado con errores', text: `${ids.length - errors} eliminados, ${errors} con error.` });
+        }
+        renderTabla();
+        updateBulkBar();
+    }
+
+    cargarDispositivos();
 </script>
 {% endblock %}

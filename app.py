@@ -1,3 +1,6 @@
+from dotenv import load_dotenv
+load_dotenv()
+
 from flask import Flask, Blueprint, render_template, request, redirect, url_for, session, flash, jsonify
 from functools import wraps
 import os
@@ -7,13 +10,10 @@ import sqlite3
 import time
 import signal
 from datetime import datetime, timedelta
-from dotenv import load_dotenv
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from soporte import soporte_bp
 from services import ycloud, wisphub, genieacs
-
-load_dotenv()
 
 # ---------------------------------------------------------------------------
 # App y Blueprints
