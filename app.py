@@ -20,9 +20,40 @@ from services import ycloud, wisphub, genieacs
 # ---------------------------------------------------------------------------
 
 app = Flask(__name__)
-app.secret_key = os.getenv("SECRET_KEY")
+app.secret_key = os.getenv("SECRET_KEY") or os.urandom(24)
 app.permanent_session_lifetime = timedelta(minutes=2)
 app.config['SESSION_REFRESH_EACH_REQUEST'] = False
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax'
+)
+
+# Diccionario para rate limiting por IP (Fuerza Bruta)
+ip_failed_attempts = {}
+
+def get_ip_block_time(ip):
+    now = time.time()
+    record = ip_failed_attempts.get(ip)
+    if record:
+        if record['blocked_until'] and now < record['blocked_until']:
+            return int(record['blocked_until'] - now)
+        elif record['blocked_until']:
+            del ip_failed_attempts[ip]
+    return 0
+
+def record_failed_attempt(ip):
+    now = time.time()
+    record = ip_failed_attempts.get(ip, {'attempts': 0, 'blocked_until': None})
+    if record['blocked_until'] and now >= record['blocked_until']:
+        record = {'attempts': 0, 'blocked_until': None}
+    record['attempts'] += 1
+    if record['attempts'] >= 5:
+        record['blocked_until'] = now + 300 # Bloqueo por 5 minutos
+    ip_failed_attempts[ip] = record
+
+def clear_failed_attempts(ip):
+    if ip in ip_failed_attempts:
+        del ip_failed_attempts[ip]
 
 # Blueprint admin (prefijo /admin, nombre 'admin' para que url_for('admin.XXX') funcione)
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
@@ -178,6 +209,16 @@ def index():
         session.clear()
         return render_template("users/user_login.html")
 
+    # Obtener IP real del cliente (soporta proxies como Nginx/Cloudflare)
+    ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+    if ip and ',' in ip:
+        ip = ip.split(',')[0].strip()
+    
+    block_time = get_ip_block_time(ip)
+    if block_time > 0:
+        return jsonify({'success': False, 'code': 'bloqueo_ip',
+                        'message': f'Tu IP ha sido bloqueada temporalmente por múltiples intentos fallidos. Intenta en {block_time // 60} min y {block_time % 60} seg.'})
+
     intentos_cedula = session.get('intentos_cedula', 0)
     bloqueo_cedula_hasta = session.get('bloqueo_cedula_hasta')
     ahora = datetime.now()
@@ -194,6 +235,7 @@ def index():
 
     cedula = request.form.get("cedula")
     if not cedula:
+        record_failed_attempt(ip)
         intentos_cedula += 1
         session['intentos_cedula'] = intentos_cedula
         restantes = 3 - intentos_cedula
@@ -207,6 +249,7 @@ def index():
 
     cliente, error = wisphub.buscar_cliente(cedula)
     if error:
+        record_failed_attempt(ip)
         intentos_cedula += 1
         session['intentos_cedula'] = intentos_cedula
         restantes = 3 - intentos_cedula
@@ -242,6 +285,15 @@ def index():
 
 @app.route('/verificar_codigo_ajax', methods=['POST'])
 def verificar_codigo_ajax():
+    ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+    if ip and ',' in ip:
+        ip = ip.split(',')[0].strip()
+        
+    block_time = get_ip_block_time(ip)
+    if block_time > 0:
+        return jsonify({'success': False, 'code': 'bloqueo_ip',
+                        'message': f'Tu IP ha sido bloqueada temporalmente por múltiples intentos fallidos. Intenta en {block_time // 60} min y {block_time % 60} seg.'})
+
     codigo = request.form.get('codigo')
     intentos = session.get('intentos_codigo', 0)
     bloqueo_hasta = session.get('bloqueo_codigo_hasta')
@@ -258,6 +310,7 @@ def verificar_codigo_ajax():
             pass
 
     if codigo != session.get('codigo_verificacion'):
+        record_failed_attempt(ip)
         intentos += 1
         session['intentos_codigo'] = intentos
         restantes = 3 - intentos
@@ -270,6 +323,7 @@ def verificar_codigo_ajax():
                         'message': f'Código incorrecto. Te quedan {restantes} intento(s) antes de ser bloqueado.'})
 
     # Código correcto
+    clear_failed_attempts(ip)
     session.pop('intentos_codigo', None)
     session.pop('bloqueo_codigo_hasta', None)
     session.pop('_flashes', None)
@@ -707,15 +761,26 @@ def actualizar_limite_cliente(ip, nombre, nuevo_limite, cedula=''):
 @admin_bp.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
+        ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+        if ip and ',' in ip:
+            ip = ip.split(',')[0].strip()
+            
+        block_time = get_ip_block_time(ip)
+        if block_time > 0:
+            return jsonify({'success': False, 'message': f'IP bloqueada por intentos fallidos. Espera {block_time // 60}m {block_time % 60}s.'})
+
         if not request.is_json:
             return jsonify({'success': False, 'message': 'Solo se permite el flujo AJAX.'})
         data = request.get_json()
         result = verificar_admin(data.get('username'), data.get('password'))
         if result:
+            clear_failed_attempts(ip)
             session['admin_autenticado'] = True
             session['admin_id'] = result['id']
             session['admin_username'] = result['email']
             return jsonify({'success': True, 'redirect': url_for('admin.dashboard_admin')})
+        
+        record_failed_attempt(ip)
         return jsonify({'success': False, 'message': 'Credenciales inválidas'})
     return render_template('admin/admin_login.html')
 
@@ -1471,6 +1536,24 @@ def api_dashboard_stats():
     return jsonify(result)
 
 
+@admin_bp.route('/impersonate_client/<path:ip_wan>')
+@admin_requerido
+def impersonate_client(ip_wan):
+    cliente = wisphub.buscar_por_ip(ip_wan)
+    if not cliente:
+        flash('No se pudo encontrar al cliente con la IP especificada en Wisphub.', 'error')
+        return redirect(request.referrer or url_for('admin.admin_dashboard'))
+    
+    session.permanent = True
+    session['telefono'] = cliente.get('telefono', '') or cliente.get('celular', '')
+    session['nombre'] = cliente.get('nombre', '')
+    session['cedula'] = cliente.get('cedula', '')
+    session['ip'] = ip_wan
+    session['cliente_encontrado'] = True
+    
+    flash(f'Sesión iniciada como {cliente.get("nombre", "Cliente")} (Impersonación)', 'success')
+    return redirect(url_for('dashboard'))
+
 @admin_bp.route('/dispositivo/<path:device_id>')
 @admin_requerido
 def admin_device_detail(device_id):
@@ -1504,6 +1587,21 @@ def api_device_detail(device_id):
         rx    = svc.get_rx_power(device)
         temp  = svc.get_temperature(device)
         ut    = svc.get_uptime_seconds(device)
+        
+        cliente_wisphub = wisphub.buscar_por_ip(ip_wan) if ip_wan else None
+        cambios_recientes = []
+        if cliente_wisphub and cliente_wisphub.get('cedula'):
+            try:
+                conn = get_db_connection()
+                rows = conn.execute(
+                    "SELECT tipo_cambio, valor_nuevo, fecha FROM change_history WHERE cedula = ? ORDER BY fecha DESC LIMIT 5",
+                    (cliente_wisphub['cedula'],)
+                ).fetchall()
+                cambios_recientes = [dict(r) for r in rows]
+                conn.close()
+            except Exception as e:
+                print(f"Error fetching change history: {e}")
+        
         ifaces = svc.get_wifi_interfaces(device)
         ifaces_out = []
         for iface in ifaces:
@@ -1538,6 +1636,13 @@ def api_device_detail(device_id):
                 'tiempo':         svc.tiempo_desde_ultimo_inform(device),
                 'detras_nat':     svc.is_behind_nat(device),
                 'rx_power':       rx,
+                'cliente': {
+                    'nombre': cliente_wisphub.get('nombre') if cliente_wisphub else None,
+                    'cedula': cliente_wisphub.get('cedula') if cliente_wisphub else None,
+                    'telefono': cliente_wisphub.get('telefono') or cliente_wisphub.get('celular') if cliente_wisphub else None,
+                    'plan': cliente_wisphub.get('plan_internet', {}).get('nombre') if cliente_wisphub and cliente_wisphub.get('plan_internet') else None,
+                } if cliente_wisphub else None,
+                'cambios_recientes': cambios_recientes,
                 'rx_calidad':     svc.rx_signal_quality(rx),
                 'temperatura':    temp,
                 'hosts_count':    svc._get_param(device, "VirtualParameters.activedevices") or '0',
@@ -1644,6 +1749,13 @@ def add_header(response):
     response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, post-check=0, pre-check=0, max-age=0'
     response.headers['Pragma'] = 'no-cache'
     response.headers['Expires'] = '-1'
+    
+    # Cabeceras de seguridad estrictas
+    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+    
     return response
 
 

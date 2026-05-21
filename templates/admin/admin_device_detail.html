@@ -127,12 +127,43 @@ function renderDetail(d) {
                 <div class="info-cell"><div class="info-label">Uptime</div><div class="info-val">${d.uptime || '—'}</div></div>
             </div>
         </div>
+
+        <div class="info-section">
+            <div class="info-section-title" style="display:flex;justify-content:space-between;align-items:center;">
+                <span>Informacion del Cliente</span>
+                ${d.cliente && d.ip_wan ? `<a href="/admin/impersonate_client/${encodeURIComponent(d.ip_wan)}" target="_blank" class="btn btn-sm" style="padding:0.2rem 0.6rem;font-size:0.7rem;background-color:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;border-radius:0.4rem;text-transform:none;letter-spacing:normal;font-weight:600;text-decoration:none;"><i class="bi bi-box-arrow-in-right" style="margin-right:0.3rem;"></i>Acceder al Panel</a>` : ''}
+            </div>
+            ${d.cliente ? `
+            <div class="info-grid">
+                <div class="info-cell"><div class="info-label">Nombre</div><div class="info-val">${d.cliente.nombre || '—'}</div></div>
+                <div class="info-cell"><div class="info-label">Cédula</div><div class="info-val">${d.cliente.cedula || '—'}</div></div>
+                <div class="info-cell"><div class="info-label">Plan de Internet</div><div class="info-val">${d.cliente.plan || '—'}</div></div>
+                <div class="info-cell"><div class="info-label">Celular / Teléfono</div><div class="info-val">${d.cliente.telefono || '—'}</div></div>
+                
+                <div class="info-cell" style="grid-column: 1 / -1; border-top: 1px dashed #e5e7eb; margin-top: 0.5rem; padding-top: 1rem;">
+                    <div class="info-label" style="margin-bottom:0.6rem;">Cambios Recientes</div>
+                    ${d.cambios_recientes && d.cambios_recientes.length > 0 ? `
+                    <ul style="margin:0;padding-left:1.4rem;font-size:0.85rem;color:#374151;line-height:1.5;">
+                        ${d.cambios_recientes.map(c => `<li><strong>${c.tipo_cambio}</strong>: <span style="color:#111;">${c.valor_nuevo}</span> <span style="color:#9ca3af;font-size:0.75rem;margin-left:0.3rem;">(${c.fecha})</span></li>`).join('')}
+                    </ul>
+                    ` : '<div style="font-size:0.85rem;color:#9ca3af;background:#f9fafb;padding:0.75rem 1rem;border-radius:0.5rem;">Sin cambios recientes registrados</div>'}
+                </div>
+            </div>
+            ` : '<div style="padding:1.5rem 1.1rem;color:#6b7280;font-size:0.85rem;text-align:center;background:#f9fafb;"><i class="bi bi-info-circle" style="margin-right:0.3rem;"></i> Cliente no encontrado en Wisphub (IP no coincide o sin asignar)</div>'}
+        </div>
         <div class="info-section">
             <div class="info-section-title">Conexion WAN</div>
             <div class="info-grid">
-                <div class="info-cell"><div class="info-label">IP WAN</div><div class="info-val" style="font-family:monospace;">${d.ip_wan || '—'}</div></div>
-                <div class="info-cell"><div class="info-label">Estado</div><div class="info-val">${d.wan_status || '—'}</div></div>
-                <div class="info-cell" style="grid-column:1/-1;"><div class="info-label">TR-069 URL</div><div class="info-val" style="font-family:monospace;font-size:0.8rem;">${d.conn_request_url || '—'}</div></div>
+                <div class="info-cell">
+                    <div class="info-label">IP WAN</div>
+                    <div class="info-val" style="font-family:monospace;">
+                        ${d.ip_wan ? `<a href="http://${d.ip_wan}" target="_blank" style="color:#2563eb;text-decoration:underline;" title="Abrir interfaz de la ONU">${d.ip_wan}</a>` : '—'}
+                    </div>
+                </div>
+                <div class="info-cell">
+                    <div class="info-label">TR-069 URL</div>
+                    <div class="info-val" style="font-family:monospace;font-size:0.8rem;">${d.conn_request_url || '—'}</div>
+                </div>
             </div>
         </div>
         <div class="info-section">

@@ -23,7 +23,7 @@
 {% block content %}
 <div class="page-topbar">
     <div class="page-title">Soporte IPs</div>
-    <button class="btn btn-sm btn-outline-secondary" onclick="cargarDatos(1)">
+    <button class="btn btn-sm btn-outline-secondary" onclick="cargarDatos(1, true)">
         <i class="bi bi-arrow-clockwise"></i> Refrescar
     </button>
 </div>
@@ -61,8 +61,8 @@
         <div style="margin-left:auto;display:flex;align-items:center;gap:0.5rem;">
             <label style="font-size:0.78rem;color:#9ca3af;margin:0;">Mostrar:</label>
             <select id="pageSizeSelect" class="form-select form-select-sm" style="width:auto;">
-                <option value="10">10</option>
-                <option value="20" selected>20</option>
+                <option value="10" selected>10</option>
+                <option value="20">20</option>
                 <option value="50">50</option>
                 <option value="100">100</option>
             </select>
@@ -107,13 +107,14 @@ let segmentos = [];
 let paginaActual = 1;
 let totalPaginas = 1;
 
-function cargarDatos(page = 1) {
+function cargarDatos(page = 1, forceRefresh = false) {
     document.getElementById('tbody-ips').innerHTML =
         '<tr><td colspan="3" style="padding:2rem;text-align:center;color:#9ca3af;">Cargando...</td></tr>';
     const estadoFiltro   = document.getElementById('estadoSelect').value;
     const segmentoFiltro = document.getElementById('segmentoSelect').value;
     const pageSize       = parseInt(document.getElementById('pageSizeSelect').value);
     let url = `/api/soporte/ips?page=${page}&page_size=${pageSize}`;
+    if (forceRefresh)   url += `&force_refresh=1`;
     if (segmentoFiltro) url += `&segmento=${encodeURIComponent(segmentoFiltro)}`;
     if (estadoFiltro)   url += `&estado=${encodeURIComponent(estadoFiltro)}`;
 
@@ -133,7 +134,7 @@ function cargarDatos(page = 1) {
             poblarSelect('estadoSelect',   estados);
             poblarSelect('segmentoSelect', segmentos);
             mostrarDatos();
-            actualizarContadores();
+            actualizarContadores(data);
             actualizarPaginacion();
         })
         .catch(() => {
@@ -170,13 +171,10 @@ function mostrarDatos() {
     }).join('');
 }
 
-function actualizarContadores() {
-    const ambos   = datosIps.filter(r => r.estado === 'Ambos').length;
-    const solo_wh = datosIps.filter(r => r.estado === 'Solo Wisphub').length;
-    const solo_gn = datosIps.filter(r => r.estado === 'Solo Dispositivos').length;
-    document.getElementById('cnt-ambos').textContent   = ambos;
-    document.getElementById('cnt-wisphub').textContent = solo_wh;
-    document.getElementById('cnt-genie').textContent   = solo_gn;
+function actualizarContadores(data) {
+    document.getElementById('cnt-ambos').textContent   = data.cnt_ambos || 0;
+    document.getElementById('cnt-wisphub').textContent = data.cnt_wisphub || 0;
+    document.getElementById('cnt-genie').textContent   = data.cnt_genie || 0;
 }
 
 function actualizarPaginacion() {

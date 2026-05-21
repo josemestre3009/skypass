@@ -3,6 +3,7 @@ import requests
 import os
 import re
 import time
+import concurrent.futures
 
 soporte_bp = Blueprint('soporte', __name__, template_folder='templates/soporte')
 
@@ -35,7 +36,7 @@ cache_soporte = {
     "segmentos": [],
     "timestamp": 0
 }
-CACHE_TTL = 5  # segundos
+CACHE_TTL = 300  # 5 minutos de caché para que sea instantáneo
 
 # --- API para obtener y comparar IPs ---
 @soporte_bp.route('/api/soporte/ips')
@@ -44,15 +45,16 @@ def api_soporte_ips():
     global cache_soporte
     ahora = time.time()
     try:
-        page_size = int(request.args.get('page_size', 20))
+        page_size = int(request.args.get('page_size', 10)) # Por defecto 10
         if page_size < 1 or page_size > 200:
-            page_size = 20
+            page_size = 10
     except Exception:
-        page_size = 20
+        page_size = 10
     page = int(request.args.get('page', 1))
+    force_refresh = request.args.get('force_refresh', '0') == '1'
 
-    # Si la caché es válida, usarla
-    if cache_soporte["resultado"] and (ahora - cache_soporte["timestamp"] < CACHE_TTL):
+    # Si la caché es válida y no se forzó actualización, usarla
+    if not force_refresh and cache_soporte["resultado"] and (ahora - cache_soporte["timestamp"] < CACHE_TTL):
         print("[CACHE] Usando datos en caché")
         resultado = cache_soporte["resultado"]
         estados = cache_soporte["estados"]
@@ -67,28 +69,17 @@ def api_soporte_ips():
         clientes = []
         try:
             limit = 300
-            offset = 0
-            while True:
-                params = {'limit': limit, 'offset': offset}
-                print(f'[WISPHUB] Consultando offset {offset}...')
-                resp = requests.get(WISPHUB_BASE_URL, headers=headers, params=params, timeout=15)
-                print(f'[WISPHUB] Status: {resp.status_code}')
-                if resp.status_code != 200:
-                    print(f'[WISPHUB] Error status {resp.status_code}')
-                    break
-                data = resp.json()
-                print(f'[WISPHUB] Respuesta keys: {list(data.keys())}')
+            
+            def extraer_clientes(data):
+                res = []
                 results = data.get('results', []) or data.get('clientes', [])
-                print(f'[WISPHUB] Resultados en batch: {len(results)}')
-                if not results:
-                    break
                 for c in results:
                     servicios = c.get('servicios', [])
                     if servicios:
                         for s in servicios:
                             ip = s.get('ip', '')
                             if isinstance(ip, str) and ip:
-                                clientes.append({
+                                res.append({
                                     'nombre': c.get('nombre', ''),
                                     'cedula': c.get('cedula', ''),
                                     'zona': c.get('zona', 'Sin zona'),
@@ -97,15 +88,39 @@ def api_soporte_ips():
                     else:
                         ip = c.get('ip') or c.get('ip_address', '')
                         if isinstance(ip, str) and ip:
-                            clientes.append({
+                            res.append({
                                 'nombre': c.get('nombre', ''),
                                 'cedula': c.get('cedula', ''),
                                 'zona': c.get('zona', 'Sin zona'),
                                 'ip': ip,
                             })
-                if not data.get('next'):
-                    break
-                offset += limit
+                return res
+
+            print('[WISPHUB] Consultando offset 0...')
+            resp = requests.get(WISPHUB_BASE_URL, headers=headers, params={'limit': limit, 'offset': 0}, timeout=15)
+            
+            if resp.status_code == 200:
+                data = resp.json()
+                clientes.extend(extraer_clientes(data))
+                total_count = data.get('count', 0)
+                
+                if total_count > limit:
+                    offsets = list(range(limit, total_count, limit))
+                    print(f'[WISPHUB] Obteniendo en paralelo offsets: {offsets}')
+                    
+                    def fetch_offset(off):
+                        try:
+                            r = requests.get(WISPHUB_BASE_URL, headers=headers, params={'limit': limit, 'offset': off}, timeout=15)
+                            if r.status_code == 200:
+                                return extraer_clientes(r.json())
+                        except Exception as e:
+                            print(f'[WISPHUB] Error en offset {off}: {e}')
+                        return []
+
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+                        for partial_results in executor.map(fetch_offset, offsets):
+                            clientes.extend(partial_results)
+                            
             print(f'[WISPHUB] Total clientes obtenidos: {len(clientes)}')
         except Exception as e:
             print(f'[WISPHUB] Excepción: {e}')
@@ -202,4 +217,20 @@ def api_soporte_ips():
     resultado_pagina = filtrados[start:end]
     print(f'[PAGINACION] Página: {page} de {total_pages}, mostrando {len(resultado_pagina)} registros (page_size={page_size})')
 
-    return jsonify({'success': True, 'ips': resultado_pagina, 'estados': estados, 'segmentos': segmentos, 'page': page, 'total_pages': total_pages, 'total': total, 'page_size': page_size})
+    cnt_ambos = sum(1 for r in filtrados if r['estado'] == 'Ambos')
+    cnt_wisphub = sum(1 for r in filtrados if r['estado'] == 'Solo Wisphub')
+    cnt_genie = sum(1 for r in filtrados if r['estado'] == 'Solo Dispositivos')
+
+    return jsonify({
+        'success': True, 
+        'ips': resultado_pagina, 
+        'estados': estados, 
+        'segmentos': segmentos, 
+        'page': page, 
+        'total_pages': total_pages, 
+        'total': total, 
+        'page_size': page_size,
+        'cnt_ambos': cnt_ambos,
+        'cnt_wisphub': cnt_wisphub,
+        'cnt_genie': cnt_genie
+    })
