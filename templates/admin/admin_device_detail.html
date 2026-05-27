@@ -29,6 +29,7 @@
 .rx-crit { color:#dc2626; }
 .skeleton { background:linear-gradient(90deg,#f0f0f0 25%,#e0e0e0 50%,#f0f0f0 75%);background-size:200% 100%;animation:shimmer 1.2s infinite;border-radius:0.3rem;display:inline-block; }
 @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+@keyframes spin { to { transform:rotate(360deg); } }
 @media(max-width:600px) {
     .info-grid { grid-template-columns:1fr; }
     .optica-grid { grid-template-columns:1fr 1fr; }
@@ -36,12 +37,30 @@
 </style>
 {% endblock %}
 {% block content %}
-<div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1.25rem;">
+<div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1.25rem;flex-wrap:wrap;">
     <a href="{{ url_for('admin.admin_dispositivos_conectados') }}" style="color:#6b7280;text-decoration:none;font-size:0.85rem;">
         <i class="bi bi-arrow-left"></i> Dispositivos
     </a>
     <span style="color:#d1d5db;">/</span>
     <span style="font-size:0.85rem;color:#111;font-family:monospace;" id="page-device-id">{{ device_id }}</span>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
+        <span id="ping-result" style="font-size:0.82rem;font-weight:700;font-family:monospace;"></span>
+        <button class="btn btn-sm" id="btn-ping" disabled
+                style="padding:0.3rem 0.75rem;border:1px solid #e9d5ff;border-radius:0.5rem;background:#faf5ff;color:#7c3aed;font-size:0.8rem;font-weight:600;display:flex;align-items:center;gap:0.35rem;"
+                onclick="pingOnu()">
+            <i class="bi bi-reception-4"></i> Ping
+        </button>
+        <button class="btn btn-sm" id="btn-summon"
+                style="padding:0.3rem 0.75rem;border:1px solid #d1fae5;border-radius:0.5rem;background:#f0fdf4;color:#15803d;font-size:0.8rem;font-weight:600;display:flex;align-items:center;gap:0.35rem;"
+                onclick="summonDevice()">
+            <i class="bi bi-arrow-repeat"></i> Summon
+        </button>
+        <button class="btn btn-sm" id="btn-eliminar"
+                style="padding:0.3rem 0.75rem;border:1px solid #fecaca;border-radius:0.5rem;background:#fff5f5;color:#dc2626;font-size:0.8rem;font-weight:600;display:flex;align-items:center;gap:0.35rem;"
+                onclick="eliminarDevice()">
+            <i class="bi bi-trash"></i> Eliminar
+        </button>
+    </div>
 </div>
 
 <div class="detail-header" id="detail-header">
@@ -58,14 +77,104 @@
 </div>
 {% endblock %}
 {% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
 const DEVICE_ID = {{ device_id|tojson }};
+let IP_WAN = null;
+
+async function pingOnu() {
+    if (!IP_WAN) return;
+    const btn    = document.getElementById('btn-ping');
+    const result = document.getElementById('ping-result');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bi bi-reception-4" style="animation:spin .7s linear infinite;display:inline-block;"></i> Ping';
+    result.textContent = '';
+    try {
+        const resp = await fetch(`/admin/api/ping?ip=${encodeURIComponent(IP_WAN)}`);
+        const data = await resp.json();
+        if (data.success && data.avg !== null) {
+            const c = data.avg < 50 ? '#15803d' : data.avg < 150 ? '#d97706' : '#dc2626';
+            result.innerHTML = `<span style="color:${c};">● ${data.avg} ms</span>`;
+        } else {
+            result.innerHTML = `<span style="color:#dc2626;">● Sin respuesta</span>`;
+        }
+    } catch {
+        result.innerHTML = `<span style="color:#dc2626;">● Error</span>`;
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-reception-4"></i> Ping';
+    }
+}
+
+function summonDevice() {
+    const btn = document.getElementById('btn-summon');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bi bi-arrow-repeat" style="animation:spin .7s linear infinite;display:inline-block;"></i> Enviando...';
+    Swal.fire({
+        title: 'Forzando conexión...',
+        text: 'Enviando petición de Summon al dispositivo',
+        allowOutsideClick: false,
+        didOpen: () => { Swal.showLoading(); }
+    });
+    fetch('/admin/summon_device', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ device_id: DEVICE_ID })
+    }).then(r => r.json()).then(data => {
+        if (data.success) {
+            Swal.fire({ icon: 'success', title: 'Summon enviado', text: 'El dispositivo debería reportarse en breve.', timer: 2000, showConfirmButton: false });
+        } else {
+            Swal.fire({ icon: 'error', title: 'Error', text: data.message || 'No se pudo contactar al dispositivo' });
+        }
+    }).catch(() => {
+        Swal.fire({ icon: 'error', title: 'Error de red', text: 'Falló la petición al servidor.' });
+    }).finally(() => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Summon';
+    });
+}
+
+function eliminarDevice() {
+    Swal.fire({
+        title: 'Eliminar dispositivo',
+        text: `¿Eliminar ${DEVICE_ID}? Esta acción no se puede deshacer.`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        confirmButtonText: 'Eliminar',
+        cancelButtonText: 'Cancelar',
+    }).then(result => {
+        if (!result.isConfirmed) return;
+        Swal.fire({ title: 'Eliminando...', allowOutsideClick: false, showConfirmButton: false, didOpen: () => Swal.showLoading() });
+        fetch('/admin/eliminar_device', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ device_id: DEVICE_ID })
+        }).then(r => r.json()).then(data => {
+            if (data.success) {
+                Swal.fire({ icon: 'success', title: 'Eliminado', timer: 1500, showConfirmButton: false })
+                    .then(() => { window.location.href = '/admin/dispositivos'; });
+            } else {
+                Swal.fire({ icon: 'error', title: 'Error', text: data.message });
+            }
+        }).catch(() => {
+            Swal.fire({ icon: 'error', title: 'Error de red', text: 'Falló la petición al servidor.' });
+        });
+    });
+}
 
 function rxClass(q) {
     return q === 'ok' ? 'rx-ok' : q === 'warning' ? 'rx-warn' : q === 'critical' ? 'rx-crit' : '';
 }
 
 function renderDetail(d) {
+    // Habilitar ping si hay IP WAN
+    if (d.ip_wan) {
+        IP_WAN = d.ip_wan;
+        const btnPing = document.getElementById('btn-ping');
+        if (btnPing) btnPing.disabled = false;
+    }
+
     // Header
     const header = document.getElementById('detail-header');
     header.innerHTML = `
@@ -83,9 +192,8 @@ function renderDetail(d) {
     const tempVal = d.temperatura !== null && d.temperatura !== undefined
         ? `<span style="font-size:1.6rem;color:${d.temperatura > 70 ? '#dc2626' : d.temperatura > 55 ? '#d97706' : '#111'};">${d.temperatura}°C</span>`
         : '<span style="color:#9ca3af;font-size:1.3rem;">—</span>';
-    const hostsVal = d.hosts_count !== null && d.hosts_count !== undefined
-        ? `<span style="font-size:1.6rem;color:var(--color-primary);font-weight:800;">${d.hosts_count}</span>`
-        : '<span style="color:#9ca3af;font-size:1.3rem;">—</span>';
+    const activeHostsCount = (d.lan_hosts || []).filter(h => h.active !== false).length;
+    const hostsVal = `<span style="font-size:1.6rem;color:var(--color-primary);font-weight:800;">${activeHostsCount}</span>`;
 
     // WiFi interfaces
     const wifiHtml = d.wifi_interfaces && d.wifi_interfaces.length

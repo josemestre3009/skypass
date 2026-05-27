@@ -19,6 +19,11 @@ def admin_requerido(f):
     def decorated_function(*args, **kwargs):
         if not session.get('admin_autenticado'):
             from flask import redirect, url_for, flash
+            is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest' or \
+                      request.accept_mimetypes.best == 'application/json' or \
+                      request.path.startswith('/api/')
+            if is_ajax:
+                return jsonify({'success': False, 'message': 'Sesión expirada. Inicia sesión de nuevo.'}), 401
             flash('Debes iniciar sesión como administrador.', 'error')
             return redirect(url_for('admin.login'))
         return f(*args, **kwargs)
@@ -126,32 +131,64 @@ def api_soporte_ips():
             print(f'[WISPHUB] Excepción: {e}')
             return jsonify({'success': False, 'error': f'Error al consultar Wisphub: {str(e)}'})
 
-        # 2. Obtener dispositivos del sistema
+        # 2. Obtener dispositivos del sistema (paginado y con proyección mínima)
         dispositivos = []
         try:
-            print('[GENIEACS] Consultando dispositivos...')
-            resp = requests.get(f"{GENIEACS_API}/devices", timeout=10)
-            print(f'[GENIEACS] Status: {resp.status_code}')
-            if resp.status_code == 200:
-                data = resp.json()
-                print(f'[GENIEACS] Dispositivos recibidos: {len(data)}')
-                for device in data:
-                    url_conexion = device.get("InternetGatewayDevice", {}) \
-                        .get("ManagementServer", {}) \
-                        .get("ConnectionRequestURL", {}) \
-                        .get("_value", '')
-                    ip_actual = ''
-                    if url_conexion:
-                        match = re.search(r'http://([\d\.]+):', url_conexion)
-                        if match:
-                            ip_actual = match.group(1)
-                    if isinstance(ip_actual, str) and ip_actual:
-                        dispositivos.append({
-                            'device_id': device.get('_id'),
-                            'ip': ip_actual,
-                            'modelo': device.get("InternetGatewayDevice", {}).get("DeviceInfo", {}).get("ModelName", {}).get("_value", ''),
-                            'fabricante': device.get("InternetGatewayDevice", {}).get("DeviceInfo", {}).get("Manufacturer", {}).get("_value", ''),
-                        })
+            print('[GENIEACS] Consultando dispositivos (con proyección mínima)...')
+            PAGE = 200
+            PROJECTION = '_id,InternetGatewayDevice.ManagementServer.ConnectionRequestURL,InternetGatewayDevice.DeviceInfo.ModelName,InternetGatewayDevice.DeviceInfo.Manufacturer'
+            
+            def extraer_dispositivo(device):
+                url_conexion = device.get("InternetGatewayDevice", {}) \
+                    .get("ManagementServer", {}) \
+                    .get("ConnectionRequestURL", {}) \
+                    .get("_value", '')
+                ip_actual = ''
+                if url_conexion:
+                    m = re.search(r'http://([\d\.]+):', url_conexion)
+                    if m:
+                        ip_actual = m.group(1)
+                if isinstance(ip_actual, str) and ip_actual:
+                    return {
+                        'device_id': device.get('_id'),
+                        'ip': ip_actual,
+                        'modelo': device.get("InternetGatewayDevice", {}).get("DeviceInfo", {}).get("ModelName", {}).get("_value", ''),
+                        'fabricante': device.get("InternetGatewayDevice", {}).get("DeviceInfo", {}).get("Manufacturer", {}).get("_value", ''),
+                    }
+                return None
+            
+            def fetch_genie_page(skip):
+                try:
+                    r = requests.get(
+                        f"{GENIEACS_API}/devices",
+                        params={'limit': PAGE, 'skip': skip, 'projection': PROJECTION},
+                        timeout=15
+                    )
+                    if r.status_code == 200:
+                        return r.json()
+                except Exception as e:
+                    print(f'[GENIEACS] Error en skip {skip}: {e}')
+                return []
+            
+            # Primera página para conocer total
+            first_page = fetch_genie_page(0)
+            for dev in first_page:
+                d = extraer_dispositivo(dev)
+                if d:
+                    dispositivos.append(d)
+            
+            if len(first_page) == PAGE:
+                # Puede haber más páginas — cargarlas en paralelo
+                skips = list(range(PAGE, 4000, PAGE))  # max 4000 para seguridad
+                with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+                    for page_data in executor.map(fetch_genie_page, skips):
+                        for dev in page_data:
+                            d = extraer_dispositivo(dev)
+                            if d:
+                                dispositivos.append(d)
+                        if len(page_data) < PAGE:
+                            break  # última página
+                            
             print(f'[GENIEACS] Total IPs dispositivos: {len(dispositivos)}')
         except Exception as e:
             print(f'[GENIEACS] Excepción: {e}')

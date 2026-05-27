@@ -1,268 +1,598 @@
 <!DOCTYPE html>
 <html lang="es">
-
 <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta charset="UTF-8">
-    <title>Verificación de Cliente - SKY</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
-    <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.svg') }}">
-    <style>
-        body { background: #f7f9fb; }
-        .login-card {
-            max-width: 400px;
-            margin: 40px auto;
-            border-radius: 1.2rem;
-            box-shadow: 0 4px 24px 0 rgba(31, 38, 135, 0.07);
-            background: #fff;
-            padding: 2.5rem 2rem 2rem 2rem;
-        }
-        .login-title {
-            font-size: 2rem;
-            font-weight: 700;
-            color: #2563eb;
-            text-align: center;
-            margin-bottom: 1.2rem;
-        }
-        .login-icon {
-            font-size: 2.5rem;
-            color: #fbbf24;
-            display: block;
-            margin: 0 auto 0.5rem auto;
-        }
-        .whatsapp-msg {
-            font-size: 1rem;
-            color: #2563eb;
-            text-align: center;
-            margin-bottom: 1rem;
-        }
-        @keyframes fadeInDown {
-            from { opacity: 0; transform: translateY(-20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        .alert[role="alert"] {
-            animation: fadeInDown 0.7s;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Portal Cliente · {{ empresa }}</title>
+  <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary:    #2563eb;
+      --primary-dk: #1d4ed8;
+      --primary-lt: rgba(37,99,235,0.08);
+      --success:    #16a34a;
+      --bg:         #eef2f7;
+      --surface:    #ffffff;
+      --border:     #e2e8f0;
+      --border2:    #cbd5e1;
+      --text:       #0f172a;
+      --text2:      #334155;
+      --muted:      #64748b;
+      --radius:     14px;
+      --shadow:     0 8px 32px rgba(15,23,42,0.10);
+      --tr:         0.17s ease;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg);
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px 16px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 20% 10%, rgba(37,99,235,0.07) 0%, transparent 70%),
+        radial-gradient(ellipse 60% 50% at 80% 90%, rgba(37,99,235,0.05) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    /* ── Card ── */
+    .card {
+      position: relative;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      width: 100%;
+      max-width: 420px;
+      padding: 40px 36px 36px;
+      animation: fadeUp 0.35s ease both;
+    }
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--primary), #60a5fa);
+      border-radius: var(--radius) var(--radius) 0 0;
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(18px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Logo ── */
+    .logo-wrap {
+      text-align: center;
+      margin-bottom: 28px;
+    }
+    .logo-wrap img {
+      height: 64px;
+      width: auto;
+      object-fit: contain;
+    }
+
+    /* ── Encabezado ── */
+    .eyebrow {
+      font-size: 0.67rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--primary);
+      margin-bottom: 4px;
+    }
+    .title {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1.25;
+      margin-bottom: 4px;
+    }
+    .subtitle {
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin-bottom: 28px;
+    }
+
+    /* ── Campo ── */
+    .field { margin-bottom: 18px; }
+    .field > label {
+      display: block;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--text2);
+      margin-bottom: 7px;
+    }
+    .input-wrap { position: relative; }
+    .input-wrap .ico {
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--muted);
+      font-size: 1rem;
+      pointer-events: none;
+      line-height: 1;
+    }
+    .input-wrap input {
+      width: 100%;
+      height: 48px;
+      padding: 0 16px 0 44px;
+      border: 1.5px solid var(--border2);
+      border-radius: 10px;
+      font-size: 0.95rem;
+      font-family: inherit;
+      color: var(--text);
+      background: #f8fafc;
+      outline: none;
+      transition: border-color var(--tr), box-shadow var(--tr), background var(--tr);
+      -webkit-appearance: none;
+    }
+    .input-wrap input:focus {
+      border-color: var(--primary);
+      background: var(--surface);
+      box-shadow: 0 0 0 3px var(--primary-lt);
+    }
+    .input-wrap input::placeholder { color: #b0bec5; }
+
+    /* ── Botón principal ── */
+    .btn-primary {
+      width: 100%;
+      height: 50px;
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: background var(--tr), box-shadow var(--tr), transform var(--tr);
+      margin-top: 6px;
+      letter-spacing: .01em;
+    }
+    .btn-primary:hover  {
+      background: var(--primary-dk);
+      box-shadow: 0 4px 14px rgba(37,99,235,0.35);
+    }
+    .btn-primary:active { transform: scale(0.98); }
+    .btn-primary:disabled { opacity: 0.65; cursor: not-allowed; }
+
+    /* ── Botón verificar (verde) ── */
+    .btn-success {
+      width: 100%;
+      height: 50px;
+      background: var(--success);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: background var(--tr), box-shadow var(--tr), transform var(--tr);
+      margin-top: 6px;
+    }
+    .btn-success:hover  {
+      background: #15803d;
+      box-shadow: 0 4px 14px rgba(22,163,74,0.3);
+    }
+    .btn-success:active { transform: scale(0.98); }
+
+    /* ── Botón reenviar ── */
+    .btn-outline {
+      width: 100%;
+      height: 44px;
+      background: none;
+      border: 1.5px solid var(--border2);
+      border-radius: 10px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      font-family: inherit;
+      color: var(--muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      transition: color var(--tr), border-color var(--tr), background var(--tr);
+      margin-top: 10px;
+    }
+    .btn-outline:hover {
+      color: var(--primary);
+      border-color: var(--primary);
+      background: var(--primary-lt);
+    }
+    .btn-outline:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* ── Divider con texto ── */
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 24px 0;
+      color: var(--muted);
+      font-size: 0.75rem;
+    }
+    .divider::before, .divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* ── Badge WhatsApp ── */
+    .wa-badge {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      border-radius: 10px;
+      padding: 14px;
+      margin-bottom: 20px;
+    }
+    .wa-badge .wa-icon {
+      font-size: 1.3rem;
+      color: #16a34a;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .wa-badge .wa-text {
+      font-size: 0.83rem;
+      color: #166534;
+      line-height: 1.5;
+    }
+    .wa-badge .wa-text strong { font-weight: 700; }
+
+    /* ── Hint ── */
+    .hint {
+      font-size: 0.75rem;
+      color: var(--muted);
+      text-align: center;
+      margin-top: 12px;
+      line-height: 1.5;
+    }
+
+    /* ── Footer ── */
+    .card-footer {
+      margin-top: 24px;
+      padding-top: 18px;
+      border-top: 1px solid var(--border);
+      text-align: center;
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 480px) {
+      .card { padding: 32px 22px 28px; }
+      .title { font-size: 1.25rem; }
+    }
+
+    /* ── Swal sin ACS ── */
+    .swal-sinacs { border-radius: 18px !important; padding: 28px 20px !important; }
+    .swal-sinacs .swal2-title { font-size: 1.3rem !important; }
+    .swal-sinacs .swal2-html-container { margin: 0 !important; }
+    .swal-sinacs .swal2-actions { gap: 10px !important; flex-wrap: wrap !important; justify-content: center !important; margin-top: 20px !important; }
+    .swal-sinacs .swal2-confirm,
+    .swal-sinacs .swal2-cancel { border-radius: 50px !important; font-size: 0.92rem !important; padding: 10px 22px !important; font-weight: 600 !important; }
+    .swal-sinacs .swal2-confirm::before {
+      content: '';
+      display: inline-block;
+      width: 18px; height: 18px;
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='white'%3E%3Cpath d='M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.71 1.916.81 2.049c.098.133 1.394 2.132 3.383 2.992.47.205.84.326 1.129.418.475.152.904.129 1.246.08.38-.058 1.171-.48 1.338-.943.164-.464.164-.86.114-.943-.049-.084-.182-.133-.38-.232'/%3E%3C/svg%3E") no-repeat center;
+      background-size: contain;
+      margin-right: 7px;
+      vertical-align: middle;
+    }
+
+    /* Spinner inline */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner {
+      width: 18px; height: 18px;
+      border: 2.5px solid rgba(255,255,255,0.4);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      display: inline-block;
+    }
+  </style>
 </head>
-
 <body>
-    <div class="login-card">
-        <div class="text-center mb-3">
-            <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo" style="height: 80px;">
-        </div>
-        <div class="login-title">
-            <i class="bi bi-lock-fill login-icon"></i>
-            Verificación de Cliente
-        </div>
-        <form id="form-cedula">
-            <div class="mb-3">
-                <label for="cedula" class="form-label">Cédula del Cliente</label>
-                <input type="text" class="form-control" id="cedula" name="cedula" placeholder="Ej: 1234567890" required>
-            </div>
-            <div class="d-grid gap-2">
-                <button type="submit" class="btn btn-primary">Buscar Cliente</button>
-            </div>
-        </form>
-        <div id="verificacion-step" style="display:none;">
-            <div class="whatsapp-msg mb-2">
-                <i class="bi bi-whatsapp"></i> El código fue enviado a WhatsApp terminado en <span id="ultimos4"></span>
-            </div>
-            <form id="form-codigo">
-                <div class="mb-3">
-                    <label for="codigo" class="form-label">Código de Verificación</label>
-                    <input type="text" class="form-control" id="codigo" name="codigo" maxlength="6" required>
-                </div>
-                <div class="mb-2 text-center text-secondary" style="font-size: 0.98rem;">
-                    ¿No te ha llegado el código en 30 segundos? <br>
-                    <span class="text-primary">Haz clic en <b>Reenviar código</b>.</span>
-                </div>
-                <div class="d-grid gap-2">
-                    <button type="submit" class="btn btn-success">Verificar Código</button>
-                </div>
-                <div class="d-grid gap-2 mb-2">
-                    <button type="button" class="btn btn-link" id="btn-reenviar-codigo">
-                        <i class="bi bi-arrow-clockwise"></i> Reenviar código
-                    </button>
-                </div>
-            </form>
-        </div>
+
+  <div class="card">
+
+    <!-- Logo -->
+    <div class="logo-wrap">
+      <img src="{{ url_for('static', filename='logo.png') }}" alt="{{ empresa }}"
+           onerror="this.style.display='none'">
     </div>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <!-- SweetAlert2 CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script>
-        const formCedula = document.getElementById('form-cedula');
-        const formCodigo = document.getElementById('form-codigo');
-        const verificacionStep = document.getElementById('verificacion-step');
-        const ultimos4 = document.getElementById('ultimos4');
-        const btnReenviar = document.getElementById('btn-reenviar-codigo');
 
-        // Función única para mostrar cualquier alerta con SweetAlert2
-        function mostrarAlertaError(code, message) {
-            let icon = 'error';
-            let title = 'Error';
-            if (code === 'cliente_no_encontrado') {
-                icon = 'warning';
-                title = 'Cliente no encontrado';
-            } else if (code === 'sin_telefono') {
-                icon = 'info';
-                title = 'Sin teléfono';
-            } else if (code === 'sin_ip') {
-                icon = 'info';
-                title = 'Sin IP';
-            } else if (code === 'error_api') {
-                icon = 'error';
-                title = 'Error de API';
-            } else if (code === 'sin_cedula') {
-                icon = 'info';
-                title = 'Cédula requerida';
-            } else if (code === 'bloqueo_cedula') {
-                icon = 'error';
-                title = 'Demasiados intentos';
-            } else if (code === 'bloqueo_codigo') {
-                icon = 'error';
-                title = 'Demasiados intentos';
-            } else if (code === 'error_numero') {
-                icon = 'error';
-                title = 'Teléfono inválido';
-            }
-            Swal.fire({ icon, title, text: message });
+    <!-- Encabezado -->
+    <p class="eyebrow">Portal del cliente</p>
+    <h1 class="title">Bienvenido a {{ empresa }}</h1>
+    <p class="subtitle">Ingresa tu cédula para gestionar tu WiFi.</p>
+
+    <!-- ── Paso 1: cédula ── -->
+    <form id="form-cedula" autocomplete="off" novalidate>
+      <div class="field">
+        <label for="cedula">Número de cédula</label>
+        <div class="input-wrap">
+          <i class="bi bi-person-badge ico"></i>
+          <input type="text" id="cedula" name="cedula"
+                 placeholder="Ej: 1234567890"
+                 inputmode="numeric" required autofocus>
+        </div>
+      </div>
+      <button type="submit" class="btn-primary" id="btn-buscar">
+        <i class="bi bi-arrow-right-circle"></i> Continuar
+      </button>
+    </form>
+
+    <!-- ── Paso 2: verificación ── -->
+    <div id="verificacion-step" style="display:none;">
+
+      <div class="divider">Verificación</div>
+
+      <div class="wa-badge">
+        <i class="bi bi-whatsapp wa-icon"></i>
+        <div class="wa-text">
+          Enviamos un código a tu WhatsApp terminado en
+          <strong id="ultimos4"></strong>.
+          Ingrésalo abajo para continuar.
+        </div>
+      </div>
+
+      <form id="form-codigo" autocomplete="off" novalidate>
+        <div class="field">
+          <label for="codigo">Código de verificación</label>
+          <div class="input-wrap">
+            <i class="bi bi-shield-check ico"></i>
+            <input type="text" id="codigo" name="codigo"
+                   placeholder="000000"
+                   maxlength="6" inputmode="numeric"
+                   required autocomplete="one-time-code">
+          </div>
+        </div>
+        <button type="submit" class="btn-success" id="btn-verificar">
+          <i class="bi bi-check-circle"></i> Verificar código
+        </button>
+        <button type="button" class="btn-outline" id="btn-reenviar">
+          <i class="bi bi-arrow-clockwise"></i> Reenviar código
+        </button>
+        <p class="hint">¿No llegó? Espera 30 segundos antes de reenviar.</p>
+      </form>
+
+    </div>
+
+    <div class="card-footer">
+      {{ empresa }} · Portal seguro para clientes
+    </div>
+
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script>
+    const SOPORTE_WA = '{{ soporte_wa }}';
+
+    const stepCedula  = document.getElementById('form-cedula');
+    const stepCodigo  = document.getElementById('form-codigo');
+    const stepVerif   = document.getElementById('verificacion-step');
+    const ultimos4    = document.getElementById('ultimos4');
+    const btnBuscar   = document.getElementById('btn-buscar');
+    const btnVerif    = document.getElementById('btn-verificar');
+    const btnReenviar = document.getElementById('btn-reenviar');
+
+    const swalCfg = { confirmButtonColor: '#2563eb' };
+
+    function mostrarSinACS(nombre, cedula) {
+      const msg = `Hola, quiero activar SkyPass gratis 🚀\nMi nombre es ${nombre} y mi cédula es ${cedula}.`;
+      const waUrl = SOPORTE_WA
+        ? `https://wa.me/${SOPORTE_WA}?text=${encodeURIComponent(msg)}`
+        : null;
+      const numDisplay = SOPORTE_WA
+        ? `<div style="
+              display:inline-flex;align-items:center;gap:8px;
+              background:#f0fdf4;border:1px solid #bbf7d0;
+              border-radius:50px;padding:10px 20px;
+              font-size:1.05rem;font-weight:700;color:#15803d;
+              margin-top:10px;
+            ">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+              <path d="M11 1a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1zM5 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2z"/>
+              <path d="M8 14a1 1 0 1 0 0-2 1 1 0 0 0 0 2"/>
+            </svg>
+            ${SOPORTE_WA}
+          </div>`
+        : '';
+      Swal.fire({
+        icon: 'info',
+        title: '¡Activa SkyPass gratis!',
+        html: `<div style="text-align:center;line-height:1.6;color:#374151;font-size:0.93rem;">
+                 Tu equipo aún no está conectado a nuestro servidor de configuración.<br><br>
+                 Escríbenos y lo activamos sin costo:
+                 <div style="margin-top:14px;">${numDisplay}</div>
+               </div>`,
+        confirmButtonColor: '#25d366',
+        confirmButtonText: 'Escribir por WhatsApp',
+        showCancelButton: true,
+        cancelButtonText: 'Cerrar',
+        cancelButtonColor: '#6b7280',
+        width: Math.min(window.innerWidth - 32, 400),
+        customClass: { popup: 'swal-sinacs' },
+        ...(waUrl ? {} : { showConfirmButton: false }),
+      }).then(r => {
+        if (r.isConfirmed && waUrl) window.open(waUrl, '_blank');
+      });
+    }
+
+    function mostrarError(code, msg) {
+      const map = {
+        cliente_no_encontrado: { icon: 'warning', title: 'Cliente no encontrado' },
+        sin_telefono:          { icon: 'info',    title: 'Sin teléfono registrado' },
+        sin_ip:                { icon: 'info',    title: 'Sin IP asignada' },
+        error_api:             { icon: 'error',   title: 'Error de conexión' },
+        sin_cedula:            { icon: 'info',    title: 'Cédula requerida' },
+        bloqueo_cedula:        { icon: 'error',   title: 'Demasiados intentos' },
+        bloqueo_codigo:        { icon: 'error',   title: 'Demasiados intentos' },
+        error_numero:          { icon: 'error',   title: 'Teléfono inválido' },
+      };
+      const { icon, title } = map[code] || { icon: 'error', title: 'Error' };
+      Swal.fire({ ...swalCfg, icon, title, text: msg });
+    }
+
+    function btnLoading(btn, text) {
+      btn.disabled = true;
+      btn.innerHTML = `<span class="spinner"></span> ${text}`;
+    }
+    function btnReset(btn, icon, text) {
+      btn.disabled = false;
+      btn.innerHTML = `<i class="${icon}"></i> ${text}`;
+    }
+
+    /* ── Paso 1 ── */
+    stepCedula.addEventListener('submit', function(e) {
+      e.preventDefault();
+      btnLoading(btnBuscar, 'Buscando…');
+      fetch('/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams(new FormData(stepCedula))
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          ultimos4.textContent = data.ultimos4;
+          stepCedula.style.display = 'none';
+          stepVerif.style.display  = '';
+          document.getElementById('codigo').focus();
+        } else {
+          btnReset(btnBuscar, 'bi bi-arrow-right-circle', 'Continuar');
+          if (data.code === 'sin_acs') {
+            mostrarSinACS(data.nombre || '', data.cedula || document.getElementById('cedula').value);
+          } else {
+            mostrarError(data.code, data.message);
+          }
         }
+      })
+      .catch(() => {
+        btnReset(btnBuscar, 'bi bi-arrow-right-circle', 'Continuar');
+        Swal.fire({ ...swalCfg, icon: 'error', title: 'Error de red', text: 'No se pudo conectar. Intenta de nuevo.' });
+      });
+    });
 
-        formCedula.addEventListener('submit', function(e) {
-            e.preventDefault();
+    /* ── Paso 2 ── */
+    stepCodigo.addEventListener('submit', function(e) {
+      e.preventDefault();
+      btnLoading(btnVerif, 'Verificando…');
+      fetch('/verificar_codigo_ajax', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams(new FormData(stepCodigo))
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          if (data.multiple_servicios) {
+            btnReset(btnVerif, 'bi bi-check-circle', 'Verificar código');
+            const opts = data.servicios.map(s =>
+              `<option value="${s.ip}">${s.texto}</option>`
+            ).join('');
             Swal.fire({
-                title: 'Buscando cliente...',
-                html: '<div class="d-flex justify-content-center align-items-center"><span class="spinner-border text-primary" role="status" aria-hidden="true"></span></div>',
-                allowOutsideClick: false,
-                allowEscapeKey: false,
-                showConfirmButton: false
-            });
-            fetch('/', {
+              ...swalCfg,
+              title: 'Selecciona tu servicio',
+              html: `<select id="sel-srv" class="swal2-select" style="width:100%">${opts}</select>`,
+              confirmButtonText: 'Continuar',
+              preConfirm: () => document.getElementById('sel-srv').value
+            }).then(result => {
+              if (!result.isConfirmed || !result.value) return;
+              fetch('/seleccionar_servicio', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: new URLSearchParams(new FormData(formCedula))
-            })
-            .then(res => res.json())
-            .then(data => {
-                Swal.close();
-                if (data.success) {
-                    ultimos4.textContent = data.ultimos4;
-                    verificacionStep.style.display = '';
-                    formCedula.style.display = 'none';
+                body: `ip=${encodeURIComponent(result.value)}`
+              })
+              .then(r => r.json())
+              .then(d2 => {
+                if (d2.success) {
+                  Swal.fire({ ...swalCfg, icon: 'success', title: '¡Verificación exitosa!', showConfirmButton: false, timer: 1200 });
+                  setTimeout(() => { window.location.href = d2.redirect; }, 1200);
                 } else {
-                    mostrarAlertaError(data.code, data.message);
+                  mostrarError(d2.code, d2.message || 'No se pudo seleccionar el servicio.');
                 }
+              });
             });
-        });
-
-        if (formCodigo) {
-            formCodigo.addEventListener('submit', function(e) {
-                e.preventDefault();
-                fetch('/verificar_codigo_ajax', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: new URLSearchParams(new FormData(formCodigo))
-                })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.success) {
-                        if (data.multiple_servicios) {
-                            // Mostrar SweetAlert2 para seleccionar servicio después de verificar código
-                            let opciones = data.servicios.map(s =>
-                                `<option value="${s.ip}">${s.texto}</option>`
-                            ).join('');
-                            Swal.fire({
-                                title: 'Selecciona el servicio',
-                                html: `<select id="select-servicio" class="form-select">${opciones}</select>`,
-                                confirmButtonText: 'Continuar',
-                                preConfirm: () => {
-                                    return document.getElementById('select-servicio').value;
-                                }
-                            }).then(result => {
-                                if (result.isConfirmed && result.value) {
-                                    fetch('/seleccionar_servicio', {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                                        body: `ip=${encodeURIComponent(result.value)}`
-                                    })
-                                    .then(res => res.json())
-                                    .then(data2 => {
-                                        if (data2.success) {
-                                            Swal.fire({ icon: 'success', title: '¡Verificación exitosa!', showConfirmButton: false, timer: 1200 });
-                                            formCodigo.style.display = 'none';
-                                            setTimeout(() => { window.location.href = data2.redirect; }, 1200);
-                                        } else {
-                                            Swal.fire('Error', 'No se pudo seleccionar el servicio', 'error');
-                                        }
-                                    });
-                                }
-                            });
-                        } else {
-                            Swal.fire({ icon: 'success', title: '¡Verificación exitosa!', showConfirmButton: false, timer: 1200 });
-                            formCodigo.style.display = 'none';
-                            if (data.redirect) {
-                                setTimeout(() => { window.location.href = data.redirect; }, 1200);
-                            }
-                        }
-                    } else {
-                        mostrarAlertaError(data.code, data.message);
-                    }
-                });
-            });
+          } else {
+            Swal.fire({ ...swalCfg, icon: 'success', title: '¡Verificación exitosa!', showConfirmButton: false, timer: 1200 });
+            stepCodigo.style.display = 'none';
+            if (data.redirect) setTimeout(() => { window.location.href = data.redirect; }, 1200);
+          }
+        } else {
+          btnReset(btnVerif, 'bi bi-check-circle', 'Verificar código');
+          mostrarError(data.code, data.message);
         }
+      })
+      .catch(() => {
+        btnReset(btnVerif, 'bi bi-check-circle', 'Verificar código');
+        Swal.fire({ ...swalCfg, icon: 'error', title: 'Error de red', text: 'No se pudo verificar. Intenta de nuevo.' });
+      });
+    });
 
-        if (btnReenviar) {
-            btnReenviar.addEventListener('click', function() {
-                btnReenviar.disabled = true;
-                fetch('/reenviar_codigo', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: ''
-                })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.success) {
-                        Swal.fire({
-                            icon: 'success',
-                            title: 'Código reenviado',
-                            text: 'El código fue reenviado a tu WhatsApp.',
-                            timer: 1500,
-                            showConfirmButton: false
-                        });
-                    } else {
-                        Swal.fire({
-                            icon: 'error',
-                            title: 'Error',
-                            text: data.message || 'No se pudo reenviar el código.'
-                        });
-                    }
-                    // Temporizador de 30 segundos
-                    let segundos = 30;
-                    btnReenviar.textContent = `Reenviar código (${segundos})`;
-                    const interval = setInterval(() => {
-                        segundos--;
-                        btnReenviar.textContent = `Reenviar código (${segundos})`;
-                        if (segundos <= 0) {
-                            clearInterval(interval);
-                            btnReenviar.textContent = 'Reenviar código';
-                            btnReenviar.disabled = false;
-                        }
-                    }, 1000);
-                })
-                .catch(() => {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Error',
-                        text: 'No se pudo reenviar el código.'
-                    });
-                    btnReenviar.disabled = false;
-                });
-            });
+    /* ── Reenviar código ── */
+    btnReenviar.addEventListener('click', function() {
+      btnReenviar.disabled = true;
+      fetch('/reenviar_codigo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: ''
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          Swal.fire({ ...swalCfg, icon: 'success', title: 'Código reenviado', text: 'Revisa tu WhatsApp.', timer: 1500, showConfirmButton: false });
+        } else {
+          Swal.fire({ ...swalCfg, icon: 'error', title: 'Error', text: data.message || 'No se pudo reenviar.' });
         }
-    </script>
+        let seg = 30;
+        const tick = setInterval(() => {
+          seg--;
+          btnReenviar.innerHTML = `<i class="bi bi-arrow-clockwise"></i> Reenviar código (${seg}s)`;
+          if (seg <= 0) {
+            clearInterval(tick);
+            btnReenviar.innerHTML = '<i class="bi bi-arrow-clockwise"></i> Reenviar código';
+            btnReenviar.disabled = false;
+          }
+        }, 1000);
+      })
+      .catch(() => {
+        Swal.fire({ ...swalCfg, icon: 'error', title: 'Error de red', text: 'No se pudo reenviar.' });
+        btnReenviar.disabled = false;
+      });
+    });
+  </script>
 </body>
-
 </html>

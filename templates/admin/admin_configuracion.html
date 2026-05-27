@@ -1,188 +1,236 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Configuración Global - WISP</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
-    <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.svg') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-    <style>
-        body {
-            background: #f7f9fb;
-        }
-        .admin-navbar {
-            background: #fff;
-            border-bottom: 1px solid #e5e7eb;
-        }
-        .admin-logo {
-            cursor: pointer;
-        }
-        .dashboard-title-no-box {
-            font-size: 2rem;
-            font-weight: 700;
-            color: #2563eb;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            margin-bottom: 2rem;
-            justify-content: center;
-        }
-        .card {
-            border-radius: 1.2rem;
-            box-shadow: 0 4px 24px 0 rgba(31, 38, 135, 0.07);
-            border: none;
-        }
-        .btn-outline-primary {
-            border-radius: 2rem;
-        }
-        .navbar {
-            background: #fff !important;
-            border-bottom: 1px solid #e5e7eb;
-            min-height: 70px;
-            box-shadow: 0 2px 8px 0 rgba(31,38,135,0.04);
-        }
-        .navbar-brand img {
-            height: 48px !important;
-            width: auto;
-            cursor: pointer;
-        }
-        .navbar .btn {
-            border-radius: 2rem !important;
-        }
-    </style>
-</head>
-<body>
-    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm fixed-top">
-        <div class="container-fluid d-flex justify-content-between align-items-center px-3">
-            <a class="navbar-brand" href="{{ url_for('admin.dashboard_admin') }}">
-                <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo">
-            </a>
-            <form id="form-logout-admin" class="mb-0">
-                <button type="submit" class="btn btn-outline-danger rounded-pill px-4">Cerrar Sesión</button>
-            </form>
-        </div>
-    </nav>
-    <div class="dashboard-bg">
-        <div class="dashboard-title-no-box">
-            <i class="bi bi-gear text-info"></i>
-            <span>Configuración Admin</span>
-        </div>
-        <div class="container-fluid maxw-1100">
-            <div class="card shadow p-4">
+{% extends "admin/base_admin.html" %}
+{% block title %}Configuración{% endblock %}
+{% block nav_config %}active{% endblock %}
 
-                <form id="form-cambiar-password-admin" autocomplete="off">
-                    <h5 class="mb-3"><i class="bi bi-lock"></i> Cambiar Contraseña de Administrador</h5>
-                    <div class="mb-3">
-                        <label for="password_actual" class="form-label">Contraseña Actual</label>
-                        <input type="password" class="form-control" id="password_actual" name="password_actual" required>
-                    </div>
-                    <div class="mb-3">
-                        <label for="nueva_password" class="form-label">Nueva Contraseña</label>
-                        <input type="password" class="form-control" id="nueva_password" name="nueva_password" required>
-                        <div class="form-text">La contraseña debe tener al menos 8 caracteres</div>
-                    </div>
-                    <div class="mb-3">
-                        <label for="confirmar_password" class="form-label">Confirmar Nueva Contraseña</label>
-                        <input type="password" class="form-control" id="confirmar_password" name="confirmar_password" required>
-                        <div class="form-check mt-2">
-                            <input class="form-check-input" type="checkbox" id="mostrarPasswordAdmin" onclick="togglePasswordAdmin()">
-                            <label class="form-check-label" for="mostrarPasswordAdmin">Mostrar contraseñas</label>
-                        </div>
-                    </div>
-                    <div class="d-grid">
-                        <button type="submit" class="btn btn-primary">Cambiar Contraseña</button>
-                    </div>
-                </form>
-            </div>
-            <div class="d-flex justify-content-center mt-3 mb-4">
-                <a href="{{ url_for('admin.dashboard_admin') }}" class="btn btn-outline-primary btn-lg rounded-pill px-4 shadow-sm">
-                    <i class="bi bi-house-door"></i> Volver al Dashboard
-                </a>
-            </div>
-        </div>
+{% block head %}
+<style>
+  .cfg-wrap {
+    max-width: 520px;
+  }
+
+  .cfg-card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.85rem;
+    overflow: hidden;
+    margin-bottom: 1.25rem;
+  }
+
+  .cfg-card-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid #f0f0f0;
+  }
+
+  .cfg-icon {
+    width: 36px; height: 36px;
+    border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1rem; flex-shrink: 0;
+    background: #fef2f2; color: #dc2626;
+  }
+
+  .cfg-card-title   { font-size: 0.95rem; font-weight: 700; color: #111; }
+  .cfg-card-subtitle { font-size: 0.78rem; color: #9ca3af; margin-top: 1px; }
+
+  .cfg-body { padding: 1.5rem 1.25rem; display: flex; flex-direction: column; gap: 1rem; }
+
+  /* Field */
+  .f-label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #374151;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.4rem;
+  }
+  .f-input-wrap { position: relative; }
+  .f-input {
+    width: 100%;
+    padding: 0.6rem 2.5rem 0.6rem 0.9rem;
+    font-size: 0.88rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.5rem;
+    background: #fff;
+    color: #111;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .f-input:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
+  }
+  .f-eye {
+    position: absolute;
+    right: 0.7rem; top: 50%;
+    transform: translateY(-50%);
+    background: none; border: none; cursor: pointer;
+    color: #9ca3af; padding: 0; line-height: 1;
+    font-size: 0.95rem;
+    transition: color 0.12s;
+  }
+  .f-eye:hover { color: #374151; }
+
+  .f-divider {
+    height: 1px;
+    background: #f3f4f6;
+    margin: 0.25rem 0;
+  }
+
+  /* Submit */
+  .cfg-submit {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.9rem 1.25rem;
+    border-top: 1px solid #f0f0f0;
+    background: #fafafa;
+  }
+  .cfg-hint {
+    font-size: 0.75rem;
+    color: #9ca3af;
+  }
+  .btn-cfg {
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    padding: 0.5rem 1.1rem;
+    font-size: 0.83rem; font-weight: 600;
+    font-family: inherit; cursor: pointer;
+    border-radius: 0.5rem; border: none;
+    background: #2563eb; color: #fff;
+    transition: background 0.15s, opacity 0.15s;
+  }
+  .btn-cfg:hover    { background: #1d4ed8; }
+  .btn-cfg:disabled { opacity: 0.55; cursor: not-allowed; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-topbar">
+  <div class="page-title">Configuración</div>
+</div>
+
+<div class="cfg-wrap">
+  <div class="cfg-card">
+
+    <div class="cfg-card-header">
+      <div class="cfg-icon"><i class="bi bi-lock-fill"></i></div>
+      <div>
+        <div class="cfg-card-title">Contraseña de administrador</div>
+        <div class="cfg-card-subtitle">Actualiza las credenciales de acceso</div>
+      </div>
     </div>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script src="{{ url_for('static', filename='session-timeout.js') }}"></script>
-    <script>
-        function togglePasswordAdmin() {
-            const pass1 = document.getElementById('nueva_password');
-            const pass2 = document.getElementById('confirmar_password');
-            const checkbox = document.getElementById('mostrarPasswordAdmin');
-            pass1.type = pass2.type = checkbox.checked ? 'text' : 'password';
-        }
-        const form = document.getElementById('form-cambiar-password-admin');
-        if (form) {
-            form.addEventListener('submit', async function(e) {
-                e.preventDefault();
-                Swal.fire({
-                    title: 'Procesando',
-                    html: '<div id="swal-mensaje">Cambiando contraseña...</div><div class="progress mt-3" style="height: 8px;"><div id="swal-barra" class="progress-bar bg-primary" role="progressbar" style="width: 0%"></div></div>',
-                    allowOutsideClick: false,
-                    allowEscapeKey: false,
-                    showConfirmButton: false,
-                    didOpen: () => { Swal.showLoading(); }
-                });
-                const barra = document.getElementById('swal-barra');
-                let barraInterval = null;
-                if (barra) {
-                    let progreso = 0;
-                    barra.style.width = '0%';
-                    barraInterval = setInterval(() => {
-                        progreso += 2;
-                        barra.style.width = progreso + '%';
-                        if (progreso >= 100) clearInterval(barraInterval);
-                    }, 100);
-                }
-                let formData = new FormData(form);
-                let data = {};
-                formData.forEach((value, key) => { data[key] = value; });
-                let resp = await fetch(window.location.origin + "{{ url_for('admin.cambiar_password') }}", {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                });
-                let res = await resp.json();
-                if (!res.success) {
-                    if (barraInterval) clearInterval(barraInterval);
-                    Swal.fire({ icon: 'error', title: 'Error', text: res.message || 'Error al cambiar la contraseña.' });
-                    return;
-                }
-                if (barra) barra.style.width = '100%';
-                await new Promise(r => setTimeout(r, 1000));
-                Swal.fire({
-                    icon: 'success',
-                    title: '¡Contraseña cambiada exitosamente!',
-                    showConfirmButton: false,
-                    timer: 1800
-                });
-                setTimeout(() => { window.location.reload(); }, 1800);
-            });
-        }
-        const formLogout = document.getElementById('form-logout-admin');
-        if (formLogout) {
-            formLogout.addEventListener('submit', async function(e) {
-                e.preventDefault();
-                let resp = await fetch("{{ url_for('admin.logout') }}", {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
-                });
-                let res = await resp.json();
-                if (res.success) {
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Sesión cerrada',
-                        showConfirmButton: false,
-                        timer: 1200
-                    });
-                    setTimeout(() => { window.location.href = res.redirect || '/admin/login'; }, 1200);
-                } else {
-                    Swal.fire({ icon: 'error', title: 'Error', text: res.message || 'No se pudo cerrar la sesión.' });
-                }
-            });
-        }
-    </script>
-</body>
-</html> 
+
+    <form id="form-pass" autocomplete="off">
+      <div class="cfg-body">
+
+        <div>
+          <label class="f-label" for="password_actual">Contraseña actual</label>
+          <div class="f-input-wrap">
+            <input class="f-input" type="password" id="password_actual" name="password_actual"
+                   placeholder="••••••••" required>
+            <button type="button" class="f-eye" tabindex="-1" onclick="toggleEye('password_actual', this)">
+              <i class="bi bi-eye"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="f-divider"></div>
+
+        <div>
+          <label class="f-label" for="nueva_password">Nueva contraseña</label>
+          <div class="f-input-wrap">
+            <input class="f-input" type="password" id="nueva_password" name="nueva_password"
+                   placeholder="Mínimo 8 caracteres" required>
+            <button type="button" class="f-eye" tabindex="-1" onclick="toggleEye('nueva_password', this)">
+              <i class="bi bi-eye"></i>
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <label class="f-label" for="confirmar_password">Confirmar nueva contraseña</label>
+          <div class="f-input-wrap">
+            <input class="f-input" type="password" id="confirmar_password" name="confirmar_password"
+                   placeholder="Repite la nueva contraseña" required>
+            <button type="button" class="f-eye" tabindex="-1" onclick="toggleEye('confirmar_password', this)">
+              <i class="bi bi-eye"></i>
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="cfg-submit">
+        <span class="cfg-hint"><i class="bi bi-shield-check" style="margin-right:3px;"></i>Mínimo 8 caracteres</span>
+        <button type="submit" class="btn-cfg" id="btn-submit">
+          <i class="bi bi-check-lg"></i> Actualizar
+        </button>
+      </div>
+    </form>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleEye(fieldId, btn) {
+  var inp = document.getElementById(fieldId);
+  var ico = btn.querySelector('i');
+  if (inp.type === 'password') {
+    inp.type = 'text';
+    ico.className = 'bi bi-eye-slash';
+  } else {
+    inp.type = 'password';
+    ico.className = 'bi bi-eye';
+  }
+}
+
+document.getElementById('form-pass').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  var nueva    = document.getElementById('nueva_password').value;
+  var confirma = document.getElementById('confirmar_password').value;
+
+  if (nueva.length < 8) {
+    Swal.fire({ icon: 'warning', title: 'Muy corta', text: 'La nueva contraseña debe tener al menos 8 caracteres.', confirmButtonColor: '#2563eb' });
+    return;
+  }
+  if (nueva !== confirma) {
+    Swal.fire({ icon: 'warning', title: 'No coinciden', text: 'La nueva contraseña y la confirmación no son iguales.', confirmButtonColor: '#2563eb' });
+    return;
+  }
+
+  var btn = document.getElementById('btn-submit');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm" style="width:13px;height:13px;border-width:2px;"></span> Guardando...';
+
+  try {
+    var resp = await fetch("{{ url_for('admin.cambiar_password') }}", {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        password_actual:    document.getElementById('password_actual').value,
+        nueva_password:     nueva,
+        confirmar_password: confirma
+      })
+    });
+    var res = await resp.json();
+    if (res.success) {
+      Swal.fire({ icon: 'success', title: '¡Contraseña actualizada!', timer: 1800, showConfirmButton: false });
+      this.reset();
+    } else {
+      Swal.fire({ icon: 'error', title: 'Error', text: res.message, confirmButtonColor: '#2563eb' });
+    }
+  } catch {
+    Swal.fire({ icon: 'error', title: 'Error de red', text: 'No se pudo conectar al servidor.', confirmButtonColor: '#2563eb' });
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-check-lg"></i> Actualizar';
+  }
+});
+</script>
+{% endblock %}

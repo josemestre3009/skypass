@@ -21,8 +21,8 @@ from services import ycloud, wisphub, genieacs
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY") or os.urandom(24)
-app.permanent_session_lifetime = timedelta(minutes=2)
-app.config['SESSION_REFRESH_EACH_REQUEST'] = False
+app.permanent_session_lifetime = timedelta(hours=8)
+app.config['SESSION_REFRESH_EACH_REQUEST'] = True
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE='Lax'
@@ -207,7 +207,9 @@ app.jinja_env.filters['formatear_fecha'] = formatear_fecha
 def index():
     if request.method == "GET":
         session.clear()
-        return render_template("users/user_login.html")
+        return render_template("users/user_login.html",
+                               empresa=os.getenv('EMPRESA', 'SkyPass'),
+                               soporte_wa=os.getenv('SOPORTE_WHATSAPP', ''))
 
     # Obtener IP real del cliente (soporta proxies como Nginx/Cloudflare)
     ip = request.headers.get('X-Forwarded-For', request.remote_addr)
@@ -264,6 +266,15 @@ def index():
     session.permanent = True
     session.pop('intentos_cedula', None)
     session.pop('bloqueo_cedula_hasta', None)
+
+    # Verificar que el equipo esté registrado en ACS antes de enviar el código
+    ip_cliente = cliente.get('ip') or cliente.get('ip_address', '')
+    if ip_cliente:
+        _, device_id = genieacs.obtener_estado_online_device(ip_cliente)
+        if not device_id:
+            return jsonify({'success': False, 'code': 'sin_acs',
+                            'nombre': cliente.get('nombre', ''),
+                            'cedula': cedula})
 
     whatsapp = ycloud.normalizar_numero(cliente.get('telefono', ''))
     if not whatsapp:
@@ -398,6 +409,7 @@ def dashboard():
     ssid_actual = ''
     password_actual = ''
 
+    # 1. Obtener estado del servicio desde Wisphub
     try:
         import requests as req
         resp = req.get(
@@ -430,10 +442,21 @@ def dashboard():
                         break
             if servicio_encontrado:
                 estado_servicio = servicio_encontrado.get('estado', '').lower()
-                ssid_actual     = servicio_encontrado.get('ssid_router_wifi', '')
-                password_actual = servicio_encontrado.get('password_ssid_router_wifi', '')
     except Exception:
         pass
+
+    # 2. Obtener SSID y contraseña reales desde GenieACS
+    try:
+        device = genieacs._get_svc().get_device_by_ip(ip_seleccionada)
+        if device:
+            # SSID: primera interfaz WiFi activa
+            ssid_actual = genieacs._get_svc().get_ssid_primary(device) or ''
+            # Contraseña: VirtualParameters.WlanPassword
+            password_actual = genieacs._get_svc()._get_param(device, "VirtualParameters.WlanPassword") or ''
+            if password_actual:
+                password_actual = str(password_actual)
+    except Exception as e:
+        print(f"[Dashboard] Error obteniendo WiFi de GenieACS: {e}")
 
     cambios_realizados = contar_cambios_usuario_mes(cliente['cedula'])
     return render_template(
@@ -639,6 +662,32 @@ def renovar_sesion():
     return '', 204
 
 
+@app.route('/api/mis_dispositivos')
+@cliente_requerido
+def mis_dispositivos():
+    ip = session.get('ip')
+    if not ip:
+        return jsonify({'success': False, 'count': 0, 'hosts': []})
+    try:
+        svc = genieacs._get_svc()
+        device_id = genieacs.obtener_device_id_por_ip(ip)
+        if not device_id:
+            return jsonify({'success': False, 'count': 0, 'hosts': [], 'message': 'Dispositivo no encontrado'})
+        device = svc.get_device_by_id(device_id)
+        if not device:
+            return jsonify({'success': False, 'count': 0, 'hosts': [], 'message': 'No se pudo leer el dispositivo'})
+        all_hosts = svc.get_merged_hosts(device) or []
+        active_hosts = [h for h in all_hosts if h.get('active', True)]
+        return jsonify({
+            'success': True,
+            'online': svc.is_online(device),
+            'count': len(active_hosts),
+            'hosts': active_hosts
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'count': 0, 'hosts': [], 'error': str(e)})
+
+
 # ===========================================================================
 #  █████╗ ██████╗ ███╗   ███╗██╗███╗   ██╗
 # ██╔══██╗██╔══██╗████╗ ████║██║████╗  ██║
@@ -653,10 +702,27 @@ def renovar_sesion():
 # Autenticación y decoradores admin
 # ---------------------------------------------------------------------------
 
+def requiere_api_key(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        api_key = os.getenv("SKYPASS_API_KEY")
+        if not api_key:
+            return jsonify({'success': False, 'message': 'API key no configurada en el servidor'}), 500
+        if request.headers.get("X-Api-Key") != api_key:
+            return jsonify({'success': False, 'message': 'API key inválida o ausente'}), 401
+        return f(*args, **kwargs)
+    return decorated
+
+
 def admin_requerido(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'admin_id' not in session:
+            is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest' or \
+                      request.accept_mimetypes.best == 'application/json' or \
+                      request.path.startswith('/api/')
+            if is_ajax:
+                return jsonify({'success': False, 'message': 'Sesión expirada. Inicia sesión de nuevo.'}), 401
             flash('Por favor inicie sesión como administrador', 'error')
             return redirect(url_for('admin.login'))
         return f(*args, **kwargs)
@@ -775,6 +841,7 @@ def login():
         result = verificar_admin(data.get('username'), data.get('password'))
         if result:
             clear_failed_attempts(ip)
+            session.permanent = True
             session['admin_autenticado'] = True
             session['admin_id'] = result['id']
             session['admin_username'] = result['email']
@@ -1291,21 +1358,15 @@ def cambiar_wifi_cliente():
         if not interfaces_activas:
             return jsonify({'success': False, 'message': 'No se encontraron interfaces WiFi activas en la ONU'})
 
-        cambiadas = []
-        for interfaz in interfaces_activas:
-            parametro = f"InternetGatewayDevice.LANDevice.1.WLANConfiguration.{interfaz}.KeyPassphrase"
-            if genieacs.cambiar_parametro_genieacs_sin_reinicio(device_id, parametro, nueva_password):
-                cambiadas.append(interfaz)
-
-        if not cambiadas:
-            return jsonify({'success': False,
-                            'message': f'Error al cambiar contraseña en todas las interfaces: {interfaces_activas}'})
-
-        genieacs.reiniciar_onu_genieacs(device_id)
+        ok, msg_cambio = genieacs.cambiar_contraseña_wifi_interfaces_ya_detectadas(
+            device_id, interfaces_activas, nueva_password
+        )
+        if not ok:
+            return jsonify({'success': False, 'message': msg_cambio})
         wisphub.actualizar_parametros(cedula, nueva_clave=nueva_password, ip_especifica=ip_a_usar)
         registrar_cambio(session['admin_id'], cedula, 'Password', 'Nueva')
         return jsonify({'success': True,
-                        'message': f'Contraseña WiFi aplicada en {len(cambiadas)} interfaz(es): {cambiadas}. La ONU se reiniciará automáticamente. Por favor espere unos minutos.'})
+                        'message': f'Contraseña WiFi aplicada en {len(interfaces_activas)} interfaz(es): {interfaces_activas}. La ONU se reiniciará automáticamente. Por favor espere unos minutos.'})
 
     return jsonify({'success': False, 'message': 'Acción no válida.'})
 
@@ -1353,6 +1414,120 @@ def api_device_id_por_ip():
         return jsonify({'found': False})
     except Exception:
         return jsonify({'found': False})
+
+
+@admin_bp.route('/api/acs_status')
+@admin_requerido
+def api_acs_status():
+    """Devuelve estado ACS (online/offline/no_encontrado) para una IP."""
+    ip = request.args.get('ip', '').strip()
+    if not ip:
+        return jsonify({'found': False})
+    try:
+        svc    = genieacs._get_svc()
+        device = svc.get_device_by_ip(ip)
+        if not device:
+            return jsonify({'found': False})
+        return jsonify({
+            'found':     True,
+            'online':    svc.is_online(device),
+            'device_id': device.get('_id', ''),
+        })
+    except Exception:
+        return jsonify({'found': False})
+
+
+@admin_bp.route('/api/ping')
+@admin_requerido
+def api_ping():
+    """Ejecuta ping desde GenieACS y devuelve el avg en ms."""
+    import re
+    import requests as req
+    ip = request.args.get('ip', '').strip()
+    if not ip:
+        return jsonify({'success': False, 'error': 'IP requerida'})
+    try:
+        genieacs_url = os.getenv('GENIEACS_API_URL', 'http://localhost:7557')
+        resp = req.get(f'{genieacs_url}/ping/{ip}', timeout=15)
+        text = resp.text
+        match = re.search(r'rtt min/avg/max/mdev = [\d.]+/([\d.]+)/[\d.]+/[\d.]+ ms', text)
+        loss_match = re.search(r'(\d+)% packet loss', text)
+        loss = int(loss_match.group(1)) if loss_match else 100
+        if match:
+            return jsonify({'success': True, 'avg': round(float(match.group(1)), 1), 'loss': loss})
+        return jsonify({'success': True, 'avg': None, 'loss': loss})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@admin_bp.route('/clientes')
+@admin_requerido
+def clientes():
+    return render_template('admin/clientes.html')
+
+
+@admin_bp.route('/api/wifi_password', methods=['POST'])
+@admin_requerido
+def api_wifi_password():
+    """Cambia la contraseña WiFi de un dispositivo por device_id."""
+    data          = request.get_json(silent=True) or {}
+    device_id     = (data.get('device_id') or '').strip()
+    nueva_password = (data.get('nueva_password') or '').strip()
+
+    if not device_id:
+        return jsonify({'success': False, 'message': 'device_id requerido'}), 400
+    if len(nueva_password) < 8:
+        return jsonify({'success': False, 'message': 'La contraseña debe tener al menos 8 caracteres'}), 400
+
+    interfaces = genieacs.detectar_interfaces_wifi_activas(device_id)
+    if not interfaces:
+        return jsonify({'success': False, 'message': 'No se encontraron interfaces WiFi en el dispositivo'})
+
+    ok, msg = genieacs.cambiar_contraseña_wifi_interfaces_ya_detectadas(device_id, interfaces, nueva_password)
+    return jsonify({'success': ok, 'message': msg})
+
+
+@admin_bp.route('/api/clientes')
+@admin_requerido
+def api_clientes():
+    """
+    Lista todos los clientes paginados con filtro unificado.
+    Params: page, page_size (10/20/50), q, force_refresh
+    Búsqueda por tokens sobre nombre + cédula + ip + teléfono simultáneamente.
+    """
+    page      = max(1, int(request.args.get('page', 1)))
+    page_size = min(int(request.args.get('page_size', 20)), 50)
+    q         = request.args.get('q', '').strip().lower()
+    force     = request.args.get('force_refresh', '0') == '1'
+
+    todos = wisphub.listar_todos(force_refresh=force)
+
+    if q:
+        tokens = q.split()
+        def matches(c):
+            haystack = ' '.join([
+                (c.get('nombre')   or '').lower(),
+                (c.get('cedula')   or '').lower(),
+                (c.get('ip')       or '').lower(),
+                (c.get('telefono') or '').lower(),
+            ])
+            return all(t in haystack for t in tokens)
+        todos = [c for c in todos if matches(c)]
+
+    total       = len(todos)
+    total_pages = max(1, -(-total // page_size))
+    page        = min(page, total_pages)
+    start       = (page - 1) * page_size
+    pagina      = todos[start: start + page_size]
+
+    return jsonify({
+        'success':     True,
+        'clientes':    pagina,
+        'total':       total,
+        'page':        page,
+        'page_size':   page_size,
+        'total_pages': total_pages,
+    })
 
 
 @admin_bp.route('/buscar-cliente')
@@ -1761,6 +1936,58 @@ def add_header(response):
 
 app.register_blueprint(admin_bp)
 app.register_blueprint(soporte_bp)
+
+
+# ---------------------------------------------------------------------------
+# API pública — autenticada con X-Api-Key
+# ---------------------------------------------------------------------------
+
+@app.route('/api/cambiar_wifi', methods=['POST'])
+@requiere_api_key
+def api_cambiar_wifi():
+    """
+    Body JSON:
+      { "ip": "1.2.3.4", "nueva_password": "MiClave123" }
+    Header:
+      X-Api-Key: <SKYPASS_API_KEY>
+    """
+    data = request.get_json(silent=True) or {}
+    ip            = (data.get('ip') or '').strip()
+    nueva_password = (data.get('nueva_password') or '').strip()
+
+    if not ip:
+        return jsonify({'success': False, 'message': 'El campo "ip" es obligatorio'}), 400
+    if not nueva_password:
+        return jsonify({'success': False, 'message': 'El campo "nueva_password" es obligatorio'}), 400
+    if len(nueva_password) < 8:
+        return jsonify({'success': False, 'message': 'La contraseña debe tener al menos 8 caracteres'}), 400
+
+    # 1. Buscar el dispositivo por VirtualParameters.IPTR069
+    svc = genieacs._get_svc()
+    device = svc.get_device_by_ip(ip)
+    if not device:
+        return jsonify({'success': False, 'message': f'No se encontró ningún dispositivo con IP {ip}'}), 404
+
+    device_id = device.get('_id')
+
+    # 2. Detectar interfaces WiFi activas
+    interfaces_activas = genieacs.detectar_interfaces_wifi_activas(device_id)
+    if not interfaces_activas:
+        return jsonify({'success': False, 'message': 'No se encontraron interfaces WiFi activas en el dispositivo'}), 422
+
+    # 3. Cambiar la contraseña en cada interfaz y reiniciar
+    ok, mensaje = genieacs.cambiar_contraseña_wifi_interfaces_ya_detectadas(
+        device_id, interfaces_activas, nueva_password
+    )
+    if not ok:
+        return jsonify({'success': False, 'message': mensaje}), 500
+
+    return jsonify({
+        'success': True,
+        'device_id': device_id,
+        'interfaces': interfaces_activas,
+        'message': mensaje,
+    })
 
 if __name__ == "__main__":
     app.run(debug=False)

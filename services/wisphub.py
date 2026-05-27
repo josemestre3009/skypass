@@ -1,8 +1,15 @@
 import os
+import time
+import concurrent.futures
 import requests
 
-API_KEY = os.getenv('API_KEY_WISPHUB')
+API_KEY  = os.getenv('API_KEY_WISPHUB')
 BASE_URL = os.getenv('BASE_URL_WISPHUB')
+
+# ── Cache en memoria (igual que soporte.py) ──────────────────────────────────
+_cache_clientes: list  = []
+_cache_ts: float       = 0.0
+_CACHE_TTL             = 300   # 5 minutos
 
 
 def _headers():
@@ -126,6 +133,81 @@ def buscar_por_cedula_parcial(q, timeout=6):
     except Exception as e:
         print(f"[WispHub] Error buscando por cédula '{q}': {e}")
         return []
+
+
+def _extraer(c: dict) -> list[dict]:
+    """Normaliza un cliente de WispHub a lista de filas (una por servicio con IP)."""
+    base = {
+        'nombre':   c.get('nombre', ''),
+        'cedula':   c.get('cedula', ''),
+        'telefono': c.get('telefono', '') or c.get('celular', ''),
+    }
+    servicios = c.get('servicios', [])
+    if servicios:
+        rows = []
+        for s in servicios:
+            ip = s.get('ip', '')
+            if ip:
+                rows.append({**base, 'ip': ip})
+        return rows
+    ip = c.get('ip') or c.get('ip_address') or ''
+    return [{**base, 'ip': ip}] if ip else [{**base, 'ip': ''}]
+
+
+def listar_todos(force_refresh: bool = False) -> list:
+    """
+    Devuelve todos los clientes normalizados usando la misma lógica de soporte:
+    limit/offset con fetch paralelo y caché de 5 min.
+    """
+    global _cache_clientes, _cache_ts
+    if not force_refresh and _cache_clientes and (time.time() - _cache_ts) < _CACHE_TTL:
+        return _cache_clientes
+
+    LIMIT = 300
+
+    def fetch_offset(offset: int) -> list:
+        try:
+            r = requests.get(
+                BASE_URL, headers=_headers(),
+                params={'limit': LIMIT, 'offset': offset}, timeout=15
+            )
+            if r.status_code == 200:
+                return r.json().get('results', [])
+        except Exception as e:
+            print(f'[WispHub] Error offset {offset}: {e}')
+        return []
+
+    try:
+        primera = requests.get(
+            BASE_URL, headers=_headers(),
+            params={'limit': LIMIT, 'offset': 0}, timeout=15
+        )
+        if primera.status_code != 200:
+            return _cache_clientes
+
+        data       = primera.json()
+        results    = data.get('results', [])
+        total      = data.get('count', 0)
+        todos_raw  = list(results)
+
+        if total > LIMIT:
+            offsets = range(LIMIT, total, LIMIT)
+            with concurrent.futures.ThreadPoolExecutor(max_workers=5) as ex:
+                for partial in ex.map(fetch_offset, offsets):
+                    todos_raw.extend(partial)
+
+        todos = []
+        for c in todos_raw:
+            todos.extend(_extraer(c))
+
+        _cache_clientes = todos
+        _cache_ts       = time.time()
+        print(f'[WispHub] listar_todos: {len(todos)} registros cargados')
+        return todos
+
+    except Exception as e:
+        print(f'[WispHub] Error en listar_todos: {e}')
+        return _cache_clientes
 
 
 def actualizar_parametros(cedula, nueva_clave=None, nuevo_ssid=None, ip_especifica=None):

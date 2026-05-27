@@ -377,6 +377,9 @@
                         <button class="btn btn-sm" style="padding:0.25rem 0.5rem;border:1px solid #e5e7eb;border-radius:0.4rem;background:#fff;color:#3b82f6;" onclick="verDetalle('${d.device_id}')" title="Ver detalle">
                             <i class="bi bi-eye"></i>
                         </button>
+                        <button class="btn btn-sm" style="padding:0.25rem 0.5rem;border:1px solid #e9d5ff;border-radius:0.4rem;background:#faf5ff;color:#7c3aed;" onclick="pingDevice('${d.ip}', this)" title="Ping">
+                            <i class="bi bi-reception-4"></i>
+                        </button>
                         <button class="btn btn-sm" style="padding:0.25rem 0.5rem;border:1px solid #e5e7eb;border-radius:0.4rem;background:#fff;color:#10b981;" onclick="summonDevice('${d.device_id}')" title="Summon (Forzar Conexión)">
                             <i class="bi bi-arrow-repeat"></i>
                         </button>
@@ -441,6 +444,38 @@
 
     function verDetalle(deviceId) {
         window.location.href = '/admin/dispositivo/' + encodeURIComponent(deviceId);
+    }
+
+    async function pingDevice(ip, btn) {
+        if (!ip) {
+            Swal.fire({ icon: 'warning', title: 'Sin IP', text: 'Este dispositivo no tiene IP asignada.', timer: 1800, showConfirmButton: false });
+            return;
+        }
+        const orig = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="bi bi-reception-4" style="animation:spin .7s linear infinite;display:inline-block;"></i>';
+        try {
+            const resp = await fetch(`/admin/api/ping?ip=${encodeURIComponent(ip)}`);
+            const data = await resp.json();
+            if (data.success && data.avg !== null) {
+                const c = data.avg < 50 ? '#15803d' : data.avg < 150 ? '#d97706' : '#dc2626';
+                Swal.fire({
+                    icon: 'success',
+                    title: `Ping · ${ip}`,
+                    html: `<div style="font-size:2.2rem;font-weight:800;color:${c};line-height:1;">${data.avg} ms</div>
+                           <div style="color:#6b7280;font-size:0.82rem;margin-top:6px;">Pérdida: ${data.loss}%</div>`,
+                    timer: 3500,
+                    showConfirmButton: false,
+                });
+            } else {
+                Swal.fire({ icon: 'error', title: `Sin respuesta · ${ip}`, text: `Pérdida de paquetes: ${data.loss ?? 100}%`, timer: 2500, showConfirmButton: false });
+            }
+        } catch {
+            Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo ejecutar el ping.', timer: 2000, showConfirmButton: false });
+        } finally {
+            btn.innerHTML = orig;
+            btn.disabled = false;
+        }
     }
 
     function eliminarDevice(deviceId, ip) {

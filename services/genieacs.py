@@ -445,20 +445,42 @@ class GenieACService:
     def set_wifi_password(self, device_id: str, interfaces: list[dict],
                           password: str) -> dict:
         """
-        Setea las 3 rutas de contraseña + modo auth en una sola tarea
-        para cubrir todos los modelos de ONU (ZTE, Huawei, etc.).
+        Tarea 1 (obligatoria, connection_request): solo KeyPassphrase — funciona
+        en todos los modelos. Si falla, se retorna el error sin continuar.
+
+        Tarea 2 (opcional, encolada): PreSharedKey + auth mode. Algunos modelos
+        los rechazan con fault 9007 porque son read-only; al ir en tarea separada
+        ese fallo no contamina la tarea principal.
         """
-        params = []
+        params_required = []
+        params_optional = []
         for iface in interfaces:
             p = iface["path"]
-            params += [
-                (f"{p}.KeyPassphrase",                password,            "xsd:string"),
+            params_required.append(
+                (f"{p}.KeyPassphrase", password, "xsd:string")
+            )
+            params_optional += [
                 (f"{p}.PreSharedKey.1.KeyPassphrase", password,            "xsd:string"),
                 (f"{p}.PreSharedKey.1.PreSharedKey",  password,            "xsd:string"),
                 (f"{p}.WPAAuthenticationMode",        "PSKAuthentication", "xsd:string"),
                 (f"{p}.WPAEncryptionModes",           "AESEncryption",     "xsd:string"),
             ]
-        return self.set_parameter_values(device_id, params)
+
+        # Tarea obligatoria — con connection_request para ejecución inmediata
+        r = self.set_parameter_values(device_id, params_required)
+        if not r["success"]:
+            return r
+
+        # Tarea opcional — encolada, sin connection_request; fallo se ignora
+        try:
+            self._post_task(device_id, {
+                "name":            "setParameterValues",
+                "parameterValues": [list(p) for p in params_optional],
+            }, connection_request=False)
+        except Exception:
+            pass
+
+        return r
 
     def set_wifi_ssid(self, device_id: str, interfaces: list[dict], ssid: str) -> dict:
         """Añade sufijos -2.4GHz / -5GHz automáticamente si hay 2 interfaces."""
@@ -474,9 +496,10 @@ class GenieACService:
             params.append((f"{iface['path']}.SSID", final, "xsd:string"))
         return self.set_parameter_values(device_id, params)
 
-    def reboot_device(self, device_id: str) -> dict:
-        # SIN connection_request — se encola después de los setParameterValues
-        return self._post_task(device_id, {"name": "reboot"}, connection_request=False)
+    def reboot_device(self, device_id: str, force: bool = False) -> dict:
+        # force=True usa connection_request para contactar la ONU de inmediato.
+        # force=False encola el reboot para que se procese en el próximo inform.
+        return self._post_task(device_id, {"name": "reboot"}, connection_request=force)
 
     def delete_device(self, device_id: str) -> dict:
         encoded = self._encode_id(device_id)
@@ -584,7 +607,7 @@ def cambiar_contraseña_wifi_interfaces_ya_detectadas(
         ifaces = [{"index": i, "path": f"{base}.{i}"} for i in interfaces_activas]
         r      = svc.set_wifi_password(device_id, ifaces, password)
         if r["success"]:
-            svc.reboot_device(device_id)
+            svc.reboot_device(device_id, force=True)
             return True, f"Contraseña WiFi aplicada en {len(ifaces)} interfaz(es): {interfaces_activas}"
         return False, r.get("error", "Error al cambiar contraseña")
     except Exception as e:
@@ -606,7 +629,7 @@ def cambiar_nombre_red_wifi_inteligente(
         if not r["success"]:
             return False, r.get("error", "Error al cambiar nombre")
 
-        svc.reboot_device(device_id)
+        svc.reboot_device(device_id, force=True)
         dual = len(ifaces) == 2
         lines = []
         for iface in sorted(ifaces, key=lambda x: x["frequency"]):

@@ -1,150 +1,331 @@
 <!DOCTYPE html>
 <html lang="es">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login Administrador - WISP</title>
-    <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.svg') }}">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
-    <style>
-        body {
-            background: #f7f9fb;
-            min-height: 100vh;
-        }
-        .login-card {
-            border-radius: 1.2rem;
-            box-shadow: 0 4px 24px 0 rgba(31,38,135,0.07);
-            background: #fff;
-            max-width: 370px;
-            margin: 0 auto;
-            padding: 1.2rem 2rem 2.2rem 2rem;
-        }
-        .logo-img {
-            width: 200px;
-            height: 200px;
-            object-fit: contain;
-            display: block;
-            margin: 0 auto 0.2rem auto;
-        }
-        .login-title {
-            font-size: 2rem;
-            font-weight: 700;
-            color: #2563eb;
-            margin-bottom: 0.2rem;
-        }
-        .login-subtitle {
-            color: #6c757d;
-            font-size: 1rem;
-            margin-bottom: 1.2rem;
-        }
-        .form-control, .input-group-text {
-            border-radius: 2rem !important;
-        }
-        .btn-primary {
-            background: #2563eb;
-            border-radius: 2rem;
-            border: none;
-            font-weight: 600;
-        }
-        .btn-primary:hover {
-            background: #1746a2;
-        }
-        @media (max-width: 576px) {
-            .login-card {
-                padding: 1rem;
-            }
-        }
-        .login-outer {
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding-top: 60px;
-            padding-bottom: 40px;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Administrador · {{ empresa }}</title>
+  <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary:    #2563eb;
+      --primary-dk: #1d4ed8;
+      --primary-lt: rgba(37,99,235,0.08);
+      --bg:         #eef2f7;
+      --surface:    #ffffff;
+      --border:     #e2e8f0;
+      --border2:    #cbd5e1;
+      --text:       #0f172a;
+      --text2:      #334155;
+      --muted:      #64748b;
+      --radius:     14px;
+      --shadow:     0 8px 32px rgba(15,23,42,0.10);
+      --tr:         0.17s ease;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg);
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px 16px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* fondo con patrón sutil */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 20% 10%, rgba(37,99,235,0.07) 0%, transparent 70%),
+        radial-gradient(ellipse 60% 50% at 80% 90%, rgba(37,99,235,0.05) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    /* ── Card ── */
+    .card {
+      position: relative;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      width: 100%;
+      max-width: 420px;
+      padding: 40px 36px 36px;
+      animation: fadeUp 0.35s ease both;
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(18px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* barra superior de color */
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--primary), #60a5fa);
+      border-radius: var(--radius) var(--radius) 0 0;
+    }
+
+    /* ── Logo ── */
+    .logo-wrap {
+      text-align: center;
+      margin-bottom: 28px;
+    }
+    .logo-wrap img {
+      height: 64px;
+      width: auto;
+      object-fit: contain;
+    }
+
+    /* ── Encabezado ── */
+    .eyebrow {
+      font-size: 0.67rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--primary);
+      margin-bottom: 4px;
+    }
+    .title {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1.25;
+      margin-bottom: 4px;
+    }
+    .subtitle {
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin-bottom: 28px;
+    }
+
+    /* ── Campo ── */
+    .field { margin-bottom: 18px; }
+    .field > label {
+      display: block;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--text2);
+      margin-bottom: 7px;
+    }
+    .input-wrap { position: relative; }
+    .input-wrap .ico {
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--muted);
+      font-size: 1rem;
+      pointer-events: none;
+      line-height: 1;
+    }
+    .input-wrap input {
+      width: 100%;
+      height: 48px;
+      padding: 0 44px;
+      border: 1.5px solid var(--border2);
+      border-radius: 10px;
+      font-size: 0.95rem;
+      font-family: inherit;
+      color: var(--text);
+      background: #f8fafc;
+      outline: none;
+      transition: border-color var(--tr), box-shadow var(--tr), background var(--tr);
+      -webkit-appearance: none;
+    }
+    .input-wrap input:focus {
+      border-color: var(--primary);
+      background: var(--surface);
+      box-shadow: 0 0 0 3px var(--primary-lt);
+    }
+    .input-wrap input::placeholder { color: #b0bec5; }
+
+    /* ojo contraseña */
+    .eye-btn {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--muted);
+      padding: 6px;
+      border-radius: 6px;
+      line-height: 1;
+      font-size: 1rem;
+      transition: color var(--tr);
+      display: flex;
+      align-items: center;
+    }
+    .eye-btn:hover { color: var(--primary); }
+
+    /* ── Botón submit ── */
+    .btn-submit {
+      width: 100%;
+      height: 50px;
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: background var(--tr), box-shadow var(--tr), transform var(--tr);
+      margin-top: 6px;
+      letter-spacing: .01em;
+    }
+    .btn-submit:hover  {
+      background: var(--primary-dk);
+      box-shadow: 0 4px 14px rgba(37,99,235,0.35);
+    }
+    .btn-submit:active { transform: scale(0.98); }
+
+    /* ── Footer ── */
+    .card-footer {
+      margin-top: 24px;
+      padding-top: 18px;
+      border-top: 1px solid var(--border);
+      text-align: center;
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 480px) {
+      .card { padding: 32px 22px 28px; }
+      .title { font-size: 1.25rem; }
+    }
+  </style>
 </head>
-
 <body>
-    <div class="login-outer">
-        <div class="col-12 col-sm-10 col-md-7 col-lg-5">
-            <div class="card login-card p-4">
-                <div class="text-center mb-3">
-                    <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo" class="logo-img mb-2">
-                    <div class="login-title">Panel Administrativo</div>
-                    <div class="login-subtitle">Acceso exclusivo para administradores</div>
-                </div>
-               
-                <form id="form-login-admin" autocomplete="off">
-                    <div class="mb-3">
-                        <label for="username" class="form-label">Usuario</label>
-                        <div class="input-group">
-                            <span class="input-group-text"><i class="bi bi-person"></i></span>
-                            <input type="text" class="form-control" id="username" name="username" placeholder="Usuario" required autofocus>
-                        </div>
-                    </div>
-                    <div class="mb-3">
-                        <label for="password" class="form-label">Contraseña</label>
-                        <div class="input-group">
-                            <span class="input-group-text"><i class="bi bi-lock"></i></span>
-                            <input type="password" class="form-control" id="password" name="password" placeholder="Contraseña" required>
-                        </div>
-                        <div class="form-check mt-2">
-                            <input class="form-check-input" type="checkbox" id="mostrarPassword" onclick="togglePassword()">
-                            <label class="form-check-label" for="mostrarPassword">Mostrar contraseña</label>
-                        </div>
-                    </div>
-                    <div class="d-grid gap-2">
-                        <button type="submit" class="btn btn-primary btn-lg">Ingresar</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script>
-        function togglePassword() {
-            const passwordInput = document.getElementById('password');
-            const checkbox = document.getElementById('mostrarPassword');
-            passwordInput.type = checkbox.checked ? 'text' : 'password';
-        }
-        const form = document.getElementById('form-login-admin');
-        if (form) {
-            form.addEventListener('submit', async function(e) {
-                e.preventDefault();
-                Swal.fire({
-                    title: 'Ingresando...',
-                    allowOutsideClick: false,
-                    allowEscapeKey: false,
-                    showConfirmButton: false,
-                    didOpen: () => { Swal.showLoading(); }
-                });
-                let formData = new FormData(form);
-                let data = {};
-                formData.forEach((value, key) => { data[key] = value; });
-                let resp = await fetch(window.location.origin + "{{ url_for('admin.login') }}", {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                });
-                let res = await resp.json();
-                if (!res.success) {
-                    Swal.fire({ icon: 'error', title: 'Error', text: res.message || 'Credenciales incorrectas.' });
-                    return;
-                }
-                Swal.fire({
-                    icon: 'success',
-                    title: '¡Bienvenido!',
-                    showConfirmButton: false,
-                    timer: 1200
-                });
-                setTimeout(() => { window.location.href = res.redirect || '/admin/dashboard'; }, 1200);
-            });
-        }
-    </script>
-</body>
 
+  <div class="card">
+
+    <div class="logo-wrap">
+      <img src="{{ url_for('static', filename='logo.png') }}" alt="{{ empresa }}"
+           onerror="this.style.display='none'">
+    </div>
+
+    <p class="eyebrow">Panel administrativo</p>
+    <h1 class="title">Bienvenido de vuelta</h1>
+    <p class="subtitle">Ingresa tus credenciales para acceder.</p>
+
+    <form id="form-login" autocomplete="off" novalidate>
+
+      <div class="field">
+        <label for="username">Usuario</label>
+        <div class="input-wrap">
+          <i class="bi bi-person ico"></i>
+          <input type="text" id="username" name="username"
+                 placeholder="Usuario o correo electrónico"
+                 required autofocus autocomplete="username">
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="password">Contraseña</label>
+        <div class="input-wrap">
+          <i class="bi bi-lock ico"></i>
+          <input type="password" id="password" name="password"
+                 placeholder="••••••••"
+                 required autocomplete="current-password">
+          <button type="button" class="eye-btn" id="eye-btn" aria-label="Mostrar/ocultar contraseña">
+            <i class="bi bi-eye" id="eye-icon"></i>
+          </button>
+        </div>
+      </div>
+
+      <button type="submit" class="btn-submit" id="btn-ingresar">
+        <i class="bi bi-arrow-right-circle"></i> Ingresar
+      </button>
+
+    </form>
+
+    <div class="card-footer">
+      Acceso restringido · Solo personal autorizado
+    </div>
+
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script>
+    /* ── Mostrar/ocultar contraseña ── */
+    document.getElementById('eye-btn').addEventListener('click', function() {
+      const input = document.getElementById('password');
+      const icon  = document.getElementById('eye-icon');
+      if (input.type === 'password') {
+        input.type     = 'text';
+        icon.className = 'bi bi-eye-slash';
+      } else {
+        input.type     = 'password';
+        icon.className = 'bi bi-eye';
+      }
+      input.focus();
+    });
+
+    /* ── Submit ── */
+    document.getElementById('form-login').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const btn = document.getElementById('btn-ingresar');
+      btn.disabled = true;
+      btn.innerHTML = '<span style="width:18px;height:18px;border:2.5px solid rgba(255,255,255,0.4);border-top-color:#fff;border-radius:50%;display:inline-block;animation:spin .7s linear infinite"></span> Verificando…';
+
+      const data = {};
+      new FormData(this).forEach((v, k) => data[k] = v);
+
+      try {
+        const resp = await fetch("{{ url_for('admin.login') }}", {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+        const res = await resp.json();
+
+        if (!res.success) {
+          Swal.fire({
+            icon: 'error',
+            title: 'Acceso denegado',
+            text: res.message || 'Credenciales incorrectas.',
+            confirmButtonColor: '#2563eb',
+            confirmButtonText: 'Intentar de nuevo'
+          });
+          btn.disabled = false;
+          btn.innerHTML = '<i class="bi bi-arrow-right-circle"></i> Ingresar';
+          return;
+        }
+
+        btn.innerHTML = '<i class="bi bi-check-circle"></i> ¡Bienvenido!';
+        setTimeout(() => { window.location.href = res.redirect || '/admin/dashboard'; }, 800);
+
+      } catch {
+        Swal.fire({ icon: 'error', title: 'Error de red', text: 'No se pudo conectar. Intenta de nuevo.', confirmButtonColor: '#2563eb' });
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-arrow-right-circle"></i> Ingresar';
+      }
+    });
+  </script>
+
+  <style>
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</body>
 </html>
