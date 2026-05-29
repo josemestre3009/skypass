@@ -194,7 +194,8 @@ class GenieACService:
             status = self._get_param(device, f"{path}.Status")
             if ssid is None:
                 continue
-            if not (enable is True or status == "Up"):
+            if not (enable is True or enable == "true" or enable == 1
+                    or str(enable).lower() == "true" or status == "Up"):
                 continue
             ch = (self._get_param(device, f"{path}.Channel") or
                   self._get_param(device, f"{path}.ChannelsInUse"))
@@ -511,6 +512,84 @@ class GenieACService:
             return {"success": resp.ok, "http_code": resp.status_code}
         except Exception as e:
             return {"success": False, "error": str(e)}
+
+    def limpiar_duplicados_ip(self) -> dict:
+        """
+        Detecta dispositivos con la misma IP WAN en GenieACS.
+        Si en un grupo hay al menos uno online y otros offline,
+        elimina los offline. Nunca toca grupos donde todos están offline.
+
+        Retorna:
+          { "duplicados_encontrados": int,
+            "eliminados": [{"device_id": str, "ip": str}],
+            "errores":    [{"device_id": str, "ip": str, "error": str}] }
+        """
+        ip_url_re = re.compile(r'https?://(\d{1,3}(?:\.\d{1,3}){3}):')
+
+        proj = ",".join([
+            "_id", "_lastInform",
+            "VirtualParameters.IPTR069",
+            "InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANIPConnection.1.ExternalIPAddress",
+            "InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.1.ExternalIPAddress",
+            "InternetGatewayDevice.ManagementServer.ConnectionRequestURL",
+        ])
+
+        devices = self.get_all_devices(projection=proj)
+
+        ip_map: dict[str, list[dict]] = {}
+        for d in devices:
+            device_id = d.get("_id")
+            if not device_id:
+                continue
+
+            ip = (
+                self._get_param(d, "VirtualParameters.IPTR069") or
+                self._get_param(d, "InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANIPConnection.1.ExternalIPAddress") or
+                self._get_param(d, "InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.1.ExternalIPAddress")
+            )
+            if not ip:
+                cr_url = self._get_param(d, "InternetGatewayDevice.ManagementServer.ConnectionRequestURL")
+                if cr_url:
+                    m = ip_url_re.search(str(cr_url))
+                    if m:
+                        ip = m.group(1)
+            if not ip:
+                continue
+
+            ip_map.setdefault(ip, []).append({
+                "device_id": device_id,
+                "is_online": self.is_online(d),
+            })
+
+        eliminados: list[dict] = []
+        errores:    list[dict] = []
+        duplicados = 0
+
+        for ip, group in ip_map.items():
+            if len(group) < 2:
+                continue
+            online_devs  = [e for e in group if     e["is_online"]]
+            offline_devs = [e for e in group if not e["is_online"]]
+            # Solo actuar si hay al menos uno online y al menos uno offline
+            if not online_devs or not offline_devs:
+                continue
+            duplicados += 1
+            for entry in offline_devs:
+                result = self.delete_device(entry["device_id"])
+                if result.get("success"):
+                    eliminados.append({"device_id": entry["device_id"], "ip": ip})
+                else:
+                    errores.append({
+                        "device_id": entry["device_id"],
+                        "ip":        ip,
+                        "error":     result.get("error") or f"HTTP {result.get('http_code')}",
+                    })
+
+        return {
+            "duplicados_encontrados": duplicados,
+            "eliminados":             eliminados,
+            "errores":                errores,
+        }
 
 
 # =============================================================================

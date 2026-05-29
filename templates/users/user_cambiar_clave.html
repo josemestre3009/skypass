@@ -1,410 +1,431 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta charset="UTF-8">
-    <title>Cambiar Contraseña</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-    <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.svg') }}">
-    <style>
-        body { background: #f7f9fb; }
-        .navbar { background: #fff !important; border-bottom: 1px solid #e5e7eb; min-height: 70px; box-shadow: 0 2px 8px 0 rgba(31,38,135,0.04); }
-        .navbar-brand img { height: 48px !important; width: auto; cursor: pointer; }
-        .navbar .btn { border-radius: 2rem !important; }
-        .main-box { max-width: 500px; margin: 100px auto 0 auto; }
-        .card { border-radius: 1.2rem; box-shadow: 0 4px 24px 0 rgba(31,38,135,0.07); border: none; }
-        .btn-outline-primary, .btn-secondary, .btn-success { border-radius: 2rem !important; }
-        .titulo { font-size: 2rem; font-weight: 700; color: #2563eb; display: flex; align-items: center; gap: 0.5rem; margin-bottom: 2rem; justify-content: center; }
-        /* Fondo semitransparente para el modal */
-        .modal-backdrop.show {
-            opacity: 0.5 !important;
-            background: #fff !important;
-        }
-        /* Barra de progreso fluida */
-        .progress-bar-animated-custom {
-            animation: progressBarAnim 5s linear forwards;
-            background: #2563eb !important;
-        }
-        @keyframes progressBarAnim {
-            from { width: 0%; }
-            to { width: 100%; }
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cambiar Contraseña WiFi</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --primary:    #2563eb;
+      --primary-dk: #1d4ed8;
+      --success:    #16a34a;
+      --danger:     #dc2626;
+      --bg:         #f5f7fa;
+      --surface:    #ffffff;
+      --border:     #e5e7eb;
+      --border2:    #d1d5db;
+      --text:       #111827;
+      --text2:      #374151;
+      --muted:      #6b7280;
+      --radius:     12px;
+      --shadow-sm:  0 1px 3px rgba(0,0,0,0.06);
+      --shadow:     0 4px 16px rgba(0,0,0,0.08);
+      --tr:         0.18s ease;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; -webkit-font-smoothing: antialiased; }
+
+    /* Navbar */
+    .sp-navbar {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      height: 62px; display: flex; align-items: center;
+      padding: 0 24px; gap: 12px;
+      box-shadow: var(--shadow-sm);
+    }
+    .sp-navbar .logo { height: 42px; width: auto; border-radius: 8px; }
+    .sp-navbar .ml-auto { margin-left: auto; }
+
+    /* Layout */
+    main { padding: 88px 16px 48px; max-width: 520px; margin: 0 auto; }
+
+    /* Page header */
+    .page-header { margin-bottom: 24px; }
+    .page-back {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 0.82rem; font-weight: 600; color: var(--muted);
+      text-decoration: none; margin-bottom: 14px; transition: color var(--tr);
+    }
+    .page-back:hover { color: var(--primary); }
+    .page-title { font-size: 1.45rem; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 10px; }
+    .page-title .page-icon {
+      width: 40px; height: 40px; border-radius: 10px;
+      background: #eff6ff; display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem; color: var(--primary); flex-shrink: 0;
+    }
+    .page-sub { font-size: 0.83rem; color: var(--muted); margin-top: 5px; margin-left: 50px; }
+
+    /* Form card */
+    .form-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); box-shadow: var(--shadow-sm);
+      padding: 28px 28px 24px;
+    }
+
+    /* Form fields */
+    .field-group { margin-bottom: 18px; }
+    .field-label {
+      display: block; font-size: 0.78rem; font-weight: 600;
+      color: var(--text2); margin-bottom: 6px; letter-spacing: .02em;
+    }
+    .field-wrap { position: relative; }
+    .field-input {
+      width: 100%; padding: 10px 14px; font-size: 0.9rem; font-family: inherit;
+      color: var(--text); background: var(--bg); border: 1px solid var(--border2);
+      border-radius: 8px; outline: none; transition: border-color var(--tr), box-shadow var(--tr);
+      appearance: none;
+    }
+    .field-input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(37,99,235,0.12);
+      background: var(--surface);
+    }
+    .field-input.has-toggle { padding-right: 44px; }
+
+    .toggle-visibility {
+      position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+      background: none; border: none; cursor: pointer; color: var(--muted);
+      font-size: 0.95rem; padding: 2px 4px; border-radius: 4px;
+      transition: color var(--tr); line-height: 1;
+    }
+    .toggle-visibility:hover { color: var(--text); }
+
+    /* Show password toggle */
+    .show-toggle {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 22px; cursor: pointer; width: fit-content;
+    }
+    .show-toggle input[type="checkbox"] {
+      width: 16px; height: 16px; accent-color: var(--primary); cursor: pointer;
+    }
+    .show-toggle span { font-size: 0.82rem; color: var(--muted); font-weight: 500; user-select: none; }
+
+    /* Divider */
+    .form-divider { height: 1px; background: var(--border); margin: 20px 0; }
+
+    /* Buttons */
+    .btn-sp {
+      display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+      padding: 10px 22px; border-radius: 999px; font-size: 0.88rem;
+      font-weight: 600; font-family: inherit; cursor: pointer;
+      border: 1px solid transparent; text-decoration: none; transition: all var(--tr);
+      white-space: nowrap;
+    }
+    .btn-sp-primary {
+      background: var(--primary); color: #fff; border-color: var(--primary);
+    }
+    .btn-sp-primary:hover { background: var(--primary-dk); border-color: var(--primary-dk); color: #fff; }
+    .btn-sp-primary:disabled { opacity: 0.55; cursor: not-allowed; }
+    .btn-sp-ghost {
+      background: transparent; color: var(--muted); border-color: var(--border2);
+    }
+    .btn-sp-ghost:hover { color: var(--text); border-color: var(--border); background: var(--bg); }
+    .btn-sp-danger { background: #fee2e2; color: #b91c1c; border-color: #fca5a5; }
+    .btn-sp-danger:hover { background: #fecaca; }
+
+    .btn-row { display: flex; gap: 10px; flex-wrap: wrap; }
+    .btn-row .btn-sp-primary { flex: 1; min-width: 120px; }
+
+    /* Password strength hint */
+    .field-hint { font-size: 0.75rem; color: var(--muted); margin-top: 5px; }
+
+    @media (max-width: 560px) {
+      main { padding-top: 80px; }
+      .form-card { padding: 20px 16px 18px; }
+      .btn-row { flex-direction: column; }
+      .btn-row .btn-sp { width: 100%; }
+    }
+  </style>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm fixed-top">
-        <div class="container-fluid d-flex justify-content-between align-items-center px-3">
-            <a class="navbar-brand" href="{{ url_for('dashboard') }}">
-                <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo">
-            </a>
-            <form method="POST" action="{{ url_for('cerrar_sesion') }}" class="mb-0">
-                <button class="btn btn-outline-danger rounded-pill px-4" type="submit">Cerrar Sesión</button>
-            </form>
-        </div>
-    </nav>
-    <div class="main-box">
 
-        <div class="card p-4">
-            <div class="titulo">🔒 Cambiar Contraseña de la Red Wifi</div>
-            
-            {% if error %}
-                <div class="alert alert-danger" role="alert">
-                    <strong>⚠️ Error:</strong> {{ error }}
-                </div>
-            {% elif device_info %}
-                <div class="alert alert-success" role="alert">
-                    <strong>✅ Dispositivo Detectado:</strong><br>
-                    📡 <strong>Device ID:</strong> {{ device_info.device_id }}<br>
-                    🔌 <strong>Interfaces WiFi Activas:</strong> {{ device_info.interfaces_activas|join(', ') }}<br>
-                    📊 <strong>Total de Interfaces:</strong> {{ device_info.interfaces_count }}
-                </div>
-            {% endif %}
-            
-            <form id="form-cambiar-clave" autocomplete="off">
-                <div class="mb-3">
-                    <label for="nueva_clave" class="form-label">Nueva Contraseña</label>
-                    <input type="password" class="form-control" id="nueva_clave" name="nueva_clave" required>
-                </div>
-                <div class="mb-3">
-                    <label for="confirmar_clave" class="form-label">Confirmar Contraseña</label>
-                    <input type="password" class="form-control" id="confirmar_clave" name="confirmar_clave" required>
-                </div>
-                <div class="form-check mb-3">
-                    <input class="form-check-input" type="checkbox" id="verClave" onclick="mostrarContraseñas()">
-                    <label class="form-check-label" for="verClave">Mostrar contraseñas</label>
-                </div>
-                <div class="d-grid gap-2">
-                    <button type="submit" class="btn btn-success">Guardar</button>
-                    <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">Volver al Inicio</a>
-                </div>
-            </form>
-        </div>
+  <!-- Navbar -->
+  <nav class="sp-navbar">
+    <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo" class="logo"
+         onerror="this.style.display='none'">
+    <div class="ml-auto">
+      <form method="POST" action="{{ url_for('cerrar_sesion') }}" class="mb-0">
+        <button type="submit" class="btn-sp btn-sp-danger">
+          <i class="bi bi-box-arrow-right"></i> Cerrar sesión
+        </button>
+      </form>
     </div>
-    <script>
-        function mostrarContraseñas() {
-            const pass1 = document.getElementById("nueva_clave");
-            const pass2 = document.getElementById("confirmar_clave");
-            const tipo = pass1.type === "password" ? "text" : "password";
-            pass1.type = tipo;
-            pass2.type = tipo;
-        }
-    </script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  </nav>
 
-    <!-- SweetAlert2 CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <main>
 
-    <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Validar dispositivo en segundo plano al cargar la página
-        validarDispositivoEnSegundoPlano();
-        
-        const form = document.getElementById('form-cambiar-clave');
-        if (form) {
-            form.addEventListener('submit', async function(e) {
-                e.preventDefault();
-                
-                // Validar contraseñas antes de enviar
-                const nuevaClave = document.getElementById('nueva_clave').value;
-                const confirmarClave = document.getElementById('confirmar_clave').value;
-                
-                if (!nuevaClave || !confirmarClave) {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Campos requeridos',
-                        text: 'Debes completar ambos campos de contraseña.',
-                        confirmButtonText: 'Entendido'
-                    });
-                    return;
-                }
-                
-                if (nuevaClave.length < 8) {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Contraseña muy corta',
-                        text: 'La contraseña debe tener al menos 8 caracteres.',
-                        confirmButtonText: 'Entendido'
-                    });
-                    return;
-                }
-                
-                if (nuevaClave !== confirmarClave) {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Contraseñas no coinciden',
-                        text: 'Las contraseñas ingresadas no son iguales.',
-                        confirmButtonText: 'Entendido'
-                    });
-                    return;
-                }
-                
-                // Verificar que el dispositivo esté validado
-                if (!window.deviceValidado) {
-                    Swal.fire({
-                        icon: 'warning',
-                        title: 'Validando dispositivo...',
-                        text: 'Por favor espera mientras validamos tu dispositivo.',
-                        showConfirmButton: false,
-                        timer: 2000
-                    });
-                    return;
-                }
-                
-                // Mostrar proceso de cambio de contraseña con pasos detallados
-                let currentStep = 0;
-                const steps = [
-                    'Validando dispositivo...',
-                    'Enviando código por WhatsApp...',
-                    'Detectando interfaces WiFi...',
-                    'Aplicando contraseña a 2.4GHz...',
-                    'Aplicando contraseña a 5GHz...',
-                    'Reiniciando router...',
-                    'Finalizando proceso...'
-                ];
-                
-                const progressInterval = setInterval(() => {
-                    currentStep++;
-                    if (currentStep < steps.length) {
-                        const progress = (currentStep / steps.length) * 100;
-                        Swal.update({
-                            html: `
-                                <div class="text-center">
-                                    <div class="mb-3">
-                                        <div class="spinner-border text-primary" role="status">
-                                            <span class="visually-hidden">Cargando...</span>
-                                        </div>
-                                    </div>
-                                    <h5 class="mb-3">Cambiando contraseña WiFi</h5>
-                                    <div class="progress mb-3" style="height: 8px;">
-                                        <div class="progress-bar bg-primary" role="progressbar" style="width: ${progress}%"></div>
-                                    </div>
-                                    <p class="mb-0">${steps[currentStep - 1]}</p>
-                                    <small class="text-muted">Paso ${currentStep} de ${steps.length}</small>
-                                </div>
-                            `
-                        });
-                    }
-                }, 1200);
-                
-                // Mostrar alerta inicial
-                Swal.fire({
-                    title: 'Cambiando contraseña WiFi',
-                    html: `
-                        <div class="text-center">
-                            <div class="mb-3">
-                                <div class="spinner-border text-primary" role="status">
-                                    <span class="visually-hidden">Cargando...</span>
-                                </div>
-                            </div>
-                            <h5 class="mb-3">Iniciando proceso...</h5>
-                            <div class="progress mb-3" style="height: 8px;">
-                                <div class="progress-bar bg-primary" role="progressbar" style="width: 0%"></div>
-                            </div>
-                            <p class="mb-0">Preparando cambio de contraseña...</p>
-                            <small class="text-muted">Paso 0 de ${steps.length}</small>
-                        </div>
-                    `,
-                    allowOutsideClick: false,
-                    allowEscapeKey: false,
-                    showConfirmButton: false
-                });
-                
-                try {
-                    // Procesar la solicitud
-                    let formData = new FormData(form);
-                    let data = {};
-                    formData.forEach((value, key) => { data[key] = value; });
-                    
-                    // Enviar WhatsApp
-                    let resp1 = await fetch(window.location.pathname + '?accion=whatsapp', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(data)
-                    });
-                    let res1 = await resp1.json();
-                    
-                    if (!res1.success) {
-                        clearInterval(progressInterval);
-                        Swal.fire({
-                            icon: 'error',
-                            title: 'Error al enviar WhatsApp',
-                            text: res1.message || 'No se pudo enviar el código de verificación.',
-                            confirmButtonText: 'Entendido'
-                        });
-                        return;
-                    }
-                    
-                    // Cambiar contraseña
-                    await new Promise(r => setTimeout(r, 1000));
-                    
-                    let resp2 = await fetch(window.location.pathname + '?accion=cambiar', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(data)
-                    });
-                    let res2 = await resp2.json();
-                    
-                    // Limpiar intervalo
-                    clearInterval(progressInterval);
-                    
-                    if (!res2.success) {
-                        Swal.fire({
-                            icon: 'error',
-                            title: 'Error al cambiar contraseña',
-                            text: res2.message || 'No se pudo cambiar la contraseña.',
-                            confirmButtonText: 'Entendido'
-                        });
-                        return;
-                    }
-                    
-                    // Mostrar resultado exitoso con animación
-                    Swal.fire({
-                        icon: 'success',
-                        title: '¡Contraseña cambiada exitosamente!',
-                        html: `
-                            <div class="text-center">
-                                <div class="mb-3">
-                                    <i class="bi bi-check-circle-fill text-success" style="font-size: 3rem;"></i>
-                                </div>
-                                <p class="mb-3">Tu contraseña WiFi ha sido actualizada correctamente.</p>
-                                <div class="alert alert-info">
-                                    <i class="bi bi-info-circle me-2"></i>
-                                    <strong>Importante:</strong> Debes reconectarte con la nueva contraseña en todos tus dispositivos.
-                                </div>
-                            </div>
-                        `,
-                        showConfirmButton: true,
-                        confirmButtonText: 'Entendido',
-                        confirmButtonColor: '#28a745'
-                    }).then(() => {
-                        window.location.href = '/dashboard';
-                    });
-                    
-                } catch (error) {
-                    clearInterval(progressInterval);
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Error de conexión',
-                        text: 'No se pudo procesar la solicitud. Verifica tu conexión a internet.',
-                        confirmButtonText: 'Entendido'
-                    });
-                }
-            });
-        }
-        
-        // Función para validar dispositivo en segundo plano
-        async function validarDispositivoEnSegundoPlano() {
-            try {
-                const response = await fetch(window.location.pathname + '?accion=validar_dispositivo', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
-                });
-                const result = await response.json();
-                
-                if (result.success) {
-                    window.deviceValidado = true;
-                    mostrarEstadoDispositivo(result);
-                } else {
-                    mostrarErrorDispositivo(result.message);
-                }
-            } catch (error) {
-                console.error('Error validando dispositivo:', error);
-                mostrarErrorDispositivo('Error de conexión');
-            }
-        }
-        
-        // Mostrar estado del dispositivo (sin mostrar información técnica)
-        function mostrarEstadoDispositivo(data) {
-            // Solo validar internamente, no mostrar información técnica al usuario
-            console.log('Dispositivo validado:', data);
-        }
-        
-        // Mostrar error del dispositivo
-        function mostrarErrorDispositivo(message) {
-            const alertDiv = document.createElement('div');
-            alertDiv.className = 'alert alert-danger';
-            alertDiv.innerHTML = `<strong>⚠️ Error:</strong> ${message}`;
-            
-            const form = document.getElementById('form-cambiar-clave');
-            form.parentNode.insertBefore(alertDiv, form);
-        }
-    });
-    </script>
+    <!-- Header -->
+    <div class="page-header">
+      <a href="{{ url_for('dashboard') }}" class="page-back">
+        <i class="bi bi-arrow-left"></i> Volver al inicio
+      </a>
+      <div class="page-title">
+        <div class="page-icon"><i class="bi bi-shield-lock"></i></div>
+        Cambiar contraseña WiFi
+      </div>
+      <p class="page-sub">La nueva clave se aplicará a todas las bandas de tu red.</p>
+    </div>
 
-    <script>
-    let tiempoInactividad = 4 * 60 * 1000; // 4 minutos
-    let tiempoExpiracion = 5 * 60 * 1000; // 5 minutos
-    let alertaMostrada = false;
-    let timeoutAlerta, timeoutCerrar;
+    <!-- Form card -->
+    <div class="form-card">
+      <form id="form-cambiar-clave" autocomplete="off">
 
-    function resetTimers() {
-        clearTimeout(timeoutAlerta);
-        clearTimeout(timeoutCerrar);
-        alertaMostrada = false;
-        timeoutAlerta = setTimeout(mostrarAlertaSesion, tiempoInactividad);
-        timeoutCerrar = setTimeout(cerrarSesion, tiempoExpiracion);
+        <div class="field-group">
+          <label class="field-label" for="nueva_clave">Nueva contraseña</label>
+          <div class="field-wrap">
+            <input class="field-input has-toggle" type="password"
+                   id="nueva_clave" name="nueva_clave" required
+                   placeholder="Mínimo 8 caracteres" autocomplete="new-password">
+            <button type="button" class="toggle-visibility" tabindex="-1"
+                    onclick="toggleField('nueva_clave', 'icon1')">
+              <i class="bi bi-eye" id="icon1"></i>
+            </button>
+          </div>
+          <p class="field-hint">Usa al menos 8 caracteres. Evita datos personales obvios.</p>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label" for="confirmar_clave">Confirmar contraseña</label>
+          <div class="field-wrap">
+            <input class="field-input has-toggle" type="password"
+                   id="confirmar_clave" name="confirmar_clave" required
+                   placeholder="Repite la contraseña" autocomplete="new-password">
+            <button type="button" class="toggle-visibility" tabindex="-1"
+                    onclick="toggleField('confirmar_clave', 'icon2')">
+              <i class="bi bi-eye" id="icon2"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="form-divider"></div>
+
+        <div class="btn-row">
+          <button type="submit" class="btn-sp btn-sp-primary" id="btn-guardar">
+            <i class="bi bi-check-lg"></i> Guardar contraseña
+          </button>
+          <a href="{{ url_for('dashboard') }}" class="btn-sp btn-sp-ghost">
+            Cancelar
+          </a>
+        </div>
+
+      </form>
+    </div>
+
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+  <script>
+  function toggleField(fieldId, iconId) {
+    var input = document.getElementById(fieldId);
+    var icon  = document.getElementById(iconId);
+    if (input.type === 'password') {
+      input.type = 'text';
+      icon.className = 'bi bi-eye-slash';
+    } else {
+      input.type = 'password';
+      icon.className = 'bi bi-eye';
     }
+  }
 
-    function mostrarAlertaSesion() {
-        alertaMostrada = true;
+  document.addEventListener('DOMContentLoaded', function() {
+    validarDispositivoEnSegundoPlano();
+
+    var form = document.getElementById('form-cambiar-clave');
+    if (form) {
+      form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        var nuevaClave    = document.getElementById('nueva_clave').value;
+        var confirmarClave = document.getElementById('confirmar_clave').value;
+
+        if (!nuevaClave || !confirmarClave) {
+          Swal.fire({ icon: 'error', title: 'Campos requeridos', text: 'Debes completar ambos campos.', confirmButtonColor: '#2563eb' });
+          return;
+        }
+        if (nuevaClave.length < 8) {
+          Swal.fire({ icon: 'error', title: 'Contraseña muy corta', text: 'La contraseña debe tener al menos 8 caracteres.', confirmButtonColor: '#2563eb' });
+          return;
+        }
+        if (nuevaClave !== confirmarClave) {
+          Swal.fire({ icon: 'error', title: 'No coinciden', text: 'Las contraseñas ingresadas no son iguales.', confirmButtonColor: '#2563eb' });
+          return;
+        }
+        if (!window.deviceValidado) {
+          Swal.fire({ icon: 'warning', title: 'Validando dispositivo...', text: 'Por favor espera un momento.', showConfirmButton: false, timer: 2000 });
+          return;
+        }
+
+        var steps = [
+          'Validando dispositivo…',
+          'Enviando notificación por WhatsApp…',
+          'Detectando interfaces WiFi…',
+          'Aplicando contraseña a 2.4 GHz…',
+          'Aplicando contraseña a 5 GHz…',
+          'Reiniciando router…',
+          'Finalizando proceso…'
+        ];
+        var currentStep = 0;
+
         Swal.fire({
-            title: '¿Quieres continuar en tu sesión?',
-            text: 'Tu sesión está a punto de expirar por inactividad.',
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonText: 'Continuar en mi sesión',
-            cancelButtonText: 'Cerrar sesión',
-            allowOutsideClick: false,
-            allowEscapeKey: false
-        }).then((result) => {
-            if (result.isConfirmed) {
-                fetch('/renovar_sesion', {method: 'POST'})
-                    .then(() => {
-                        resetTimers();
-                        Swal.fire({
-                            icon: 'success',
-                            title: '¡Sesión renovada!',
-                            timer: 1000,
-                            showConfirmButton: false
-                        });
-                    });
-            } else {
-                cerrarSesion();
-            }
+          title: 'Cambiando contraseña',
+          html: buildProgressHtml(0, steps),
+          allowOutsideClick: false,
+          allowEscapeKey: false,
+          showConfirmButton: false,
+          didOpen: function() { Swal.showLoading(); }
         });
+
+        var progressInterval = setInterval(function() {
+          currentStep++;
+          if (currentStep < steps.length) {
+            Swal.update({ html: buildProgressHtml(Math.round((currentStep / steps.length) * 100), steps, currentStep) });
+          }
+        }, 1200);
+
+        try {
+          var formData = new FormData(form);
+          var data = {};
+          formData.forEach(function(v, k) { data[k] = v; });
+
+          var resp1 = await fetch(window.location.pathname + '?accion=whatsapp', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+          });
+          var res1 = await resp1.json();
+
+          if (!res1.success) {
+            clearInterval(progressInterval);
+            Swal.fire({ icon: 'error', title: 'Error de notificación', text: res1.message || 'No se pudo enviar la notificación.', confirmButtonColor: '#2563eb' });
+            return;
+          }
+
+          await new Promise(function(r) { setTimeout(r, 1000); });
+
+          var resp2 = await fetch(window.location.pathname + '?accion=cambiar', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+          });
+          var res2 = await resp2.json();
+
+          clearInterval(progressInterval);
+
+          if (!res2.success) {
+            Swal.fire({ icon: 'error', title: 'Error al cambiar contraseña', text: res2.message || 'No se pudo cambiar la contraseña.', confirmButtonColor: '#2563eb' });
+            return;
+          }
+
+          Swal.fire({
+            icon: 'success',
+            title: '¡Contraseña actualizada!',
+            html: '<p style="color:#374151;font-size:0.9rem;">Tu contraseña WiFi fue cambiada correctamente.<br>Reconecta tus dispositivos con la nueva clave.</p>',
+            confirmButtonText: 'Entendido',
+            confirmButtonColor: '#2563eb'
+          }).then(function() { window.location.href = '/dashboard'; });
+
+        } catch (err) {
+          clearInterval(progressInterval);
+          Swal.fire({ icon: 'error', title: 'Error de conexión', text: 'No se pudo procesar la solicitud.', confirmButtonColor: '#2563eb' });
+        }
+      });
     }
 
-    function cerrarSesion() {
-        fetch('/cerrar_sesion', {method: 'POST'})
-            .then(() => {
-                window.location.href = '/';
-            });
+    function buildProgressHtml(pct, steps, idx) {
+      idx = idx || 0;
+      return '<div style="text-align:center;padding:4px 0;">' +
+        '<p style="font-size:0.88rem;color:#374151;margin-bottom:12px;">' + steps[idx] + '</p>' +
+        '<div style="height:6px;background:#e5e7eb;border-radius:999px;overflow:hidden;margin-bottom:8px;">' +
+          '<div style="height:100%;width:' + pct + '%;background:#2563eb;border-radius:999px;transition:width .4s ease;"></div>' +
+        '</div>' +
+        '<p style="font-size:0.75rem;color:#9ca3af;">Paso ' + idx + ' de ' + steps.length + '</p>' +
+      '</div>';
     }
 
-    function verificarSesionActiva() {
-        fetch('/verificar_sesion', {method: 'POST'})
-            .then(res => {
-                if (res.status === 401) {
-                    window.location.href = '/';
-                }
-                return res.json();
-            })
-            .catch(() => {
-                window.location.href = '/';
-            });
+    async function validarDispositivoEnSegundoPlano() {
+      try {
+        var response = await fetch(window.location.pathname + '?accion=validar_dispositivo', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }
+        });
+        var result = await response.json();
+        if (result.success) {
+          window.deviceValidado = true;
+        } else {
+          mostrarErrorDispositivo(result.message);
+        }
+      } catch (err) {
+        console.error('Error validando dispositivo:', err);
+      }
     }
 
-    ['click', 'mousemove', 'keydown', 'scroll', 'touchstart'].forEach(evt => {
-        document.addEventListener(evt, function() {
-            if (!alertaMostrada) resetTimers();
-        }, true);
+    function mostrarErrorDispositivo(message) {
+      var alertDiv = document.createElement('div');
+      alertDiv.style.cssText = 'background:#fee2e2;border:1px solid #fca5a5;border-radius:8px;padding:10px 14px;font-size:0.82rem;color:#b91c1c;margin-bottom:16px;';
+      alertDiv.innerHTML = '<i class="bi bi-exclamation-triangle me-1"></i> ' + message;
+      var formCard = document.querySelector('.form-card');
+      formCard.insertBefore(alertDiv, formCard.firstChild);
+    }
+  });
+  </script>
+
+  <!-- Timeout de sesión -->
+  <script>
+  var _alerta = false;
+  var _tAlerta, _tCerrar;
+
+  function resetTimers() {
+    clearTimeout(_tAlerta); clearTimeout(_tCerrar);
+    _alerta = false;
+    _tAlerta = setTimeout(mostrarAlertaSesion, 4 * 60 * 1000);
+    _tCerrar = setTimeout(cerrarSesion,        5 * 60 * 1000);
+  }
+
+  function mostrarAlertaSesion() {
+    _alerta = true;
+    Swal.fire({
+      title: '¿Sigues ahí?',
+      text: 'Tu sesión está a punto de expirar por inactividad.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Continuar',
+      cancelButtonText: 'Cerrar sesión',
+      confirmButtonColor: '#2563eb',
+      allowOutsideClick: false,
+      allowEscapeKey: false
+    }).then(function(r) {
+      if (r.isConfirmed) {
+        fetch('/renovar_sesion', { method: 'POST' }).then(function() {
+          resetTimers();
+          Swal.fire({ icon: 'success', title: 'Sesión renovada', timer: 1200, showConfirmButton: false });
+        });
+      } else { cerrarSesion(); }
     });
+  }
 
-    window.onload = function() {
-        resetTimers();
-        setInterval(verificarSesionActiva, 30000);
-    };
-    </script>
+  function cerrarSesion() {
+    fetch('/cerrar_sesion', { method: 'POST' }).then(function() { window.location.href = '/'; });
+  }
+
+  function verificarSesion() {
+    fetch('/verificar_sesion', { method: 'POST' })
+      .then(function(r) { if (r.status === 401) window.location.href = '/'; })
+      .catch(function() { window.location.href = '/'; });
+  }
+
+  ['click','mousemove','keydown','scroll','touchstart'].forEach(function(e) {
+    document.addEventListener(e, function() { if (!_alerta) resetTimers(); }, true);
+  });
+
+  window.onload = function() {
+    resetTimers();
+    setInterval(verificarSesion, 30000);
+  };
+  </script>
 </body>
 </html>

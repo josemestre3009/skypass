@@ -148,10 +148,52 @@ def _extraer(c: dict) -> list[dict]:
         for s in servicios:
             ip = s.get('ip', '')
             if ip:
-                rows.append({**base, 'ip': ip})
-        return rows
+                rows.append({**base, 'ip': ip, 'estado': s.get('estado', '')})
+        return rows if rows else [{**base, 'ip': '', 'estado': c.get('estado', '')}]
     ip = c.get('ip') or c.get('ip_address') or ''
-    return [{**base, 'ip': ip}] if ip else [{**base, 'ip': ''}]
+    estado = c.get('estado', '')
+    return [{**base, 'ip': ip, 'estado': estado}]
+
+
+def obtener_servicios_por_cedula(cedula: str, timeout: int = 10) -> tuple:
+    """
+    Devuelve (cliente_dict, lista_servicios) para una cédula.
+    lista_servicios: [{ ip, nombre_servicio, ssid_router_wifi, estado, direccion, nombre_cliente }]
+    Retorna (None, []) si no se encuentra o hay error.
+    """
+    try:
+        resp = requests.get(BASE_URL, headers=_headers(), params={'cedula': cedula}, timeout=timeout)
+        if resp.status_code != 200:
+            return None, []
+        cliente_principal = None
+        servicios = []
+        for c in resp.json().get('results', []):
+            if c.get('cedula') != cedula:
+                continue
+            if not cliente_principal:
+                cliente_principal = c
+            nombre_cliente = c.get('nombre', '')
+            c_servicios = c.get('servicios', [])
+            if c_servicios:
+                for s in c_servicios:
+                    if s.get('ip'):
+                        entry = dict(s)
+                        entry['direccion']     = c.get('direccion', '')
+                        entry['nombre_cliente'] = nombre_cliente
+                        servicios.append(entry)
+            elif c.get('ip'):
+                servicios.append({
+                    'ip':               c.get('ip', ''),
+                    'nombre_servicio':  c.get('nombre_servicio', ''),
+                    'ssid_router_wifi': c.get('ssid_router_wifi', ''),
+                    'estado':           c.get('estado', ''),
+                    'direccion':        c.get('direccion', ''),
+                    'nombre_cliente':   nombre_cliente,
+                })
+        return cliente_principal, servicios
+    except Exception as e:
+        print(f'[WispHub] Error en obtener_servicios_por_cedula({cedula}): {e}')
+        return None, []
 
 
 def listar_todos(force_refresh: bool = False) -> list:

@@ -64,6 +64,43 @@
   .cl-table tbody tr:last-child td { border-bottom:none; }
   .cl-table tbody tr:hover td { background:#f9fafb; }
 
+  /* ── Badges Estado Servicio ── */
+  .svc-badge {
+    display:inline-block; padding:0.15rem 0.55rem; border-radius:99px;
+    font-size:0.71rem; font-weight:600; white-space:nowrap;
+  }
+  .svc-activo     { background:#dcfce7; color:#15803d; }
+  .svc-cancelado  { background:#fee2e2; color:#b91c1c; }
+  .svc-suspendido { background:#fef9c3; color:#854d0e; }
+  .svc-gratis     { background:#eff6ff; color:#1d4ed8; }
+  .svc-otro       { background:#f3f4f6; color:#6b7280; }
+
+  /* ── Filtro columna ── */
+  .th-filter { display:inline-flex; align-items:center; gap:0.3rem; position:relative; }
+  .th-filter-btn {
+    background:none; border:none; padding:0.1rem 0.25rem; cursor:pointer;
+    color:#c4cdd6; border-radius:4px; line-height:1; font-size:0.7rem;
+    transition:color .15s, background .15s;
+  }
+  .th-filter-btn:hover,
+  .th-filter-btn.active { color:#2563eb; background:#eff6ff; }
+  .th-filter-drop {
+    display:none; position:absolute; top:calc(100% + 4px); left:50%;
+    transform:translateX(-50%); background:#fff; border:1px solid #e5e7eb;
+    border-radius:0.55rem; box-shadow:0 4px 16px rgba(0,0,0,.10);
+    min-width:130px; z-index:99; padding:0.3rem 0;
+  }
+  .th-filter-drop.open { display:block; }
+  .th-filter-opt {
+    display:flex; align-items:center; gap:0.5rem; padding:0.45rem 0.85rem;
+    font-size:0.78rem; color:#374151; cursor:pointer; white-space:nowrap;
+    font-weight:400; text-transform:none; letter-spacing:0;
+  }
+  .th-filter-opt:hover { background:#f3f4f6; }
+  .th-filter-opt.selected { background:#eff6ff; color:#2563eb; font-weight:600; }
+  .th-filter-opt .check { color:#2563eb; font-size:0.75rem; margin-left:auto; opacity:0; }
+  .th-filter-opt.selected .check { opacity:1; }
+
   /* ── Badges ACS ── */
   .acs-badge {
     display:inline-flex; align-items:center; gap:0.3rem;
@@ -83,6 +120,30 @@
     70% { box-shadow:0 0 0 5px rgba(22,163,74,0); }
     100%{ box-shadow:0 0 0 0 rgba(22,163,74,0); }
   }
+
+  /* ── Botón exportar ── */
+  .btn-export {
+    display:inline-flex; align-items:center; gap:0.4rem;
+    padding:0.3rem 0.75rem; border-radius:6px; font-size:0.78rem;
+    font-weight:600; border:1px solid #bbf7d0; cursor:pointer;
+    background:#f0fdf4; color:#15803d; font-family:inherit;
+    text-decoration:none; transition:background .15s, border-color .15s;
+    white-space:nowrap;
+  }
+  .btn-export:hover { background:#dcfce7; border-color:#86efac; color:#15803d; }
+  .btn-export:active { transform:scale(.97); }
+
+  /* ── Botón limpiar duplicados ── */
+  .btn-clean {
+    display:inline-flex; align-items:center; gap:0.4rem;
+    padding:0.3rem 0.75rem; border-radius:6px; font-size:0.78rem;
+    font-weight:600; border:1px solid #fde68a; cursor:pointer;
+    background:#fffbeb; color:#92400e; font-family:inherit;
+    transition:background .15s, border-color .15s;
+    white-space:nowrap;
+  }
+  .btn-clean:hover  { background:#fef3c7; border-color:#fcd34d; }
+  .btn-clean:active { transform:scale(.97); }
 
   /* ── Botones acción ── */
   .row-actions { display:flex; align-items:center; gap:0.35rem; }
@@ -134,7 +195,8 @@
 
   @media(max-width:640px) {
     .cl-table th:nth-child(3), .cl-table td:nth-child(3),
-    .cl-table th:nth-child(4), .cl-table td:nth-child(4) { display:none; }
+    .cl-table th:nth-child(4), .cl-table td:nth-child(4),
+    .cl-table th:nth-child(6), .cl-table td:nth-child(6) { display:none; }
   }
 
 </style>
@@ -169,6 +231,12 @@
     <button class="btn-refresh" id="btn-refresh">
       <i class="bi bi-arrow-clockwise" id="ico-refresh"></i> Actualizar
     </button>
+    <a href="/admin/api/clientes/exportar" id="btn-export" class="btn-export" download>
+      <i class="bi bi-file-earmark-excel"></i> Exportar Excel
+    </a>
+    <button class="btn-clean" id="btn-limpiar-dup" title="Elimina dispositivos offline con IP duplicada">
+      <i class="bi bi-layers"></i> Limpiar duplicados
+    </button>
   </div>
 
   <div style="overflow-x:auto;">
@@ -179,7 +247,31 @@
           <th>Cédula</th>
           <th>Teléfono</th>
           <th>IP</th>
-          <th>ACS</th>
+          <th>
+            <div class="th-filter">
+              Estado
+              <button class="th-filter-btn" id="btn-fest" title="Filtrar"><i class="bi bi-chevron-down"></i></button>
+              <div class="th-filter-drop" id="drop-fest">
+                <div class="th-filter-opt selected" data-val=""><span>Todos</span><i class="bi bi-check check"></i></div>
+                <div class="th-filter-opt" data-val="activo"><span class="svc-badge svc-activo">Activo</span><i class="bi bi-check check"></i></div>
+                <div class="th-filter-opt" data-val="cancelado"><span class="svc-badge svc-cancelado">Cancelado</span><i class="bi bi-check check"></i></div>
+                <div class="th-filter-opt" data-val="suspendido"><span class="svc-badge svc-suspendido">Suspendido</span><i class="bi bi-check check"></i></div>
+                <div class="th-filter-opt" data-val="gratis"><span class="svc-badge svc-gratis">Gratis</span><i class="bi bi-check check"></i></div>
+              </div>
+            </div>
+          </th>
+          <th>
+            <div class="th-filter">
+              ACS
+              <button class="th-filter-btn" id="btn-facs" title="Filtrar"><i class="bi bi-chevron-down"></i></button>
+              <div class="th-filter-drop" id="drop-facs">
+                <div class="th-filter-opt selected" data-val=""><span>Todos</span><i class="bi bi-check check"></i></div>
+                <div class="th-filter-opt" data-val="online"><span class="acs-badge acs-online"><span class="dot"></span>Online</span><i class="bi bi-check check"></i></div>
+                <div class="th-filter-opt" data-val="offline"><span class="acs-badge acs-offline"><span class="dot"></span>Offline</span><i class="bi bi-check check"></i></div>
+                <div class="th-filter-opt" data-val="noonu"><span class="acs-badge acs-noonu"><span class="dot"></span>Sin ACS</span><i class="bi bi-check check"></i></div>
+              </div>
+            </div>
+          </th>
           <th>Acciones</th>
         </tr>
       </thead>
@@ -197,9 +289,10 @@
 
 {% block scripts %}
 <script>
-let estado = { page: 1, page_size: 20, q: '', loading: false };
-let acsAbort = null;
-let debounce  = null;
+let estado = { page: 1, page_size: 20, q: '', loading: false, estadoFilter: '', acsFilter: '' };
+let acsAbort   = null;
+let debounce   = null;
+let acsRowState = {};
 
 /* ── Cargar página ── */
 function cargar(opts = {}) {
@@ -207,11 +300,12 @@ function cargar(opts = {}) {
   Object.assign(estado, opts);
   estado.loading = true;
 
-  // Cancelar checks ACS previos
+  // Cancelar checks ACS previos y limpiar estado
   if (acsAbort) acsAbort();
-  acsAbort = null;
+  acsAbort    = null;
+  acsRowState = {};
 
-  setTbody(`<tr><td colspan="6"><div class="cl-empty"><span class="sp"></span>&nbsp;Cargando…</div></td></tr>`);
+  setTbody(`<tr><td colspan="7"><div class="cl-empty"><span class="sp"></span>&nbsp;Cargando…</div></td></tr>`);
   document.getElementById('pag-info').textContent = '';
   document.getElementById('pag-btns').innerHTML   = '';
   document.getElementById('lbl-total').textContent = '';
@@ -221,7 +315,8 @@ function cargar(opts = {}) {
     page_size: estado.page_size,
     q:         estado.q,
   });
-  if (opts.force_refresh) params.set('force_refresh', '1');
+  if (estado.estadoFilter) params.set('estado_filter', estado.estadoFilter);
+  if (opts.force_refresh)  params.set('force_refresh', '1');
 
   fetch(`/admin/api/clientes?${params}`)
     .then(r => r.json())
@@ -247,12 +342,14 @@ function cargar(opts = {}) {
 
 /* ── Render filas ── */
 function renderFilas(clientes) {
+  acsRowState = {};
   document.getElementById('tbody').innerHTML = clientes.map((c, i) => `
-    <tr>
+    <tr id="tr-${i}">
       <td style="font-weight:500;color:#111;">${esc(c.nombre || '—')}</td>
       <td style="font-family:monospace;font-size:.79rem;">${esc(c.cedula || '—')}</td>
       <td style="color:#6b7280;">${esc(c.telefono || '—')}</td>
       <td style="font-family:monospace;font-size:.79rem;"><span id="ip-${i}">${esc(c.ip || '—')}</span></td>
+      <td>${estadoBadge(c.estado)}</td>
       <td id="acs-${i}"><span class="sp"></span></td>
       <td>
         <div class="row-actions" id="acc-${i}">
@@ -344,6 +441,9 @@ function setACS(i, estadoAcs, deviceId, clientIp) {
   const wrap = document.getElementById(`onu-${i}`);
   if (!cell) return;
 
+  acsRowState[i] = estadoAcs;
+  applyAcsFilter();
+
   if (estadoAcs === 'online')
     cell.innerHTML = `<span class="acs-badge acs-online"><span class="dot"></span>Online</span>`;
   else if (estadoAcs === 'offline')
@@ -372,18 +472,131 @@ function setACS(i, estadoAcs, deviceId, clientIp) {
 /* ── Helpers ── */
 function setTbody(html) { document.getElementById('tbody').innerHTML = html; }
 function vacio(msg, icon = 'bi-person-x') {
-  return `<tr><td colspan="6"><div class="cl-empty"><i class="${icon}"></i>${msg}</div></td></tr>`;
+  return `<tr><td colspan="7"><div class="cl-empty"><i class="${icon}"></i>${msg}</div></td></tr>`;
 }
 function esc(s) {
   return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+function estadoBadge(estado) {
+  const e = (estado || '').toLowerCase().trim();
+  if (e === 'activo')     return `<span class="svc-badge svc-activo">Activo</span>`;
+  if (e === 'cancelado')  return `<span class="svc-badge svc-cancelado">Cancelado</span>`;
+  if (e === 'suspendido') return `<span class="svc-badge svc-suspendido">Suspendido</span>`;
+  if (e === 'gratis')     return `<span class="svc-badge svc-gratis">Gratis</span>`;
+  if (e)                  return `<span class="svc-badge svc-otro">${esc(estado)}</span>`;
+  return `<span style="color:#d1d5db;">—</span>`;
+}
+
+/* ── Filtro ACS (client-side) ── */
+function applyAcsFilter() {
+  if (!estado.acsFilter) return;
+  Object.entries(acsRowState).forEach(([i, s]) => {
+    const tr = document.getElementById(`tr-${i}`);
+    if (tr) tr.style.display = s === estado.acsFilter ? '' : 'none';
+  });
+}
+
+/* ── Dropdowns de filtro ── */
+function setupFilterDrop(btnId, dropId, onSelect) {
+  const btn  = document.getElementById(btnId);
+  const drop = document.getElementById(dropId);
+  if (!btn || !drop) return;
+
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    const isOpen = drop.classList.contains('open');
+    document.querySelectorAll('.th-filter-drop.open').forEach(d => d.classList.remove('open'));
+    if (!isOpen) drop.classList.add('open');
+  });
+
+  drop.querySelectorAll('.th-filter-opt').forEach(opt => {
+    opt.addEventListener('click', () => {
+      drop.querySelectorAll('.th-filter-opt').forEach(o => o.classList.remove('selected'));
+      opt.classList.add('selected');
+      drop.classList.remove('open');
+      const val = opt.dataset.val;
+      btn.classList.toggle('active', !!val);
+      onSelect(val);
+    });
+  });
+}
+
+document.addEventListener('click', () => {
+  document.querySelectorAll('.th-filter-drop.open').forEach(d => d.classList.remove('open'));
+});
+
+setupFilterDrop('btn-fest', 'drop-fest', val => {
+  estado.estadoFilter = val;
+  cargar({ page: 1 });
+});
+
+setupFilterDrop('btn-facs', 'drop-facs', val => {
+  estado.acsFilter = val;
+  // Mostrar todo primero, luego aplicar
+  document.querySelectorAll('#tbody tr[id^="tr-"]').forEach(tr => tr.style.display = '');
+  if (val) applyAcsFilter();
+});
+
+/* ── Limpiar duplicados ── */
+document.getElementById('btn-limpiar-dup').addEventListener('click', async function() {
+  const { isConfirmed } = await Swal.fire({
+    title: '¿Limpiar duplicados?',
+    html: 'Se eliminarán del <b>servidor ACS</b> los dispositivos <b>offline</b> que compartan IP con uno <b>online</b>.<br><br>Esta acción no se puede deshacer.',
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonText: 'Sí, limpiar',
+    cancelButtonText: 'Cancelar',
+    confirmButtonColor: '#d97706',
+    cancelButtonColor: '#6b7280',
+  });
+  if (!isConfirmed) return;
+
+  Swal.fire({ title: 'Analizando...', text: 'Consultando todos los dispositivos en el servidor ACS.', allowOutsideClick: false, showConfirmButton: false, didOpen: () => Swal.showLoading() });
+
+  try {
+    const res = await (await fetch('/admin/api/limpiar-duplicados', { method: 'POST' })).json();
+    if (!res.success) { Swal.fire({ icon: 'error', title: 'Error', text: res.message }); return; }
+
+    const { duplicados_encontrados: dup, eliminados, errores } = res;
+
+    if (dup === 0) {
+      Swal.fire({ icon: 'success', title: 'Sin duplicados', text: 'No se encontraron IPs duplicadas con dispositivo online y offline al mismo tiempo.', timer: 3000, showConfirmButton: false });
+      return;
+    }
+
+    let html = `<b>${eliminados.length}</b> dispositivo${eliminados.length !== 1 ? 's' : ''} eliminado${eliminados.length !== 1 ? 's' : ''} de <b>${dup}</b> grupo${dup !== 1 ? 's' : ''} con IP duplicada.`;
+    if (eliminados.length) {
+      html += '<ul style="text-align:left;margin-top:.6rem;font-size:.82rem;">';
+      eliminados.forEach(e => { html += `<li style="font-family:monospace;">${e.ip} — ${e.device_id}</li>`; });
+      html += '</ul>';
+    }
+    if (errores.length) {
+      html += `<p style="color:#b91c1c;margin-top:.5rem;font-size:.8rem;"><b>${errores.length} error(es)</b> al eliminar.</p>`;
+    }
+
+    Swal.fire({ icon: 'success', title: 'Limpieza completada', html, confirmButtonColor: '#2563eb' });
+  } catch {
+    Swal.fire({ icon: 'error', title: 'Error de conexión' });
+  }
+});
 
 /* ── Eventos ── */
+function actualizarExportUrl() {
+  const q = estado.q;
+  const url = q
+    ? `/admin/api/clientes/exportar?q=${encodeURIComponent(q)}`
+    : '/admin/api/clientes/exportar';
+  document.getElementById('btn-export').href = url;
+}
+
 document.getElementById('inp-q').addEventListener('input', function() {
   const v = this.value.trim();
   document.getElementById('btn-clear').style.display = v ? '' : 'none';
   clearTimeout(debounce);
-  debounce = setTimeout(() => cargar({ page: 1, q: v }), 350);
+  debounce = setTimeout(() => {
+    cargar({ page: 1, q: v });
+    actualizarExportUrl();
+  }, 350);
 });
 
 document.getElementById('btn-clear').addEventListener('click', function() {

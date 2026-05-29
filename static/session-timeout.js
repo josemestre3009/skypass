@@ -1,19 +1,14 @@
 // Sistema de timeout de sesión para páginas de admin
 let timeoutId;
 let warningShown = false;
-const TIMEOUT_DURATION = 60000; // 60 segundos
-const WARNING_TIME = 50000; // Mostrar aviso a los 50 segundos
+const WARNING_TIME = 15 * 60 * 1000; // Aviso a los 15 minutos
 
 function resetTimeout() {
     clearTimeout(timeoutId);
     warningShown = false;
-    
-    //.log('[SESSION] Timeout reset - nuevo timeout iniciado');
-    
-    // Mostrar aviso a los 50 segundos
+
     timeoutId = setTimeout(() => {
         if (!warningShown) {
-            //console.log('[SESSION] Mostrando aviso de timeout');
             showTimeoutWarning();
             warningShown = true;
         }
@@ -21,10 +16,9 @@ function resetTimeout() {
 }
 
 function showTimeoutWarning() {
-    //console.log('[SESSION] Ejecutando showTimeoutWarning');
     Swal.fire({
         title: 'Sesión por expirar',
-        text: 'Llevas 60 segundos sin actividad. Tu sesión se cerrará automáticamente.',
+        text: 'Llevas 15 minutos sin actividad. Tu sesión se cerrará automáticamente.',
         icon: 'warning',
         showCancelButton: true,
         confirmButtonText: 'Sigo aquí',
@@ -111,6 +105,5 @@ function detectarActividad() {
 
 // Inicializar timeout al cargar la página
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('[SESSION] Inicializando sistema de timeout');
     resetTimeout();
 });

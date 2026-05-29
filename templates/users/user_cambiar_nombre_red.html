@@ -1,297 +1,415 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta charset="UTF-8">
-    <title>Cambiar Nombre de Red</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-    <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.svg') }}">
-    <style>
-        body { background: #f7f9fb; }
-        .navbar { background: #fff !important; border-bottom: 1px solid #e5e7eb; min-height: 70px; box-shadow: 0 2px 8px 0 rgba(31,38,135,0.04); }
-        .navbar-brand img { height: 48px !important; width: auto; cursor: pointer; }
-        .navbar .btn { border-radius: 2rem !important; }
-        .main-box { max-width: 500px; margin: 100px auto 0 auto; }
-        .card { border-radius: 1.2rem; box-shadow: 0 4px 24px 0 rgba(31,38,135,0.07); border: none; }
-        .btn-outline-primary, .btn-secondary, .btn-success { border-radius: 2rem !important; }
-        .titulo { font-size: 2rem; font-weight: 700; color: #2563eb; display: flex; align-items: center; gap: 0.5rem; margin-bottom: 2rem; justify-content: center; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cambiar Nombre de Red WiFi</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --primary:    #2563eb;
+      --primary-dk: #1d4ed8;
+      --success:    #16a34a;
+      --danger:     #dc2626;
+      --bg:         #f5f7fa;
+      --surface:    #ffffff;
+      --border:     #e5e7eb;
+      --border2:    #d1d5db;
+      --text:       #111827;
+      --text2:      #374151;
+      --muted:      #6b7280;
+      --radius:     12px;
+      --shadow-sm:  0 1px 3px rgba(0,0,0,0.06);
+      --shadow:     0 4px 16px rgba(0,0,0,0.08);
+      --tr:         0.18s ease;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; -webkit-font-smoothing: antialiased; }
+
+    /* Navbar */
+    .sp-navbar {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      height: 62px; display: flex; align-items: center;
+      padding: 0 24px; gap: 12px;
+      box-shadow: var(--shadow-sm);
+    }
+    .sp-navbar .logo { height: 42px; width: auto; border-radius: 8px; }
+    .sp-navbar .ml-auto { margin-left: auto; }
+
+    /* Layout */
+    main { padding: 88px 16px 48px; max-width: 520px; margin: 0 auto; }
+
+    /* Page header */
+    .page-header { margin-bottom: 24px; }
+    .page-back {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 0.82rem; font-weight: 600; color: var(--muted);
+      text-decoration: none; margin-bottom: 14px; transition: color var(--tr);
+    }
+    .page-back:hover { color: var(--primary); }
+    .page-title { font-size: 1.45rem; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 10px; }
+    .page-title .page-icon {
+      width: 40px; height: 40px; border-radius: 10px;
+      background: #eff6ff; display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem; color: var(--primary); flex-shrink: 0;
+    }
+    .page-sub { font-size: 0.83rem; color: var(--muted); margin-top: 5px; margin-left: 50px; }
+
+    /* Form card */
+    .form-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); box-shadow: var(--shadow-sm);
+      padding: 28px 28px 24px;
+    }
+
+    /* Current SSID preview */
+    .ssid-preview {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 14px; background: var(--bg); border: 1px solid var(--border);
+      border-radius: 8px; margin-bottom: 20px; min-height: 44px;
+    }
+    .ssid-preview-label { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); white-space: nowrap; }
+    .ssid-preview-value { font-size: 0.9rem; font-weight: 600; color: var(--text); word-break: break-all; }
+    .ssid-preview-loading { display: inline-block; width: 11px; height: 11px; border: 2px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin .7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Form fields */
+    .field-group { margin-bottom: 18px; }
+    .field-label {
+      display: block; font-size: 0.78rem; font-weight: 600;
+      color: var(--text2); margin-bottom: 6px; letter-spacing: .02em;
+    }
+    .field-input {
+      width: 100%; padding: 10px 14px; font-size: 0.9rem; font-family: inherit;
+      color: var(--text); background: var(--bg); border: 1px solid var(--border2);
+      border-radius: 8px; outline: none; transition: border-color var(--tr), box-shadow var(--tr);
+      appearance: none;
+    }
+    .field-input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(37,99,235,0.12);
+      background: var(--surface);
+    }
+    .field-hint { font-size: 0.75rem; color: var(--muted); margin-top: 5px; }
+
+    /* Divider */
+    .form-divider { height: 1px; background: var(--border); margin: 20px 0; }
+
+    /* Buttons */
+    .btn-sp {
+      display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+      padding: 10px 22px; border-radius: 999px; font-size: 0.88rem;
+      font-weight: 600; font-family: inherit; cursor: pointer;
+      border: 1px solid transparent; text-decoration: none; transition: all var(--tr);
+      white-space: nowrap;
+    }
+    .btn-sp-primary {
+      background: var(--primary); color: #fff; border-color: var(--primary);
+    }
+    .btn-sp-primary:hover { background: var(--primary-dk); border-color: var(--primary-dk); color: #fff; }
+    .btn-sp-primary:disabled { opacity: 0.55; cursor: not-allowed; }
+    .btn-sp-ghost {
+      background: transparent; color: var(--muted); border-color: var(--border2);
+    }
+    .btn-sp-ghost:hover { color: var(--text); border-color: var(--border); background: var(--bg); }
+    .btn-sp-danger { background: #fee2e2; color: #b91c1c; border-color: #fca5a5; }
+    .btn-sp-danger:hover { background: #fecaca; }
+
+    .btn-row { display: flex; gap: 10px; flex-wrap: wrap; }
+    .btn-row .btn-sp-primary { flex: 1; min-width: 120px; }
+
+    /* Info banner */
+    .info-banner {
+      display: flex; align-items: flex-start; gap: 10px;
+      padding: 12px 14px; background: #eff6ff; border: 1px solid #bfdbfe;
+      border-radius: 8px; margin-bottom: 20px; font-size: 0.82rem; color: #1e40af;
+    }
+    .info-banner i { flex-shrink: 0; margin-top: 1px; }
+
+    @media (max-width: 560px) {
+      main { padding-top: 80px; }
+      .form-card { padding: 20px 16px 18px; }
+      .btn-row { flex-direction: column; }
+      .btn-row .btn-sp { width: 100%; }
+    }
+  </style>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm fixed-top">
-        <div class="container-fluid d-flex justify-content-between align-items-center px-3">
-            <a class="navbar-brand" href="{{ url_for('dashboard') }}">
-                <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo">
-            </a>
-            <form method="POST" action="{{ url_for('cerrar_sesion') }}" class="mb-0">
-                <button class="btn btn-outline-danger rounded-pill px-4" type="submit">Cerrar Sesión</button>
-            </form>
-        </div>
-    </nav>
-    <div class="main-box">
 
-        <div class="card p-4">
-            <div class="titulo">🌐 Cambiar Nombre de la Red Wifi</div>
-
-            <form id="form-cambiar-nombre">
-                <div class="mb-3">
-                    <label for="nuevo_nombre" class="form-label">Nuevo Nombre</label>
-                    <input type="text" class="form-control" id="nuevo_nombre" name="nuevo_nombre" required>
-                </div>
-                <div class="d-grid gap-2">
-                    <button type="submit" class="btn btn-success">Guardar Nombre</button>
-                    <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">Volver al Inicio</a>
-                </div>
-            </form>
-        </div>
+  <!-- Navbar -->
+  <nav class="sp-navbar">
+    <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo" class="logo"
+         onerror="this.style.display='none'">
+    <div class="ml-auto">
+      <form method="POST" action="{{ url_for('cerrar_sesion') }}" class="mb-0">
+        <button type="submit" class="btn-sp btn-sp-danger">
+          <i class="bi bi-box-arrow-right"></i> Cerrar sesión
+        </button>
+      </form>
     </div>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-    <!-- SweetAlert2 CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Validar dispositivo en segundo plano al cargar la página
-        validarDispositivoEnSegundoPlano();
-        
-        const form = document.getElementById('form-cambiar-nombre');
-        if (form) {
-            form.addEventListener('submit', async function(e) {
-                e.preventDefault();
-                
-                // Verificar que el dispositivo esté validado
-                if (!window.deviceValidado) {
-                    Swal.fire({
-                        icon: 'warning',
-                        title: 'Validando dispositivo...',
-                        text: 'Por favor espera mientras validamos tu dispositivo.',
-                        showConfirmButton: false,
-                        timer: 2000
-                    });
-                    return;
-                }
-                
-                // Mostrar modal de carga
-                Swal.fire({
-                    title: 'Procesando tu solicitud',
-                    html: '<div id="swal-mensaje">Enviando mensaje de WhatsApp...</div><div class="progress mt-3" style="height: 8px;"><div id="swal-barra" class="progress-bar bg-primary" role="progressbar" style="width: 0%"></div></div>',
-                    allowOutsideClick: false,
-                    allowEscapeKey: false,
-                    showConfirmButton: false,
-                    didOpen: () => { Swal.showLoading(); }
-                });
-                
-                // Barra de progreso
-                const barra = document.getElementById('swal-barra');
-                let barraInterval = null;
-                if (barra) {
-                    let progreso = 0;
-                    barra.style.width = '0%';
-                    barraInterval = setInterval(() => {
-                        progreso += 2;
-                        barra.style.width = progreso + '%';
-                        if (progreso >= 100) clearInterval(barraInterval);
-                    }, 100);
-                }
-                
-                // Enviar WhatsApp
-                let formData = new FormData(form);
-                let data = {};
-                formData.forEach((value, key) => { data[key] = value; });
-                
-                let mensajeDiv = document.getElementById('swal-mensaje');
-                if (mensajeDiv) mensajeDiv.innerHTML = 'Enviando mensaje de WhatsApp...';
-                
-                let resp1 = await fetch(window.location.pathname + '?accion=whatsapp', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                });
-                let res1 = await resp1.json();
-                
-                if (!res1.success) {
-                    if (barraInterval) clearInterval(barraInterval);
-                    Swal.fire({ icon: 'error', title: 'Error', text: 'Error al enviar WhatsApp: ' + (res1.message || '') });
-                    return;
-                }
-                
-                // Cambiar nombre de red
-                await new Promise(r => setTimeout(r, 1000));
-                if (mensajeDiv) mensajeDiv.innerHTML = 'Aplicando nombre a redes WiFi...';
-                
-                let resp2 = await fetch(window.location.pathname + '?accion=cambiar', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                });
-                let res2 = await resp2.json();
-                
-                if (!res2.success) {
-                    if (barraInterval) clearInterval(barraInterval);
-                    Swal.fire({ icon: 'error', title: 'Error', text: 'Error al cambiar el nombre de la red: ' + (res2.message || '') });
-                    return;
-                }
-                
-                // Éxito
-                if (barra) barra.style.width = '100%';
-                await new Promise(r => setTimeout(r, 1000));
-                Swal.fire({
-                    icon: 'success',
-                    title: '¡Nombre de red actualizado exitosamente!',
-                    showConfirmButton: false,
-                    timer: 1800
-                });
-                setTimeout(() => { window.location.href = '/dashboard'; }, 1800);
-            });
-        }
-        
-        // Función para validar dispositivo en segundo plano
-        async function validarDispositivoEnSegundoPlano() {
-            try {
-                const response = await fetch(window.location.pathname + '?accion=validar_dispositivo', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
-                });
-                const result = await response.json();
-                
-                if (result.success) {
-                    window.deviceValidado = true;
-                    mostrarEstadoDispositivo(result);
-                } else {
-                    mostrarErrorDispositivo(result.message);
-                }
-            } catch (error) {
-                console.error('Error validando dispositivo:', error);
-                mostrarErrorDispositivo('Error de conexión');
-            }
-        }
-        
-        // Mostrar estado del dispositivo (sin mostrar información técnica)
-        function mostrarEstadoDispositivo(data) {
-            // Solo validar internamente, no mostrar información técnica al usuario
-            console.log('Dispositivo validado:', data);
-            
-            // Mostrar información de redes disponibles
-            if (data.interfaces_info && Object.keys(data.interfaces_info).length > 0) {
-                mostrarRedesDisponibles(data.interfaces_info, data.interfaces_count);
-            }
-        }
-        
-        // Mostrar redes disponibles
-        function mostrarRedesDisponibles(interfaces_info, interfaces_count) {
-            const alertDiv = document.createElement('div');
-            alertDiv.className = 'alert alert-info';
-            
-            let redesInfo = '<strong>📡 Red WiFi Detectada:</strong><br>';
-            
-            // Si hay múltiples interfaces, mostrar todas
-            if (interfaces_count > 1) {
-                redesInfo = '<strong>📡 Redes WiFi Detectadas:</strong><br>';
-                for (const [interfaz, info] of Object.entries(interfaces_info)) {
-                    const icono = info.frecuencia === '2.4GHz' ? '📶' : '🚀';
-                    const ssidActual = info.ssid_actual || 'Desconocido';
-                    redesInfo += `${icono} <strong>${info.frecuencia}</strong> - Nombre actual: "${ssidActual}"<br>`;
-                }
-                redesInfo += '<small>El nuevo nombre se aplicará a ambas redes automáticamente.</small>';
-            } else {
-                // Si hay una sola interfaz, mostrar su SSID
-                const primeraInterfaz = Object.keys(interfaces_info)[0];
-                const info = interfaces_info[primeraInterfaz];
-                const ssidActual = info.ssid_actual || 'Desconocido';
-                redesInfo += `📶 Nombre actual de la red: <strong>"${ssidActual}"</strong>`;
-            }
-            
-            alertDiv.innerHTML = redesInfo;
-            
-            const form = document.getElementById('form-cambiar-nombre');
-            form.parentNode.insertBefore(alertDiv, form);
-        }
-        
-        // Mostrar error del dispositivo
-        function mostrarErrorDispositivo(message) {
-            const alertDiv = document.createElement('div');
-            alertDiv.className = 'alert alert-danger';
-            alertDiv.innerHTML = `<strong>⚠️ Error:</strong> ${message}`;
-            
-            const form = document.getElementById('form-cambiar-nombre');
-            form.parentNode.insertBefore(alertDiv, form);
-        }
-    });
-    </script>
+  </nav>
 
-    <script>
-    let tiempoInactividad = 4 * 60 * 1000; // 4 minutos
-    let tiempoExpiracion = 5 * 60 * 1000; // 5 minutos
-    let alertaMostrada = false;
-    let timeoutAlerta, timeoutCerrar;
+  <main>
 
-    function resetTimers() {
-        clearTimeout(timeoutAlerta);
-        clearTimeout(timeoutCerrar);
-        alertaMostrada = false;
-        timeoutAlerta = setTimeout(mostrarAlertaSesion, tiempoInactividad);
-        timeoutCerrar = setTimeout(cerrarSesion, tiempoExpiracion);
-    }
+    <!-- Header -->
+    <div class="page-header">
+      <a href="{{ url_for('dashboard') }}" class="page-back">
+        <i class="bi bi-arrow-left"></i> Volver al inicio
+      </a>
+      <div class="page-title">
+        <div class="page-icon"><i class="bi bi-wifi"></i></div>
+        Cambiar nombre de red
+      </div>
+      <p class="page-sub">El nuevo SSID se aplicará a todas las bandas de tu red.</p>
+    </div>
 
-    function mostrarAlertaSesion() {
-        alertaMostrada = true;
+    <!-- Form card -->
+    <div class="form-card">
+
+      <!-- SSID actual -->
+      <div class="ssid-preview" id="ssid-preview">
+        <span class="ssid-preview-label">Nombre actual</span>
+        <span class="ssid-preview-value" id="ssid-actual-value">
+          <span class="ssid-preview-loading"></span>
+        </span>
+      </div>
+
+      <div class="info-banner">
+        <i class="bi bi-info-circle-fill"></i>
+        <span>Tras el cambio deberás reconectar todos tus dispositivos con el nuevo nombre de red.</span>
+      </div>
+
+      <form id="form-cambiar-nombre" autocomplete="off">
+
+        <div class="field-group">
+          <label class="field-label" for="nuevo_nombre">Nuevo nombre de red (SSID)</label>
+          <input class="field-input" type="text"
+                 id="nuevo_nombre" name="nuevo_nombre" required
+                 placeholder="Ej. MiRedCasa_2024" maxlength="32">
+          <p class="field-hint">Máximo 32 caracteres. Sin caracteres especiales problemáticos.</p>
+        </div>
+
+        <div class="form-divider"></div>
+
+        <div class="btn-row">
+          <button type="submit" class="btn-sp btn-sp-primary" id="btn-guardar">
+            <i class="bi bi-check-lg"></i> Guardar nombre
+          </button>
+          <a href="{{ url_for('dashboard') }}" class="btn-sp btn-sp-ghost">
+            Cancelar
+          </a>
+        </div>
+
+      </form>
+    </div>
+
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+  <script>
+  document.addEventListener('DOMContentLoaded', function() {
+    validarDispositivoEnSegundoPlano();
+
+    var form = document.getElementById('form-cambiar-nombre');
+    if (form) {
+      form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        if (!window.deviceValidado) {
+          Swal.fire({ icon: 'warning', title: 'Validando dispositivo…', text: 'Por favor espera un momento.', showConfirmButton: false, timer: 2000 });
+          return;
+        }
+
+        var nuevoNombre = document.getElementById('nuevo_nombre').value.trim();
+        if (!nuevoNombre) {
+          Swal.fire({ icon: 'error', title: 'Campo requerido', text: 'Ingresa el nuevo nombre de red.', confirmButtonColor: '#2563eb' });
+          return;
+        }
+
         Swal.fire({
-            title: '¿Quieres continuar en tu sesión?',
-            text: 'Tu sesión está a punto de expirar por inactividad.',
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonText: 'Continuar en mi sesión',
-            cancelButtonText: 'Cerrar sesión',
-            allowOutsideClick: false,
-            allowEscapeKey: false
-        }).then((result) => {
-            if (result.isConfirmed) {
-                fetch('/renovar_sesion', {method: 'POST'})
-                    .then(() => {
-                        resetTimers();
-                        Swal.fire({
-                            icon: 'success',
-                            title: '¡Sesión renovada!',
-                            timer: 1000,
-                            showConfirmButton: false
-                        });
-                    });
-            } else {
-                cerrarSesion();
-            }
+          title: 'Cambiando nombre de red',
+          html: buildProgressHtml(0, 'Enviando notificación por WhatsApp…'),
+          allowOutsideClick: false,
+          allowEscapeKey: false,
+          showConfirmButton: false,
+          didOpen: function() { Swal.showLoading(); }
         });
+
+        var formData = new FormData(form);
+        var data = {};
+        formData.forEach(function(v, k) { data[k] = v; });
+
+        var barraInterval = startProgress();
+
+        try {
+          var resp1 = await fetch(window.location.pathname + '?accion=whatsapp', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+          });
+          var res1 = await resp1.json();
+
+          if (!res1.success) {
+            clearInterval(barraInterval);
+            Swal.fire({ icon: 'error', title: 'Error de notificación', text: res1.message || 'No se pudo enviar la notificación.', confirmButtonColor: '#2563eb' });
+            return;
+          }
+
+          await new Promise(function(r) { setTimeout(r, 1000); });
+          Swal.update({ html: buildProgressHtml(60, 'Aplicando nombre a las redes WiFi…') });
+
+          var resp2 = await fetch(window.location.pathname + '?accion=cambiar', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+          });
+          var res2 = await resp2.json();
+
+          clearInterval(barraInterval);
+
+          if (!res2.success) {
+            Swal.fire({ icon: 'error', title: 'Error al cambiar nombre', text: res2.message || 'No se pudo cambiar el nombre de la red.', confirmButtonColor: '#2563eb' });
+            return;
+          }
+
+          Swal.fire({
+            icon: 'success',
+            title: '¡Nombre actualizado!',
+            html: '<p style="color:#374151;font-size:0.9rem;">El nombre de tu red WiFi fue cambiado correctamente.<br>Reconecta tus dispositivos buscando la nueva red.</p>',
+            confirmButtonText: 'Entendido',
+            confirmButtonColor: '#2563eb'
+          }).then(function() { window.location.href = '/dashboard'; });
+
+        } catch (err) {
+          clearInterval(barraInterval);
+          Swal.fire({ icon: 'error', title: 'Error de conexión', text: 'No se pudo procesar la solicitud.', confirmButtonColor: '#2563eb' });
+        }
+      });
     }
 
-    function cerrarSesion() {
-        fetch('/cerrar_sesion', {method: 'POST'})
-            .then(() => {
-                window.location.href = '/';
-            });
+    function buildProgressHtml(pct, label) {
+      return '<div style="text-align:center;padding:4px 0;">' +
+        '<p style="font-size:0.88rem;color:#374151;margin-bottom:12px;">' + label + '</p>' +
+        '<div style="height:6px;background:#e5e7eb;border-radius:999px;overflow:hidden;margin-bottom:8px;">' +
+          '<div id="swal-bar" style="height:100%;width:' + pct + '%;background:#2563eb;border-radius:999px;transition:width .4s ease;"></div>' +
+        '</div>' +
+      '</div>';
     }
 
-    function verificarSesionActiva() {
-        fetch('/verificar_sesion', {method: 'POST'})
-            .then(res => {
-                if (res.status === 401) {
-                    window.location.href = '/';
-                }
-                return res.json();
-            })
-            .catch(() => {
-                window.location.href = '/';
-            });
+    function startProgress() {
+      var pct = 0;
+      return setInterval(function() {
+        pct += 1;
+        var bar = document.getElementById('swal-bar');
+        if (bar && pct <= 90) bar.style.width = pct + '%';
+      }, 100);
     }
 
-    ['click', 'mousemove', 'keydown', 'scroll', 'touchstart'].forEach(evt => {
-        document.addEventListener(evt, function() {
-            if (!alertaMostrada) resetTimers();
-        }, true);
+    async function validarDispositivoEnSegundoPlano() {
+      try {
+        var response = await fetch(window.location.pathname + '?accion=validar_dispositivo', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }
+        });
+        var result = await response.json();
+        if (result.success) {
+          window.deviceValidado = true;
+          mostrarSSIDActual(result);
+        } else {
+          mostrarErrorDispositivo(result.message);
+          actualizarSSIDPreview(null);
+        }
+      } catch (err) {
+        console.error('Error validando dispositivo:', err);
+        actualizarSSIDPreview(null);
+      }
+    }
+
+    function mostrarSSIDActual(data) {
+      var ssid = null;
+      if (data.interfaces_info) {
+        var keys = Object.keys(data.interfaces_info);
+        if (keys.length > 0) {
+          ssid = data.interfaces_info[keys[0]].ssid_actual || null;
+        }
+      }
+      actualizarSSIDPreview(ssid);
+    }
+
+    function actualizarSSIDPreview(ssid) {
+      var el = document.getElementById('ssid-actual-value');
+      if (el) {
+        el.textContent = ssid ? ssid : 'No disponible';
+      }
+    }
+
+    function mostrarErrorDispositivo(message) {
+      var alertDiv = document.createElement('div');
+      alertDiv.style.cssText = 'background:#fee2e2;border:1px solid #fca5a5;border-radius:8px;padding:10px 14px;font-size:0.82rem;color:#b91c1c;margin-bottom:16px;';
+      alertDiv.innerHTML = '<i class="bi bi-exclamation-triangle me-1"></i> ' + message;
+      var formCard = document.querySelector('.form-card');
+      formCard.insertBefore(alertDiv, formCard.firstChild);
+    }
+  });
+  </script>
+
+  <!-- Timeout de sesión -->
+  <script>
+  var _alerta = false;
+  var _tAlerta, _tCerrar;
+
+  function resetTimers() {
+    clearTimeout(_tAlerta); clearTimeout(_tCerrar);
+    _alerta = false;
+    _tAlerta = setTimeout(mostrarAlertaSesion, 4 * 60 * 1000);
+    _tCerrar = setTimeout(cerrarSesion,        5 * 60 * 1000);
+  }
+
+  function mostrarAlertaSesion() {
+    _alerta = true;
+    Swal.fire({
+      title: '¿Sigues ahí?',
+      text: 'Tu sesión está a punto de expirar por inactividad.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Continuar',
+      cancelButtonText: 'Cerrar sesión',
+      confirmButtonColor: '#2563eb',
+      allowOutsideClick: false,
+      allowEscapeKey: false
+    }).then(function(r) {
+      if (r.isConfirmed) {
+        fetch('/renovar_sesion', { method: 'POST' }).then(function() {
+          resetTimers();
+          Swal.fire({ icon: 'success', title: 'Sesión renovada', timer: 1200, showConfirmButton: false });
+        });
+      } else { cerrarSesion(); }
     });
+  }
 
-    window.onload = function() {
-        resetTimers();
-        setInterval(verificarSesionActiva, 30000);
-    };
-    </script>
+  function cerrarSesion() {
+    fetch('/cerrar_sesion', { method: 'POST' }).then(function() { window.location.href = '/'; });
+  }
+
+  function verificarSesion() {
+    fetch('/verificar_sesion', { method: 'POST' })
+      .then(function(r) { if (r.status === 401) window.location.href = '/'; })
+      .catch(function() { window.location.href = '/'; });
+  }
+
+  ['click','mousemove','keydown','scroll','touchstart'].forEach(function(e) {
+    document.addEventListener(e, function() { if (!_alerta) resetTimers(); }, true);
+  });
+
+  window.onload = function() {
+    resetTimers();
+    setInterval(verificarSesion, 30000);
+  };
+  </script>
 </body>
 </html>

@@ -1,7 +1,7 @@
 from dotenv import load_dotenv
 load_dotenv()
 
-from flask import Flask, Blueprint, render_template, request, redirect, url_for, session, flash, jsonify
+from flask import Flask, Blueprint, render_template, request, redirect, url_for, session, flash, jsonify, send_file
 from functools import wraps
 import os
 import functools
@@ -9,10 +9,11 @@ import random
 import sqlite3
 import time
 import signal
+import io
+import threading
 from datetime import datetime, timedelta
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from soporte import soporte_bp
 from services import ycloud, wisphub, genieacs
 
 # ---------------------------------------------------------------------------
@@ -340,36 +341,7 @@ def verificar_codigo_ajax():
     session.pop('_flashes', None)
 
     cedula = session.get('cedula')
-    servicios_unificados = []
-    try:
-        import requests as req
-        resp = req.get(
-            os.getenv('BASE_URL_WISPHUB'),
-            headers={'Authorization': f'Api-Key {os.getenv("API_KEY_WISPHUB")}',
-                     'Content-Type': 'application/json'},
-            params={'cedula': cedula},
-            timeout=10
-        )
-        if resp.status_code == 200:
-            for c in resp.json().get('results', []):
-                if c.get('cedula') == cedula:
-                    servicios = c.get('servicios', [])
-                    if servicios:
-                        for s in servicios:
-                            if s.get('ip'):
-                                s_copy = dict(s)
-                                s_copy['direccion'] = c.get('direccion', '')
-                                servicios_unificados.append(s_copy)
-                    elif c.get('ip'):
-                        servicios_unificados.append({
-                            'ip': c.get('ip'),
-                            'nombre_servicio': c.get('nombre_servicio', ''),
-                            'ssid_router_wifi': c.get('ssid_router_wifi', ''),
-                            'estado': c.get('estado', ''),
-                            'direccion': c.get('direccion', '')
-                        })
-    except Exception:
-        pass
+    _, servicios_unificados = wisphub.obtener_servicios_por_cedula(cedula)
 
     if len(servicios_unificados) > 1:
         lista = []
@@ -410,40 +382,10 @@ def dashboard():
     password_actual = ''
 
     # 1. Obtener estado del servicio desde Wisphub
-    try:
-        import requests as req
-        resp = req.get(
-            os.getenv('BASE_URL_WISPHUB'),
-            headers={'Authorization': f'Api-Key {os.getenv("API_KEY_WISPHUB")}',
-                     'Content-Type': 'application/json'},
-            params={'cedula': cliente['cedula']},
-            timeout=7
-        )
-        if resp.status_code == 200:
-            servicio_encontrado = None
-            resultados = resp.json().get('results', [])
-            for c in resultados:
-                if c.get('cedula') == cliente['cedula']:
-                    servicios = c.get('servicios', [])
-                    if servicios:
-                        for s in servicios:
-                            if s.get('ip') == ip_seleccionada:
-                                servicio_encontrado = s
-                                break
-                    elif c.get('ip') == ip_seleccionada:
-                        servicio_encontrado = c
-                    if servicio_encontrado:
-                        break
-            if not servicio_encontrado:
-                for c in resultados:
-                    if c.get('cedula') == cliente['cedula']:
-                        servicios = c.get('servicios', [])
-                        servicio_encontrado = servicios[0] if servicios else c
-                        break
-            if servicio_encontrado:
-                estado_servicio = servicio_encontrado.get('estado', '').lower()
-    except Exception:
-        pass
+    _, servicios_data = wisphub.obtener_servicios_por_cedula(cliente['cedula'], timeout=7)
+    if servicios_data:
+        svc = next((s for s in servicios_data if s.get('ip') == ip_seleccionada), servicios_data[0])
+        estado_servicio = svc.get('estado', '').lower()
 
     # 2. Obtener SSID y contraseña reales desde GenieACS
     try:
@@ -720,7 +662,9 @@ def admin_requerido(f):
         if 'admin_id' not in session:
             is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest' or \
                       request.accept_mimetypes.best == 'application/json' or \
-                      request.path.startswith('/api/')
+                      request.path.startswith('/api/') or \
+                      'application/json' in (request.content_type or '') or \
+                      request.method == 'POST'
             if is_ajax:
                 return jsonify({'success': False, 'message': 'Sesión expirada. Inicia sesión de nuevo.'}), 401
             flash('Por favor inicie sesión como administrador', 'error')
@@ -1145,45 +1089,8 @@ def cambiar_wifi_cliente():
         servicios = []
 
         if cedula:
-            import requests as req
-            try:
-                resp = req.get(
-                    os.getenv('BASE_URL_WISPHUB'),
-                    headers={'Authorization': f'Api-Key {os.getenv("API_KEY_WISPHUB")}',
-                             'Content-Type': 'application/json'},
-                    params={'cedula': cedula},
-                    timeout=10
-                )
-                if resp.status_code == 200:
-                    cliente_principal = None
-                    for c in resp.json().get('results', []):
-                        if c.get('cedula') == cedula:
-                            if not cliente_principal:
-                                cliente_principal = c
-                            c_servicios = c.get('servicios', [])
-                            if c_servicios:
-                                for s in c_servicios:
-                                    if s.get('ip'):
-                                        s_copy = dict(s)
-                                        s_copy['direccion'] = c.get('direccion', '')
-                                        s_copy['nombre_cliente'] = c.get('nombre', '')
-                                        servicios.append(s_copy)
-                            elif c.get('ip'):
-                                servicios.append({
-                                    'ip': c.get('ip'),
-                                    'nombre_servicio': c.get('nombre_servicio', ''),
-                                    'ssid_router_wifi': c.get('ssid_router_wifi', ''),
-                                    'estado': c.get('estado', ''),
-                                    'direccion': c.get('direccion', ''),
-                                    'nombre_cliente': c.get('nombre', '')
-                                })
-                    cliente = cliente_principal
-                    if not cliente:
-                        cliente_no_encontrado = True
-                else:
-                    cliente_no_encontrado = True
-            except Exception as e:
-                print(f'[ERROR] Error obteniendo clientes: {e}')
+            cliente, servicios = wisphub.obtener_servicios_por_cedula(cedula)
+            if not cliente:
                 cliente_no_encontrado = True
 
         if cliente and servicios:
@@ -1495,12 +1402,16 @@ def api_clientes():
     Params: page, page_size (10/20/50), q, force_refresh
     Búsqueda por tokens sobre nombre + cédula + ip + teléfono simultáneamente.
     """
-    page      = max(1, int(request.args.get('page', 1)))
-    page_size = min(int(request.args.get('page_size', 20)), 50)
-    q         = request.args.get('q', '').strip().lower()
-    force     = request.args.get('force_refresh', '0') == '1'
+    page          = max(1, int(request.args.get('page', 1)))
+    page_size     = min(int(request.args.get('page_size', 20)), 50)
+    q             = request.args.get('q', '').strip().lower()
+    force         = request.args.get('force_refresh', '0') == '1'
+    estado_filter = request.args.get('estado_filter', '').strip().lower()
 
     todos = wisphub.listar_todos(force_refresh=force)
+
+    if estado_filter:
+        todos = [c for c in todos if (c.get('estado') or '').lower() == estado_filter]
 
     if q:
         tokens = q.split()
@@ -1510,6 +1421,7 @@ def api_clientes():
                 (c.get('cedula')   or '').lower(),
                 (c.get('ip')       or '').lower(),
                 (c.get('telefono') or '').lower(),
+                (c.get('estado')   or '').lower(),
             ])
             return all(t in haystack for t in tokens)
         todos = [c for c in todos if matches(c)]
@@ -1528,6 +1440,194 @@ def api_clientes():
         'page_size':   page_size,
         'total_pages': total_pages,
     })
+
+
+@admin_bp.route('/api/clientes/exportar')
+@admin_requerido
+def exportar_clientes_excel():
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+
+    q     = request.args.get('q', '').strip().lower()
+    force = request.args.get('force_refresh', '0') == '1'
+
+    todos = wisphub.listar_todos(force_refresh=force)
+
+    if q:
+        tokens = q.split()
+        def matches(c):
+            haystack = ' '.join([
+                (c.get('nombre')   or '').lower(),
+                (c.get('cedula')   or '').lower(),
+                (c.get('ip')       or '').lower(),
+                (c.get('telefono') or '').lower(),
+                (c.get('estado')   or '').lower(),
+            ])
+            return all(t in haystack for t in tokens)
+        todos = [c for c in todos if matches(c)]
+
+    # ── Mapa ACS: IP → {'found': bool, 'online': bool} ──
+    acs_map = {}
+    try:
+        svc = genieacs._get_svc()
+        # Traer todos los dispositivos con proyección mínima
+        dispositivos = svc.get_all_devices(projection=(
+            '_id,_lastInform,'
+            'VirtualParameters.IPTR069._value,'
+            'InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANIPConnection.1.ExternalIPAddress._value,'
+            'InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.1.ExternalIPAddress._value,'
+            'InternetGatewayDevice.ManagementServer.ConnectionRequestURL._value'
+        ))
+
+        def _ip_de_device(d):
+            for path in [
+                'VirtualParameters.IPTR069._value',
+                'InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANIPConnection.1.ExternalIPAddress._value',
+                'InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.1.ExternalIPAddress._value',
+            ]:
+                parts = path.split('.')
+                node = d
+                try:
+                    for p in parts:
+                        node = node[p]
+                    if node:
+                        return str(node)
+                except (KeyError, TypeError):
+                    pass
+            # Fallback: extraer IP de ConnectionRequestURL
+            import re
+            url = ''
+            try:
+                url = d['InternetGatewayDevice']['ManagementServer']['ConnectionRequestURL']['_value'] or ''
+            except (KeyError, TypeError):
+                pass
+            m = re.search(r'http://([\d.]+):', url)
+            return m.group(1) if m else None
+
+        for d in dispositivos:
+            ip = _ip_de_device(d)
+            if ip:
+                acs_map[ip] = {
+                    'found':  True,
+                    'online': svc.is_online(d),
+                }
+    except Exception:
+        pass  # Si ACS no responde, la columna queda como 'Sin datos'
+
+    # ── Libro Excel ──
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = 'Clientes'
+
+    azul       = '2563EB'
+    azul_claro = 'EFF6FF'
+    gris_borde = 'E5E7EB'
+
+    header_font  = Font(name='Calibri', bold=True, color='FFFFFF', size=11)
+    header_fill  = PatternFill('solid', fgColor=azul)
+    header_align = Alignment(horizontal='center', vertical='center')
+
+    row_font_bold = Font(name='Calibri', bold=True, size=10)
+    row_font      = Font(name='Calibri', size=10)
+    row_mono      = Font(name='Courier New', size=9.5)
+    row_align     = Alignment(vertical='center', horizontal='left')
+    center_align  = Alignment(vertical='center', horizontal='center')
+
+    thin  = Side(style='thin', color=gris_borde)
+    borde = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+    fill_online  = PatternFill('solid', fgColor='DCFCE7')
+    fill_offline = PatternFill('solid', fgColor='FEE2E2')
+    fill_noacs   = PatternFill('solid', fgColor='F3F4F6')
+    fill_alt     = PatternFill('solid', fgColor='F9FAFB')
+
+    font_online  = Font(name='Calibri', bold=True, size=10, color='15803D')
+    font_offline = Font(name='Calibri', bold=True, size=10, color='B91C1C')
+    font_noacs   = Font(name='Calibri', size=10,            color='6B7280')
+
+    # Encabezados
+    columnas = ['#', 'Nombre', 'Cédula', 'Teléfono', 'IP', 'Estado ACS', 'Fecha exportación']
+    anchos   = [5,   35,       18,       16,          18,   16,            22]
+
+    ws.row_dimensions[1].height = 28
+    for col_idx, (titulo, ancho) in enumerate(zip(columnas, anchos), start=1):
+        cell = ws.cell(row=1, column=col_idx, value=titulo)
+        cell.font      = header_font
+        cell.fill      = header_fill
+        cell.alignment = header_align
+        cell.border    = borde
+        ws.column_dimensions[get_column_letter(col_idx)].width = ancho
+
+    # Filas de datos
+    fecha_export = datetime.now().strftime('%d/%m/%Y %H:%M')
+    for fila_idx, cliente in enumerate(todos, start=2):
+        ws.row_dimensions[fila_idx].height = 20
+        use_alt = fila_idx % 2 == 0
+
+        ip  = cliente.get('ip') or ''
+        acs = acs_map.get(ip)
+
+        if not ip or acs is None:
+            acs_texto = 'Sin ACS'
+            acs_font  = font_noacs
+            acs_fill  = fill_noacs
+        elif acs['online']:
+            acs_texto = 'Online'
+            acs_font  = font_online
+            acs_fill  = fill_online
+        else:
+            acs_texto = 'Offline'
+            acs_font  = font_offline
+            acs_fill  = fill_offline
+
+        filas_datos = [
+            (fila_idx - 1,                       row_font,      row_align,  None),
+            (cliente.get('nombre')   or '—',     row_font_bold, row_align,  None),
+            (cliente.get('cedula')   or '—',     row_mono,      row_align,  None),
+            (cliente.get('telefono') or '—',     row_font,      row_align,  None),
+            (ip or '—',                          row_mono,      row_align,  None),
+            (acs_texto,                          acs_font,      center_align, acs_fill),
+            (fecha_export,                       row_font,      center_align, None),
+        ]
+
+        for col_idx, (valor, fuente, align, celda_fill) in enumerate(filas_datos, start=1):
+            cell = ws.cell(row=fila_idx, column=col_idx, value=valor)
+            cell.font      = fuente
+            cell.alignment = align
+            cell.border    = borde
+            # La celda ACS tiene su propio color; el resto usa la alternancia
+            if celda_fill:
+                cell.fill = celda_fill
+            elif use_alt:
+                cell.fill = fill_alt
+
+    # Fila totales
+    total_row = len(todos) + 2
+    ws.row_dimensions[total_row].height = 20
+    online_count  = sum(1 for c in todos if acs_map.get(c.get('ip') or '', {}).get('online'))
+    offline_count = sum(1 for c in todos if c.get('ip') and acs_map.get(c.get('ip'), {}).get('found') and not acs_map[c['ip']]['online'])
+    resumen = f'Total: {len(todos)} clientes  |  ACS Online: {online_count}  |  ACS Offline: {offline_count}'
+    total_cell = ws.cell(row=total_row, column=1, value=resumen)
+    total_cell.font      = Font(name='Calibri', bold=True, size=10, color=azul)
+    total_cell.fill      = PatternFill('solid', fgColor=azul_claro)
+    total_cell.border    = borde
+    total_cell.alignment = Alignment(horizontal='center', vertical='center')
+    ws.merge_cells(start_row=total_row, start_column=1, end_row=total_row, end_column=len(columnas))
+
+    ws.freeze_panes = 'A2'
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    nombre_archivo = f"clientes_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
+    return send_file(
+        buf,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=nombre_archivo,
+    )
 
 
 @admin_bp.route('/buscar-cliente')
@@ -1631,7 +1731,7 @@ def api_dashboard_stats():
         ).fetchone()
         result['cambios_mes'] = row['total'] if row else 0
         recent_ch = conn.execute(
-            "SELECT cedula, tipo_cambio, fecha FROM change_history ORDER BY fecha DESC LIMIT 8"
+            "SELECT cedula, tipo_cambio, valor_nuevo, fecha FROM change_history ORDER BY fecha DESC LIMIT 8"
         ).fetchall()
         result['cambios_recientes'] = [dict(r) for r in recent_ch]
         conn.close()
@@ -1934,8 +2034,17 @@ def add_header(response):
     return response
 
 
+@admin_bp.route('/api/limpiar-duplicados', methods=['POST'])
+@admin_requerido
+def limpiar_duplicados_acs():
+    try:
+        resultado = genieacs._get_svc().limpiar_duplicados_ip()
+        return jsonify({'success': True, **resultado})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
 app.register_blueprint(admin_bp)
-app.register_blueprint(soporte_bp)
 
 
 # ---------------------------------------------------------------------------
@@ -1988,6 +2097,66 @@ def api_cambiar_wifi():
         'interfaces': interfaces_activas,
         'message': mensaje,
     })
+
+@app.route('/api/verificar_dispositivo', methods=['GET'])
+@requiere_api_key
+def api_verificar_dispositivo():
+    """
+    Verifica si una IP existe en GenieACS y si está online.
+
+    Header: X-Api-Key: <SKYPASS_API_KEY>
+    Query:  GET /api/verificar_dispositivo?ip=1.2.3.4
+
+    Respuesta:
+      { "success": true, "ip": "...", "encontrado": true/false, "online": true/false, "device_id": "..." }
+    """
+    ip = request.args.get('ip', '').strip()
+
+    if not ip:
+        return jsonify({'success': False, 'message': 'El parámetro "ip" es obligatorio'}), 400
+
+    # Validación básica de formato IP
+    partes = ip.split('.')
+    if len(partes) != 4 or not all(p.isdigit() and 0 <= int(p) <= 255 for p in partes):
+        return jsonify({'success': False, 'message': 'Formato de IP inválido'}), 400
+
+    try:
+        svc    = genieacs._get_svc()
+        device = svc.get_device_by_ip(ip)
+
+        if not device:
+            return jsonify({'success': True, 'ip': ip, 'encontrado': False, 'online': False, 'device_id': None})
+
+        online    = svc.is_online(device)
+        device_id = device.get('_id')
+
+        return jsonify({'success': True, 'ip': ip, 'encontrado': True, 'online': online, 'device_id': device_id})
+
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Error consultando GenieACS: {str(e)}'}), 500
+
+
+# ---------------------------------------------------------------------------
+# Scheduler — limpieza automática de duplicados ACS cada 30 min
+# ---------------------------------------------------------------------------
+
+def _job_limpiar_duplicados():
+    INTERVALO = 30 * 60
+    while True:
+        time.sleep(INTERVALO)
+        try:
+            resultado = genieacs._get_svc().limpiar_duplicados_ip()
+            eliminados = resultado.get('eliminados', [])
+            if eliminados:
+                print(f"[ACS] Limpieza duplicados: {len(eliminados)} eliminado(s) — {[e['ip'] for e in eliminados]}")
+            else:
+                print(f"[ACS] Limpieza duplicados: sin duplicados encontrados.")
+        except Exception as e:
+            print(f"[ACS] Error en limpieza de duplicados: {e}")
+
+_scheduler = threading.Thread(target=_job_limpiar_duplicados, daemon=True, name="acs-limpiar-dup")
+_scheduler.start()
+
 
 if __name__ == "__main__":
     app.run(debug=False)

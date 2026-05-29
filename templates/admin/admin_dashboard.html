@@ -194,7 +194,7 @@
                 <tr>
                     <th>Cédula</th>
                     <th>Tipo</th>
-                    <th>IP</th>
+                    <th>Valor</th>
                 </tr>
             </thead>
             <tbody id="tbody-cambios">
@@ -277,7 +277,7 @@ function cargarStats() {
                 return `<tr>
                     <td style="font-family:monospace;font-size:0.8rem;">${c.cedula}</td>
                     <td>${tipo}</td>
-                    <td style="color:#9ca3af;font-size:0.75rem;">${c.ip_onu || '—'}</td>
+                    <td style="color:#9ca3af;font-size:0.75rem;">${c.valor_nuevo || '—'}</td>
                 </tr>`;
             }).join('');
         } else {
