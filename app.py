@@ -2071,7 +2071,23 @@ def api_cambiar_wifi():
     if len(nueva_password) < 8:
         return jsonify({'success': False, 'message': 'La contraseña debe tener al menos 8 caracteres'}), 400
 
-    # 1. Buscar el dispositivo por VirtualParameters.IPTR069
+    # 1. Buscar cliente en WispHub para obtener cédula y validar límite
+    cliente = wisphub.buscar_por_ip(ip)
+    cedula  = cliente.get('cedula') if cliente else None
+
+    if cedula:
+        limite_cambios   = obtener_limite_cliente(ip)
+        cambios_realizados = contar_cambios_usuario_mes(cedula)
+        if cambios_realizados >= limite_cambios:
+            return jsonify({
+                'success': False,
+                'code':    'limite_alcanzado',
+                'message': f'Límite de cambios alcanzado. Llevas {cambios_realizados} de {limite_cambios} cambios permitidos este mes.',
+                'cambios_realizados': cambios_realizados,
+                'limite':             limite_cambios,
+            })
+
+    # 2. Buscar el dispositivo en el servidor ACS
     svc = genieacs._get_svc()
     device = svc.get_device_by_ip(ip)
     if not device:
@@ -2079,17 +2095,20 @@ def api_cambiar_wifi():
 
     device_id = device.get('_id')
 
-    # 2. Detectar interfaces WiFi activas
+    # 3. Detectar interfaces WiFi activas
     interfaces_activas = genieacs.detectar_interfaces_wifi_activas(device_id)
     if not interfaces_activas:
         return jsonify({'success': False, 'message': 'No se encontraron interfaces WiFi activas en el dispositivo'}), 422
 
-    # 3. Cambiar la contraseña en cada interfaz y reiniciar
+    # 4. Cambiar la contraseña en cada interfaz y reiniciar
     ok, mensaje = genieacs.cambiar_contraseña_wifi_interfaces_ya_detectadas(
         device_id, interfaces_activas, nueva_password
     )
     if not ok:
         return jsonify({'success': False, 'message': mensaje}), 500
+
+    if cedula:
+        registrar_cambio_usuario(cedula, 'Password', 'Nueva')
 
     return jsonify({
         'success': True,
