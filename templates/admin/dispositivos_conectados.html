@@ -202,9 +202,16 @@
 {% block content %}
 <div class="page-topbar">
     <div class="page-title">Dispositivos</div>
-    <button class="btn btn-sm btn-primary" id="btn-refrescar">
-        <i class="bi bi-arrow-clockwise"></i> Refrescar
-    </button>
+    <div style="display:flex;gap:0.5rem;align-items:center;">
+        <button class="btn btn-sm btn-primary" id="btn-refrescar">
+            <i class="bi bi-arrow-clockwise"></i> Refrescar
+        </button>
+        <button class="btn btn-sm" id="btn-limpiar-dup"
+                style="background:#fffbeb;color:#92400e;border:1px solid #fde68a;font-weight:600;"
+                title="Elimina dispositivos offline con IP duplicada">
+            <i class="bi bi-layers"></i> Limpiar duplicados
+        </button>
+    </div>
 </div>
 
 <div class="summary-cards">
@@ -536,6 +543,50 @@
     }
 
     document.getElementById('btn-refrescar').addEventListener('click', cargarDispositivos);
+
+    document.getElementById('btn-limpiar-dup').addEventListener('click', async function() {
+        const { isConfirmed } = await Swal.fire({
+            title: '¿Limpiar duplicados?',
+            html: 'Se eliminarán del <b>servidor ACS</b> los dispositivos <b>offline</b> que compartan IP con uno <b>online</b>.<br><br>Esta acción no se puede deshacer.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Sí, limpiar',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#d97706',
+            cancelButtonColor: '#6b7280',
+        });
+        if (!isConfirmed) return;
+
+        Swal.fire({ title: 'Analizando...', text: 'Consultando todos los dispositivos en el servidor ACS.', allowOutsideClick: false, showConfirmButton: false, didOpen: () => Swal.showLoading() });
+
+        try {
+            const res = await (await fetch('/admin/api/limpiar-duplicados', { method: 'POST' })).json();
+            if (!res.success) { Swal.fire({ icon: 'error', title: 'Error', text: res.message }); return; }
+
+            const { duplicados_encontrados: dup, eliminados, errores } = res;
+
+            if (dup === 0) {
+                Swal.fire({ icon: 'success', title: 'Sin duplicados', text: 'No se encontraron IPs duplicadas con dispositivo online y offline al mismo tiempo.', timer: 3000, showConfirmButton: false });
+                cargarDispositivos();
+                return;
+            }
+
+            let html = `<b>${eliminados.length}</b> dispositivo${eliminados.length !== 1 ? 's' : ''} eliminado${eliminados.length !== 1 ? 's' : ''} de <b>${dup}</b> grupo${dup !== 1 ? 's' : ''} con IP duplicada.`;
+            if (eliminados.length) {
+                html += '<ul style="text-align:left;margin-top:.6rem;font-size:.82rem;">';
+                eliminados.forEach(e => { html += `<li style="font-family:monospace;">${e.ip} — ${e.device_id}</li>`; });
+                html += '</ul>';
+            }
+            if (errores.length) {
+                html += `<p style="color:#b91c1c;margin-top:.5rem;font-size:.8rem;"><b>${errores.length} error(es)</b> al eliminar.</p>`;
+            }
+
+            Swal.fire({ icon: 'success', title: 'Limpieza completada', html, confirmButtonColor: '#2563eb' });
+            cargarDispositivos();
+        } catch {
+            Swal.fire({ icon: 'error', title: 'Error de conexión' });
+        }
+    });
     document.getElementById('filtro-busqueda').addEventListener('input', () => { currentPage = 1; renderTabla(); });
     document.getElementById('filtro-estado').addEventListener('change', () => { currentPage = 1; renderTabla(); });
     document.getElementById('items-per-page').addEventListener('change', function () {

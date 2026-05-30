@@ -447,43 +447,12 @@ class GenieACService:
 
     def set_wifi_password(self, device_id: str, interfaces: list[dict],
                           password: str) -> dict:
-        """
-        Tarea 1 (obligatoria, connection_request): solo KeyPassphrase — funciona
-        en todos los modelos. Si falla, se retorna el error sin continuar.
-
-        Tarea 2 (opcional, encolada): PreSharedKey + auth mode. Algunos modelos
-        los rechazan con fault 9007 porque son read-only; al ir en tarea separada
-        ese fallo no contamina la tarea principal.
-        """
-        params_required = []
-        params_optional = []
+        params = []
         for iface in interfaces:
             p = iface["path"]
-            params_required.append(
-                (f"{p}.KeyPassphrase", password, "xsd:string")
-            )
-            params_optional += [
-                (f"{p}.PreSharedKey.1.KeyPassphrase", password,            "xsd:string"),
-                (f"{p}.PreSharedKey.1.PreSharedKey",  password,            "xsd:string"),
-                (f"{p}.WPAAuthenticationMode",        "PSKAuthentication", "xsd:string"),
-                (f"{p}.WPAEncryptionModes",           "AESEncryption",     "xsd:string"),
-            ]
-
-        # Tarea obligatoria — con connection_request para ejecución inmediata
-        r = self.set_parameter_values(device_id, params_required)
-        if not r["success"]:
-            return r
-
-        # Tarea opcional — encolada, sin connection_request; fallo se ignora
-        try:
-            self._post_task(device_id, {
-                "name":            "setParameterValues",
-                "parameterValues": [list(p) for p in params_optional],
-            }, connection_request=False)
-        except Exception:
-            pass
-
-        return r
+            params.append((f"{p}.PreSharedKey.1.PreSharedKey",                password, "xsd:string"))
+            params.append((f"{p}.PreSharedKey.1.KeyPassphrase", password, "xsd:string"))
+        return self.set_parameter_values(device_id, params)
 
     def set_wifi_ssid(self, device_id: str, interfaces: list[dict], ssid: str) -> dict:
         """Añade sufijos -2.4GHz / -5GHz automáticamente si hay 2 interfaces."""
