@@ -87,11 +87,11 @@ def buscar_por_ip(ip, timeout=7):
 
 def buscar_por_nombre_parcial(q, timeout=6):
     """
-    Busca clientes cuyo nombre contiene q (búsqueda parcial, case-insensitive).
-    Returns: lista de dicts con ip, nombre, cedula, telefono.
+    Busca clientes cuyo nombre contiene q usando filtro server-side de WispHub.
+    Returns: lista de dicts con ip, nombre, cedula, telefono, estado.
     """
     try:
-        resp = requests.get(BASE_URL, headers=_headers(), timeout=timeout)
+        resp = requests.get(BASE_URL, headers=_headers(), params={'nombre': q}, timeout=timeout)
         if resp.status_code != 200:
             return []
         q_lower = q.lower()
@@ -100,10 +100,11 @@ def buscar_por_nombre_parcial(q, timeout=6):
             nombre = c.get('nombre', '')
             if nombre and q_lower in nombre.lower():
                 resultado.append({
-                    'ip': c.get('ip') or c.get('ip_address'),
-                    'nombre': nombre,
-                    'cedula': c.get('cedula', ''),
-                    'telefono': c.get('telefono', '') or c.get('celular', '')
+                    'ip':       c.get('ip') or c.get('ip_address') or '',
+                    'nombre':   nombre,
+                    'cedula':   c.get('cedula', ''),
+                    'telefono': c.get('telefono', '') or c.get('celular', ''),
+                    'estado':   c.get('estado', ''),
                 })
         return resultado
     except Exception as e:
@@ -113,24 +114,25 @@ def buscar_por_nombre_parcial(q, timeout=6):
 
 def buscar_por_cedula_parcial(q, timeout=6):
     """
-    Busca clientes cuya cédula contiene q (búsqueda parcial).
-    Returns: lista de dicts con ip, nombre, cedula, telefono.
+    Busca clientes por cédula usando filtro server-side de WispHub.
+    Returns: lista de dicts con ip, nombre, cedula, telefono, estado.
     """
     try:
-        resp = requests.get(BASE_URL, headers=_headers(), timeout=timeout)
+        resp = requests.get(BASE_URL, headers=_headers(), params={'cedula': q}, timeout=timeout)
         if resp.status_code != 200:
             return []
-        q_lower = q.lower()
         resultado = []
         for c in resp.json().get('results', []):
             cedula = c.get('cedula', '')
-            if cedula and q_lower in cedula.lower():
-                resultado.append({
-                    'ip': c.get('ip') or c.get('ip_address'),
-                    'nombre': c.get('nombre', ''),
-                    'cedula': cedula,
-                    'telefono': c.get('telefono', '') or c.get('celular', '')
-                })
+            if not cedula:
+                continue
+            resultado.append({
+                'ip':       c.get('ip') or c.get('ip_address') or '',
+                'nombre':   c.get('nombre', ''),
+                'cedula':   cedula,
+                'telefono': c.get('telefono', '') or c.get('celular', ''),
+                'estado':   c.get('estado', ''),
+            })
         return resultado
     except Exception as e:
         print(f"[WispHub] Error buscando por cédula '{q}': {e}")

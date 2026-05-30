@@ -1293,10 +1293,11 @@ def api_buscar_clientes():
         if tipo_busqueda == 'ip':
             cliente = wisphub.buscar_por_ip(q)
             clientes = [{
-                'ip': cliente.get('ip') or cliente.get('ip_address'),
-                'nombre': cliente.get('nombre', ''),
-                'cedula': cliente.get('cedula', ''),
-                'telefono': cliente.get('telefono', '') or cliente.get('celular', '')
+                'ip':       cliente.get('ip') or cliente.get('ip_address') or '',
+                'nombre':   cliente.get('nombre', ''),
+                'cedula':   cliente.get('cedula', ''),
+                'telefono': cliente.get('telefono', '') or cliente.get('celular', ''),
+                'estado':   cliente.get('estado', ''),
             }] if cliente else []
         elif tipo_busqueda == 'cedula':
             clientes = wisphub.buscar_por_cedula_parcial(q)

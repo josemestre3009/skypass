@@ -11,6 +11,35 @@
 .hist-table tr:last-child td { border-bottom:none; }
 .badge-pass { background:#dbeafe;color:#1d4ed8;border-radius:99px;padding:0.1rem 0.5rem;font-size:0.72rem;font-weight:600; }
 .badge-ssid { background:#fef9c3;color:#854d0e;border-radius:99px;padding:0.1rem 0.5rem;font-size:0.72rem;font-weight:600; }
+.cedula-link { color:#2563eb;cursor:pointer;text-decoration:none;font-family:monospace;font-size:0.8rem;border-bottom:1px dashed #93c5fd; }
+.cedula-link:hover { color:#1d4ed8; }
+
+/* ── Cliente popup ─────────────────────────────── */
+.cp-header { display:flex;align-items:center;gap:1rem;padding:1.25rem 1.5rem 1rem;border-bottom:1px solid #f0f0f0;text-align:left; }
+.cp-avatar { width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#6366f1);display:flex;align-items:center;justify-content:center;font-size:1.25rem;font-weight:700;color:#fff;flex-shrink:0;letter-spacing:-.5px; }
+.cp-name { font-size:1rem;font-weight:700;color:#111;line-height:1.25; }
+.cp-cedula { font-family:monospace;font-size:0.78rem;color:#6b7280;margin-top:0.15rem; }
+.cp-body { padding:0.75rem 1.5rem; }
+.cp-grid { display:grid;grid-template-columns:1fr 1fr;gap:0.6rem 1.5rem; }
+.cp-field { display:flex;flex-direction:column;gap:0.15rem;padding:0.55rem 0.75rem;background:#f9fafb;border-radius:0.5rem; }
+.cp-field.full { grid-column:1/-1; }
+.cp-lbl { font-size:0.67rem;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.06em; }
+.cp-val { font-size:0.88rem;font-weight:600;color:#111; }
+.cp-val.mono { font-family:monospace; }
+.cp-footer { padding:0.85rem 1.5rem;border-top:1px solid #f0f0f0;display:flex;justify-content:flex-end;gap:0.6rem; }
+.cp-btn-onu { display:inline-flex;align-items:center;gap:.4rem;background:#2563eb;color:#fff;border:none;border-radius:8px;padding:.5rem 1.25rem;font-size:.83rem;font-weight:600;text-decoration:none;cursor:pointer;transition:background .15s; }
+.cp-btn-onu:hover { background:#1d4ed8;color:#fff; }
+.cp-badge { border-radius:99px;padding:.18rem .65rem;font-size:.75rem;font-weight:700;display:inline-block; }
+.cp-badge.activo   { background:#dcfce7;color:#15803d; }
+.cp-badge.suspendido { background:#fef9c3;color:#854d0e; }
+.cp-badge.cancelado  { background:#fee2e2;color:#b91c1c; }
+.cp-badge.gratis   { background:#ede9fe;color:#6d28d9; }
+.cp-badge.otro     { background:#f3f4f6;color:#6b7280; }
+.cp-acs-online  { background:#dcfce7;color:#15803d;border-radius:99px;padding:.18rem .65rem;font-size:.75rem;font-weight:700; }
+.cp-acs-offline { background:#fee2e2;color:#b91c1c;border-radius:99px;padding:.18rem .65rem;font-size:.75rem;font-weight:700; }
+.cp-acs-none    { color:#9ca3af;font-size:.82rem; }
+.cp-swal-popup  { border-radius:1rem!important;overflow:hidden;padding:0!important; }
+.swal2-html-container { margin:0!important;padding:0!important; }
 </style>
 {% endblock %}
 {% block content %}
@@ -50,7 +79,7 @@
                 {% for cambio in historial %}
                 <tr>
                     <td style="white-space:nowrap;color:#6b7280;font-size:0.78rem;">{{ cambio.fecha | formatear_fecha }}</td>
-                    <td style="font-family:monospace;font-size:0.8rem;">{{ cambio.cedula }}</td>
+                    <td><span class="cedula-link" onclick="mostrarInfoCliente('{{ cambio.cedula }}')">{{ cambio.cedula }}</span></td>
                     <td>
                         {% if cambio.tipo_cambio == 'Password' %}
                             <span class="badge-pass">Contraseña</span>
@@ -93,6 +122,94 @@
 {% endblock %}
 {% block scripts %}
 <script>
+async function mostrarInfoCliente(cedula) {
+    Swal.fire({ title: 'Cargando...', allowOutsideClick: false, showConfirmButton: false, didOpen: () => Swal.showLoading() });
+
+    try {
+        const res  = await (await fetch(`/admin/api/buscar_clientes?q=${encodeURIComponent(cedula)}&tipo=cedula`)).json();
+        const lista = res.clientes || [];
+        const c = lista.find(x => x.cedula === cedula) || lista[0];
+
+        if (!c) {
+            Swal.fire({ icon: 'warning', title: 'No encontrado', text: 'No se encontraron datos del cliente.' });
+            return;
+        }
+
+        // Fetch ACS status
+        let deviceId = null;
+        let acsHtml  = '<span class="cp-acs-none">Sin dispositivo</span>';
+        if (c.ip) {
+            try {
+                const acs = await (await fetch(`/admin/api/acs_status?ip=${encodeURIComponent(c.ip)}`)).json();
+                if (acs.found && acs.online) {
+                    deviceId = acs.device_id;
+                    acsHtml  = '<span class="cp-acs-online">● Online</span>';
+                } else if (acs.found) {
+                    deviceId = acs.device_id;
+                    acsHtml  = '<span class="cp-acs-offline">● Offline</span>';
+                }
+            } catch {}
+        }
+
+        const estadoKey = (c.estado || '').toLowerCase();
+        const estadoClass = ['activo','suspendido','cancelado','gratis'].includes(estadoKey) ? estadoKey : 'otro';
+        const estadoBadge = c.estado
+            ? `<span class="cp-badge ${estadoClass}">${c.estado}</span>`
+            : '<span style="color:#9ca3af;">—</span>';
+
+        const initials = (c.nombre || '??').split(' ').slice(0,2).map(w => w[0]).join('').toUpperCase();
+
+        const btnOnu = deviceId
+            ? `<a href="/admin/dispositivo/${encodeURIComponent(deviceId)}" class="cp-btn-onu">
+                   <i class="bi bi-hdd-network"></i> Ver ONU
+               </a>`
+            : '';
+
+        Swal.fire({
+            html: `
+            <div class="cp-header">
+                <div class="cp-avatar">${initials}</div>
+                <div>
+                    <div class="cp-name">${c.nombre || 'Sin nombre'}</div>
+                    <div class="cp-cedula">${c.cedula || '—'}</div>
+                </div>
+            </div>
+            <div class="cp-body">
+                <div class="cp-grid">
+                    <div class="cp-field">
+                        <span class="cp-lbl">Teléfono</span>
+                        <span class="cp-val">${c.telefono || '—'}</span>
+                    </div>
+                    <div class="cp-field">
+                        <span class="cp-lbl">Estado</span>
+                        <span class="cp-val">${estadoBadge}</span>
+                    </div>
+                    <div class="cp-field">
+                        <span class="cp-lbl">IP</span>
+                        <span class="cp-val mono">${c.ip || '—'}</span>
+                    </div>
+                    <div class="cp-field">
+                        <span class="cp-lbl">Servidor ACS</span>
+                        <span class="cp-val">${acsHtml}</span>
+                    </div>
+                </div>
+            </div>
+            ${btnOnu || deviceId === null && c.ip ? '' : ''}
+            <div class="cp-footer">
+                ${btnOnu}
+                <button onclick="Swal.close()" style="background:#f3f4f6;color:#374151;border:none;border-radius:8px;padding:.5rem 1.1rem;font-size:.83rem;font-weight:600;cursor:pointer;">Cerrar</button>
+            </div>`,
+            showConfirmButton: false,
+            showCloseButton: false,
+            width: 520,
+            padding: 0,
+            customClass: { popup: 'cp-swal-popup' },
+        });
+    } catch {
+        Swal.fire({ icon: 'error', title: 'Error de conexión' });
+    }
+}
+
 document.querySelectorAll('.btn-eliminar-cambio').forEach(btn => {
     btn.addEventListener('click', function() {
         const id = this.getAttribute('data-id');
