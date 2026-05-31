@@ -466,12 +466,29 @@ def cambiar_clave():
     if len(nueva_clave) < 8:
         return jsonify({'success': False, 'message': 'La contraseña debe tener al menos 8 caracteres'})
 
-    device_info      = session.get('device_info', {})
-    device_id        = device_info.get('device_id')
+    device_info        = session.get('device_info', {})
+    device_id          = device_info.get('device_id')
     interfaces_activas = device_info.get('interfaces_activas', [])
 
     if not device_id:
-        return jsonify({'success': False, 'message': 'No se encontró información del dispositivo. Recarga la página.'})
+        # Re-validar automáticamente si la sesión no tiene device_info
+        ip = session.get('ip')
+        if ip:
+            try:
+                dispositivo_online, device_id = genieacs.obtener_estado_online_device(ip)
+                if not dispositivo_online:
+                    device_id = genieacs.obtener_device_id_por_ip(ip)
+                if device_id:
+                    interfaces_activas = genieacs.detectar_interfaces_wifi_activas(device_id)
+                    session['device_info'] = {
+                        'device_id': device_id,
+                        'interfaces_activas': interfaces_activas,
+                        'detected_at': datetime.now().isoformat()
+                    }
+            except Exception:
+                pass
+        if not device_id:
+            return jsonify({'success': False, 'message': 'No se encontró el dispositivo. Verifica que esté conectado e intenta de nuevo.'})
 
     if accion == 'whatsapp':
         whatsapp = ycloud.normalizar_numero(cliente['celular'])
@@ -545,12 +562,29 @@ def cambiar_nombre_red():
     if not nuevo_nombre:
         return jsonify({'success': False, 'message': 'Por favor ingrese un nuevo nombre'})
 
-    device_info    = session.get('device_info_red', {})
-    device_id      = device_info.get('device_id')
+    device_info     = session.get('device_info_red', {})
+    device_id       = device_info.get('device_id')
     interfaces_info = device_info.get('interfaces_info', {})
 
     if not device_id:
-        return jsonify({'success': False, 'message': 'No se encontró información del dispositivo. Recarga la página.'})
+        ip = session.get('ip')
+        if ip:
+            try:
+                _, device_id = genieacs.obtener_estado_online_device(ip)
+                if not device_id:
+                    device_id = genieacs.obtener_device_id_por_ip(ip)
+                if device_id:
+                    interfaces_activas, interfaces_info = genieacs.detectar_interfaces_y_frecuencias(device_id)
+                    session['device_info_red'] = {
+                        'device_id': device_id,
+                        'interfaces_activas': interfaces_activas,
+                        'interfaces_info': interfaces_info,
+                        'detected_at': datetime.now().isoformat()
+                    }
+            except Exception:
+                pass
+        if not device_id:
+            return jsonify({'success': False, 'message': 'No se encontró el dispositivo. Verifica que esté conectado e intenta de nuevo.'})
 
     if accion == 'whatsapp':
         whatsapp = ycloud.normalizar_numero(cliente['celular'])
