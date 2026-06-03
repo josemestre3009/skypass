@@ -451,7 +451,7 @@ class GenieACService:
         for iface in interfaces:
             p = iface["path"]
             params.append((f"{p}.PreSharedKey.1.KeyPassphrase", password, "xsd:string"))
-            params.append((f"{p}.PreSharedKey.1.PreSharedKey", password, "xsd:string"))
+            params.append((f"{p}.KeyPassphrase", password, "xsd:string"))
         return self.set_parameter_values(device_id, params)
 
     def set_wifi_ssid(self, device_id: str, interfaces: list[dict], ssid: str) -> dict:
