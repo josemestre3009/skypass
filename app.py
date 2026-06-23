@@ -1228,34 +1228,39 @@ def api_wifi_password():
 @admin_bp.route('/api/clientes')
 @admin_requerido
 def api_clientes():
-    """
-    Lista todos los clientes paginados con filtro unificado.
-    Params: page, page_size (10/20/50), q, force_refresh
-    Búsqueda por tokens sobre nombre + cédula + ip + teléfono simultáneamente.
-    """
     page          = max(1, int(request.args.get('page', 1)))
     page_size     = min(int(request.args.get('page_size', 20)), 50)
-    q             = request.args.get('q', '').strip().lower()
+    q             = request.args.get('q', '').strip()
+    tipo          = request.args.get('tipo', '').strip()
     force         = request.args.get('force_refresh', '0') == '1'
     estado_filter = request.args.get('estado_filter', '').strip().lower()
 
-    todos = wisphub.listar_todos(force_refresh=force)
+    # Búsqueda server-side en WispHub cuando hay tipo + q
+    if q and tipo in ('nombre', 'cedula', 'ip'):
+        if tipo == 'nombre':
+            todos = wisphub.buscar_por_nombre_parcial(q)
+        elif tipo == 'cedula':
+            todos = wisphub.buscar_por_cedula_parcial(q)
+        else:
+            todos = wisphub.buscar_por_ip_parcial(q)
+    else:
+        todos = wisphub.listar_todos(force_refresh=force)
+        if q:
+            q_lower = q.lower()
+            tokens  = q_lower.split()
+            def matches(c):
+                haystack = ' '.join([
+                    (c.get('nombre')   or '').lower(),
+                    (c.get('cedula')   or '').lower(),
+                    (c.get('ip')       or '').lower(),
+                    (c.get('telefono') or '').lower(),
+                    (c.get('estado')   or '').lower(),
+                ])
+                return all(t in haystack for t in tokens)
+            todos = [c for c in todos if matches(c)]
 
     if estado_filter:
         todos = [c for c in todos if (c.get('estado') or '').lower() == estado_filter]
-
-    if q:
-        tokens = q.split()
-        def matches(c):
-            haystack = ' '.join([
-                (c.get('nombre')   or '').lower(),
-                (c.get('cedula')   or '').lower(),
-                (c.get('ip')       or '').lower(),
-                (c.get('telefono') or '').lower(),
-                (c.get('estado')   or '').lower(),
-            ])
-            return all(t in haystack for t in tokens)
-        todos = [c for c in todos if matches(c)]
 
     total       = len(todos)
     total_pages = max(1, -(-total // page_size))
